@@ -8,7 +8,7 @@ CPABooks Audited Financials (AFG)
 From trial balance to the full pack: Profit or Loss, Financial Position,
 Equity, Cash Flow, PPE schedule, notes and UAE Corporate Tax.
     """,
-    'version': '14.0.1.0.227',
+    'version': '14.0.1.0.228',
     'category': 'Accounting',
     'author': 'CPABooks',
     'website': 'https://www.cpabooks.co',
@@ -17,6 +17,10 @@ Equity, Cash Flow, PPE schedule, notes and UAE Corporate Tax.
     'currency': 'USD',
     'support': 'support@cpabooks.co',
     'images': [
+        'static/description/cover_01_screenshot.jpg',
+        'static/description/cover_02_screenshot.jpg',
+        'static/description/cover_03_screenshot.jpg',
+        'static/description/cover_04_screenshot.jpg',
         'static/description/banner_screenshot.jpg',
         'static/description/feature_01_setup.jpg',
         'static/description/feature_02_reporting.jpg',
