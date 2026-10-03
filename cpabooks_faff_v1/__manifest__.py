@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'CPABooks FAFF',
-    'version': '14.0.1.0.15',
+    'name': 'CPA Books FAFF',
+    'version': '14.0.1.0.17',
+    'author': 'CPA Books',
     'summary': 'Fire Alarm & Fire Fighting job management (CRM to Payment)',
     'sequence': -95,
     'description': """
@@ -10,11 +11,12 @@ CRM → Inspection → Estimate → Quotation → Project → Materials →
 Execute → Test → Handover → Invoice → Payment.
     """,
     'category': 'Services/Fire Safety',
-    'website': 'https://www.parimaldbz.com',
+    'website': 'https://www.cpabooks.co',
+    'support': 'info@cpabooks.org',
     'license': 'LGPL-3',
     'price': 0.00,
     'currency': 'USD',
-    'images': ['static/description/icon.png'],
+    'images': ['static/description/faff_ui_1.jpg'],
     'depends': [
         'crm',
         'sale_management',

@@ -2,17 +2,19 @@
 # Apps screen module icon: Odoo only loads static/description/icon.png (not cafm_icon.png).
 # After adding or replacing that file: Apps > Update Apps List (developer mode).
 {
-    'name': 'CPABooks CAFM',
-    'version': '14.0.1.1.160',
+    'name': 'CPA Books CAFM',
+    'version': '14.0.1.1.161',
+    'author': 'CPA Books',
     'summary': 'CAFM, AMC, PPM, projects, units, and facility service calls',
     'sequence': -100,
     'description': """CPABooks CAFM for UAE facilities management operations.""",
     'category': 'Services/Facility Management',
-    'website': 'https://www.parimaldbz.com',
+    'website': 'https://www.cpabooks.co',
+    'support': 'info@cpabooks.org',
     'license': 'LGPL-3',
     'price': 0.00,
     'currency': 'USD',
-    'images': ['static/description/icon.png'],
+    'images': ['static/description/cafm_ui_1.jpg'],
     'depends': [
         'maintenance',
         'project',
@@ -20,7 +22,6 @@
         'account',
         'sale',
         'base_setup',
-        'cpabooks_sequences',
         'professional_templates_v1',
     ],
     'data': [
