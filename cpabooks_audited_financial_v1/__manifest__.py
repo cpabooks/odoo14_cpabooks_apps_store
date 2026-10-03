@@ -13,7 +13,7 @@ Equity, Cash Flow, PPE schedule, notes and UAE Corporate Tax.
     'author': 'CPABooks',
     'website': 'https://www.cpabooks.co',
     'license': 'LGPL-3',
-    'price': 590,
+    'price': 0.00,
     'currency': 'USD',
     'support': 'info@cpabooks.org',
     'images': [
