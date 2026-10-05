@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CPA Books FAFF',
-    'version': '14.0.1.0.17',
+    'version': '14.0.1.0.18',
     'author': 'CPA Books',
     'summary': 'Fire Alarm & Fire Fighting job management (CRM to Payment)',
     'sequence': -95,
@@ -26,7 +26,7 @@ Execute → Test → Handover → Invoice → Payment.
         'account',
         'mail',
         'hr',
-        'cpabooks_sequences',
+        'cpabooks_sequences_v1',
     ],
     'data': [
         'security/faff_security.xml',
