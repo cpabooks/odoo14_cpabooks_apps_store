@@ -1,0 +1,14 @@
+---
+description: Stay inside this apps-store repo and its modules only
+alwaysApply: true
+---
+
+# Apps store scope (mandatory)
+
+This repo is `/home/nasir/projects/14.0/odoo14_cpabooks_apps_store`.
+
+- Edit, search, and run commands **only** inside this directory.
+- Touch **only** the Odoo modules in this folder.
+- Do **not** change anything outside this path (`cpabooks-custom`, community, enterprise, live servers, other repos).
+
+Leave this boundary only if the user **explicitly** names a different path in that same request.

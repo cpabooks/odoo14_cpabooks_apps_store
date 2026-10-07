@@ -11,7 +11,7 @@ from . import account_payment
 # from . import crm
 from . import project
 # from . import quality_chk
-from . import pdc_voucher
+# pdc.wizard lives in paid sh_pdc; do not load it or Apps adds that price to the cart.
 from . import res_company
 from . import set_company_prefix
 # from . import helpdesk_ticket
