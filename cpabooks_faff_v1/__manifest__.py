@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CPA Books FAFF',
-    'version': '14.0.1.0.20',
+    'version': '14.0.1.0.22',
     'author': 'CPA Books',
     'summary': 'Fire Alarm & Fire Fighting job management (CRM to Payment)',
     'sequence': -95,

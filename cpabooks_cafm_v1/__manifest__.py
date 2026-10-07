@@ -3,7 +3,7 @@
 # After adding or replacing that file: Apps > Update Apps List (developer mode).
 {
     'name': 'CPA Books CAFM',
-    'version': '14.0.1.1.164',
+    'version': '14.0.1.1.166',
     'author': 'CPA Books',
     'summary': 'CAFM, AMC, PPM, projects, units, and facility service calls',
     'sequence': -100,
