@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CPA Books FAFF',
-    'version': '14.0.1.0.18',
+    'version': '14.0.1.0.20',
     'author': 'CPA Books',
     'summary': 'Fire Alarm & Fire Fighting job management (CRM to Payment)',
     'sequence': -95,
@@ -16,7 +16,8 @@ Execute → Test → Handover → Invoice → Payment.
     'license': 'LGPL-3',
     'price': 0.00,
     'currency': 'USD',
-    'images': ['static/description/faff_ui_1.jpg'],
+    'images': ['static/description/banner_store.jpg'],
+    'live_test_url': 'https://www.cpabooks.org/apps/faff',
     'depends': [
         'crm',
         'sale_management',
