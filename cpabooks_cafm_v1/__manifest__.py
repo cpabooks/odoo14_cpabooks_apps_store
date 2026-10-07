@@ -3,7 +3,7 @@
 # After adding or replacing that file: Apps > Update Apps List (developer mode).
 {
     'name': 'CPA Books CAFM',
-    'version': '14.0.1.1.162',
+    'version': '14.0.1.1.166',
     'author': 'CPA Books',
     'summary': 'CAFM, AMC, PPM, projects, units, and facility service calls',
     'sequence': -100,
@@ -14,7 +14,8 @@
     'license': 'LGPL-3',
     'price': 0.00,
     'currency': 'USD',
-    'images': ['static/description/cafm_ui_1.jpg'],
+    'images': ['static/description/banner_store.jpg'],
+    'live_test_url': 'https://www.cpabooks.org/apps/cafm',
     'depends': [
         'maintenance',
         'project',

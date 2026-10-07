@@ -11,7 +11,7 @@ Recipe Book for restaurants on Odoo 14.
 * Enter chef closing stock and see variance against theoretical use.
 * Load sample recipes, then clone them into live recipes.
     """,
-    'version': '14.0.1.0.38',
+    'version': '14.0.1.0.42',
     'category': 'Operations/Restaurant',
     'author': 'CPA Books',
     'website': 'https://www.cpabooks.co',
@@ -42,7 +42,7 @@ Recipe Book for restaurants on Odoo 14.
         'static/src/xml/dashboard.xml',
         'static/src/xml/key_results.xml',
     ],
-    'images': ['static/description/recipe_ui_1.jpg'],
+    'images': ['static/description/banner_store.jpg'],
     'installable': True,
     'application': True,
     'auto_install': False,
