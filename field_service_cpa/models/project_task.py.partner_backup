@@ -1,0 +1,712 @@
+from odoo import api, fields, models, _
+
+
+STAGE_SELECTION = [
+    ('registered', '1. Registered'),
+    ('site_visited', '2. Site Visited (i)'),
+    ('qty_issued', '3. Qtn Issued and waiting for Approval'),
+    ('qty_approved', '4. QTN Approved'),
+    ('in_progress', '5. Work in Progress'),
+    ('waiting_for_invoice', '6. Job Complete Waiting for Invoice'),
+    ('job_completed', '7. Job Completed-FOC'),
+    ('job_completed_invoiced', '8. Job Completed & Invoiced'),
+    ('approved', '9. Approved'),
+]
+
+STATE = [
+    ('registered', '1. Reg.'),
+    ('site_visited', '2. Site Visit'),
+    ('qty_issued', '3. QTN Issue'),
+    ('qty_approved', '4. QTN Appvd'),
+    ('in_progress', '5. WIP'),
+    ('waiting_for_invoice', '6. Wait Inv'),
+    ('job_completed', '7. FOC Done'),
+    ('job_completed_invoiced', '8. Invoiced'),
+    ('approved', '9. Approved'),
+]
+
+
+class ProjectTask(models.Model):
+    _inherit = 'project.task'
+    _rec_name = 'task_seq'
+    _order = 'create_date desc'
+
+    state = fields.Selection(
+        STATE,
+        string='State',
+        compute='_compute_state_from_stage',
+        search='_search_state',
+        readonly=True,
+        tracking=True,
+    )
+    remarks = fields.Text('Remarks', tracking=True)
+    date_start = fields.Date('Start Date', default=fields.Date.today)
+    date_end = fields.Date('End Date')
+    task_seq = fields.Char('CRN Number', copy=False, readonly=True, index=True, default='/')
+    sample = fields.Char('Sample')
+    close_remarks = fields.Text('Closing Remarks')
+    complaint_title = fields.Many2one('complaint.detail', 'Complaint Title')
+    complaint_details = fields.Text('Complaint Details')
+    client_person = fields.Many2one('contact.person', 'Contact Person')
+    client_contact = fields.Char('Contact Number')
+    site_location = fields.Many2one('site.location', 'Site Location')
+    client_email = fields.Char('Email ID')
+    qt_no = fields.Many2one('sale.order', string='Ref Quotation No.')
+    check_fsm = fields.Boolean('Check FSM', default=True)
+    currency_id = fields.Many2one(
+        'res.currency',
+        related='company_id.currency_id',
+        readonly=True,
+    )
+    analytic_account_id = fields.Many2one(
+        'account.analytic.account',
+        related='project_id.analytic_account_id',
+        readonly=True,
+    )
+    complaint_type = fields.Selection([
+        ('amc', 'AMC'),
+        ('warranty_service', 'Warranty/Service'),
+        ('new_installation', 'New Installation'),
+        ('new_inquiry', 'New Inquiry'),
+        ('site_visit', 'Site Visit'),
+    ], 'Complaint Type')
+    total_print_row = fields.Integer(default=10, string='Total Print Row')
+    invoice_id = fields.Many2one(
+        'account.move',
+        'Ref. Invoice No.',
+        domain=[('move_type', '=', 'out_invoice'), ('invoice_type', '!=', False)],
+    )
+    available_invoice_ids = fields.Many2many(
+        'account.move',
+        compute='_compute_available_invoice_ids',
+    )
+    invoice_type = fields.Char(compute='_compute_invoice_type', string='Invoice Type', readonly=True)
+    show_invoice_line = fields.Boolean(compute='_compute_show_invoice_line')
+    available_invoice_line_ids = fields.Many2many(
+        'account.move.line',
+        compute='_compute_available_invoice_line_ids',
+    )
+    invoice_line_notice = fields.Char(compute='_compute_invoice_line_notice')
+    invoice_project_ids = fields.Many2many(
+        'project.project',
+        compute='_compute_invoice_project_ids',
+    )
+    item_des = fields.Many2one(
+        'account.move.line',
+        string='Invoice Line',
+        domain="""
+                [
+                    ('move_id', '=', invoice_id),
+                    ('display_type', '=', False)
+                ]
+            """
+    )
+    stage = fields.Selection(
+        STAGE_SELECTION,
+        string='Stage',
+        default='registered',
+        tracking=True,
+        compute='_compute_stage_logic',
+        search='_search_stage',
+    )
+    fsm_stage_group = fields.Selection(
+        STAGE_SELECTION,
+        string='Stage',
+        compute='_compute_fsm_stage_group',
+        store=True,
+        index=True,
+    )
+    site_visit = fields.Text('Site Visit Remarks')
+    visited_by = fields.Many2one('hr.employee', 'Visited By')
+    visited_date = fields.Date('Visited Date')
+    material_line_ids = fields.One2many('material.request.line', 'task_id')
+    material_amount_done_total = fields.Float(
+        string='Total Amount Done',
+        compute='_compute_material_amount_done_total',
+    )
+    material_cost_total = fields.Monetary(
+        string='Material Cost',
+        currency_field='currency_id',
+        compute='_compute_material_amount_done_total',
+    )
+    timesheet_cost_total = fields.Monetary(
+        string='Timesheet Cost',
+        currency_field='currency_id',
+        compute='_compute_timesheet_cost_total',
+        compute_sudo=True,
+        store=True,
+        prefetch=False,
+    )
+    total_service_cost = fields.Monetary(
+        string='Total Service Cost',
+        currency_field='currency_id',
+        compute='_compute_total_service_cost',
+        compute_sudo=True,
+    )
+    work_completion = fields.Selection([('invoiced', 'Invoiced'), ('foc', 'FOC Done')], string='iv. Work Completion:')
+    closing_remarks = fields.Text('Closing Remarks')
+    approved_by = fields.Many2one(
+        'res.users',
+        string='Approved By',
+        ondelete='set null',
+        readonly=True,
+    )
+    select_invoice = fields.Many2one('account.move', string='Select Invoice', compute='_compute_select_invoice')
+    next_action = fields.Selection([
+        ('closed', '1. Closed'),
+        ('issue', '2. Issue QT'),
+        ('foc', '3. FOC'),
+    ], string='Next Action', tracking=True)
+    assign_date = fields.Date(string='Assign Date')
+    crn_done_before = fields.Char('CRN Done Before', readonly=True)
+    age_days = fields.Integer('Age Days', compute='_compute_age_days')
+    deadline = fields.Date('Date Deadline')
+    importance = fields.Selection([
+        ('urgent', 'Urgent'),
+        ('normal', 'Normal'),
+        ('emergency', 'Emergency'),
+    ], string='Priority')
+    issue_note_done = fields.Boolean(
+        'Issue Note Done',
+        compute='_compute_issue_note_done',
+        search='_search_issue_note_done',
+    )
+    fsm_all_quotation_count = fields.Integer(compute='_compute_fsm_related_document_counts')
+    fsm_all_invoice_count = fields.Integer(compute='_compute_fsm_related_document_counts')
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if 'user_id' in res:
+            res['user_id'] = False
+        if not res.get('name'):
+            res['name'] = self._default_task_name_from_vals(res)
+        return res
+
+    @api.model
+    def _next_task_seq(self, sequence_date=False):
+        sequence_model = self.env['ir.sequence'].sudo()
+        sequence = False
+        if hasattr(sequence_model, 'next_by_sequence_for'):
+            sequence = sequence_model.next_by_sequence_for('fsm_crn', sequence_date=sequence_date)
+            if not sequence and hasattr(sequence_model, 'action_create_sequence'):
+                sequence_model.action_create_sequence()
+                sequence = sequence_model.next_by_sequence_for('fsm_crn', sequence_date=sequence_date)
+        return sequence or '/'
+
+    @api.model
+    def _default_task_name_from_vals(self, vals):
+        return _('Field Service Task')
+
+    @api.model
+    def _prepare_fsm_task_vals(self, vals):
+        vals = dict(vals)
+        sequence_date = vals.get('date_start') or fields.Date.context_today(self)
+        if not vals.get('task_seq') or vals.get('task_seq') == '/':
+            vals['task_seq'] = self._next_task_seq(sequence_date=sequence_date)
+        if vals.get('complaint_title') and not vals.get('name'):
+            complaint_title = self.env['complaint.detail'].browse(vals['complaint_title'])
+            vals['name'] = complaint_title.display_name
+        if not vals.get('name'):
+            vals['name'] = self._default_task_name_from_vals(vals)
+        return vals
+
+    @api.depends('parent_id.project_id.subtask_project_id', 'invoice_id', 'invoice_id.project_id')
+    def _compute_project_id(self):
+        super()._compute_project_id()
+        fsm_project = self.env.ref('industry_fsm.fsm_project', raise_if_not_found=False)
+        if not fsm_project:
+            return
+        for task in self:
+            if task.invoice_id:
+                task.project_id = task.invoice_id.project_id
+                continue
+            if not task.project_id:
+                task.project_id = fsm_project.id
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        prepared_vals_list = [self._prepare_fsm_task_vals(vals) for vals in vals_list]
+        tasks = super().create(prepared_vals_list)
+        tasks._sync_complaint_type_from_invoice_type()
+        tasks._enable_quotations_for_issue_qt()
+        return tasks
+
+    def write(self, vals):
+        vals = dict(vals)
+        if vals.get('complaint_title') and not vals.get('name'):
+            complaint_title = self.env['complaint.detail'].browse(vals['complaint_title'])
+            vals['name'] = complaint_title.display_name
+        result = super().write(vals)
+        if 'invoice_id' in vals:
+            self._sync_complaint_type_from_invoice_type()
+        if 'next_action' in vals or 'project_id' in vals:
+            self._enable_quotations_for_issue_qt()
+        return result
+
+    def _enable_quotations_for_issue_qt(self):
+        projects = self.filtered(lambda task: task.next_action == 'issue').mapped('project_id')
+        projects.filtered(lambda project: project and not project.allow_quotations).sudo().write({
+            'allow_quotations': True,
+        })
+
+    @api.onchange('next_action', 'project_id')
+    def _onchange_issue_qt_enable_quotations(self):
+        for rec in self:
+            if rec.next_action == 'issue' and rec.project_id:
+                rec.project_id.allow_quotations = True
+
+    def _update_name(self):
+        return True
+
+    def name_get(self):
+        if not self.env.context.get('show_task_seq') and not self.env.context.get('show_crn_number'):
+            return super().name_get()
+        result = []
+        for task in self:
+            display_name = task.task_seq if task.task_seq and task.task_seq != '/' else task.name
+            result.append((task.id, display_name or _('Field Service Task')))
+        return result
+
+    @api.model
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        if not self.env.context.get('show_task_seq') and not self.env.context.get('show_crn_number'):
+            return super().name_search(name=name, args=args, operator=operator, limit=limit)
+        args = list(args or [])
+        if name:
+            args = ['|', ('task_seq', operator, name), ('name', operator, name)] + args
+        tasks = self.search(args, limit=limit)
+        return tasks.name_get()
+
+    @api.onchange('complaint_title')
+    def _onchange_complaint_title_set_name(self):
+        for rec in self:
+            if rec.complaint_title:
+                rec.name = rec.complaint_title.display_name
+
+    @api.depends('stage')
+    def _compute_state_from_stage(self):
+        for rec in self:
+            rec.state = rec.stage or 'registered'
+
+    @api.onchange('item_des')
+    def _compute_crn_done_before(self):
+        for rec in self:
+            if rec.item_des:
+                similar_tasks = self.env['project.task'].search([('item_des', '=', rec.item_des.id)])
+                rec.crn_done_before = ', '.join(filter(None, similar_tasks.mapped('task_seq'))) or False
+            else:
+                rec.crn_done_before = False
+
+    @api.depends('visited_by', 'next_action', 'assign_date', 'date_end', 'select_invoice', 'user_id', 'approved_by')
+    def _compute_stage_logic(self):
+        for rec in self:
+            rec.stage = rec._get_fsm_stage_value()
+
+    @api.depends('visited_by', 'next_action', 'assign_date', 'date_end', 'select_invoice', 'user_id', 'approved_by')
+    def _compute_fsm_stage_group(self):
+        for rec in self:
+            rec.fsm_stage_group = rec._get_fsm_stage_value()
+
+    def _get_fsm_stage_value(self):
+        self.ensure_one()
+        sale_order_model = self.env['sale.order'] if self.env.registry.get('sale.order') else False
+        related_orders = sale_order_model.search([
+            ('task_id', '=', self.id),
+            ('state', '!=', 'cancel'),
+        ]) if sale_order_model else []
+        has_confirmed_quotation = any(order.state in ('sale', 'done') for order in related_orders)
+        has_created_quotation = any(order.state in ('draft', 'sent') for order in related_orders)
+
+        if self.approved_by:
+            return 'approved'
+        if self.next_action == 'closed' or (self.next_action == 'foc' and self.date_end):
+            return 'job_completed'
+        if self.select_invoice:
+            return 'job_completed_invoiced'
+        if self.next_action == 'issue' and self.date_end:
+            return 'waiting_for_invoice'
+        if self.user_id or self.assign_date:
+            return 'in_progress'
+        if has_confirmed_quotation:
+            return 'qty_approved'
+        if has_created_quotation:
+            return 'qty_issued'
+        if self.visited_by:
+            return 'site_visited'
+        return 'registered'
+
+    def _update_fsm_stage_group(self):
+        for task in self:
+            task.fsm_stage_group = task._get_fsm_stage_value()
+
+    @api.model
+    def update_fsm_reporting_fields(self):
+        tasks = self.with_context(active_test=False).sudo().search([('is_fsm', '=', True)])
+        tasks._update_fsm_stage_group()
+        return True
+
+    def _search_stage(self, operator, value):
+        tasks = self.env['project.task'].with_context(prefetch_fields=False).search([])
+        if operator == '=':
+            matching_ids = tasks.filtered(lambda task: task.stage == value).ids
+        elif operator == '!=':
+            matching_ids = tasks.filtered(lambda task: task.stage != value).ids
+        elif operator == 'in':
+            matching_ids = tasks.filtered(lambda task: task.stage in value).ids
+        elif operator == 'not in':
+            matching_ids = tasks.filtered(lambda task: task.stage not in value).ids
+        else:
+            matching_ids = []
+        return [('id', 'in', matching_ids)]
+
+    def _search_state(self, operator, value):
+        return self._search_stage(operator, value)
+
+    def _get_fsm_related_orders(self):
+        self.ensure_one()
+        sale_order_model = self.env['sale.order'] if self.env.registry.get('sale.order') else False
+        if not sale_order_model:
+            return self.env['sale.order']
+        domain = [('task_id', '=', self.id)]
+        if self.qt_no:
+            domain = ['|', ('task_id', '=', self.id), ('id', '=', self.qt_no.id)]
+        return sale_order_model.search(domain)
+
+    def _get_fsm_related_invoices(self):
+        self.ensure_one()
+        invoices = self._get_fsm_related_orders().mapped('invoice_ids')
+        if self.invoice_id:
+            invoices |= self.invoice_id
+        return invoices
+
+    def _compute_fsm_related_document_counts(self):
+        for rec in self:
+            orders = rec._get_fsm_related_orders()
+            rec.fsm_all_quotation_count = len(orders)
+            rec.fsm_all_invoice_count = len(rec._get_fsm_related_invoices())
+
+    def action_fsm_view_all_related_quotations(self):
+        self.ensure_one()
+        orders = self._get_fsm_related_orders()
+        action = self.env["ir.actions.actions"]._for_xml_id("sale.action_quotations")
+        action.update({
+            'name': _('Quotations / Orders'),
+            'domain': [('id', 'in', orders.ids)],
+            'context': {
+                'default_task_id': self.id,
+                'default_partner_id': self.partner_id.id,
+                'default_company_id': self.company_id.id,
+                'search_default_my_quotation': 0,
+            },
+        })
+        return action
+
+    def action_fsm_view_all_related_invoices(self):
+        self.ensure_one()
+        invoices = self._get_fsm_related_invoices()
+        action = self.env["ir.actions.actions"]._for_xml_id("account.action_move_out_invoice_type")
+        action.update({
+            'name': _('Invoices'),
+            'domain': [('id', 'in', invoices.ids)],
+            'context': {
+                'default_move_type': 'out_invoice',
+                'default_partner_id': self.partner_id.id,
+                'default_invoice_origin': self.task_seq,
+            },
+        })
+        return action
+
+    @api.depends('invoice_id', 'invoice_id.invoice_type')
+    def _compute_invoice_type(self):
+        for rec in self:
+            invoice_type = rec.invoice_id.invoice_type if rec.invoice_id and 'invoice_type' in rec.invoice_id._fields else False
+            rec.invoice_type = invoice_type.name if invoice_type else False
+
+    @api.depends('invoice_id', 'invoice_id.invoice_type', 'invoice_id.invoice_line_ids', 'invoice_id.invoice_line_ids.guaranteed')
+    def _compute_show_invoice_line(self):
+        for rec in self:
+            rec.show_invoice_line = bool(rec.available_invoice_line_ids)
+
+    @api.depends('invoice_id', 'invoice_id.invoice_type', 'invoice_id.invoice_line_ids', 'invoice_id.invoice_line_ids.guaranteed')
+    def _compute_available_invoice_line_ids(self):
+        for rec in self:
+            rec.available_invoice_line_ids = rec._get_available_invoice_lines()
+
+    @api.depends('show_invoice_line')
+    def _compute_invoice_line_notice(self):
+        for rec in self:
+            rec.invoice_line_notice = False if rec.show_invoice_line else _('No invoice line available')
+
+    @api.depends('invoice_id', 'invoice_id.project_id')
+    def _compute_invoice_project_ids(self):
+        for rec in self:
+            rec.invoice_project_ids = rec.invoice_id.project_id
+
+    @api.depends('partner_id', 'complaint_type')
+    def _compute_available_invoice_ids(self):
+        invoice_model = self.env['account.move']
+        for rec in self:
+            base_domain = [
+                ('move_type', '=', 'out_invoice'),
+                ('state', '=', 'posted'),
+                ('invoice_type', '!=', False),
+            ]
+            invoices = invoice_model
+            if rec.partner_id:
+                commercial_partner = rec.partner_id.commercial_partner_id
+                partner_domain = [
+                    '|',
+                    ('commercial_partner_id', '=', commercial_partner.id),
+                    ('partner_id', 'child_of', commercial_partner.id),
+                ]
+                invoices = invoice_model.search(base_domain + partner_domain)
+            if not invoices:
+                invoices = invoice_model.search(base_domain)
+            if rec.complaint_type:
+                invoices = invoices.filtered(lambda invoice: rec._invoice_type_matches_complaint_type(invoice))
+            rec.available_invoice_ids = invoices
+
+    def _get_available_invoice_lines(self):
+        self.ensure_one()
+        invoice = self.invoice_id
+        if not invoice or 'invoice_type' not in invoice._fields or not invoice.invoice_type:
+            return self.env['account.move.line']
+        if 'guaranteed' not in self.env['account.move.line']._fields:
+            return self.env['account.move.line']
+        return invoice.invoice_line_ids.filtered(lambda line: not line.display_type and line.guaranteed)
+
+    @api.onchange('invoice_id')
+    def _onchange_invoice_id(self):
+        if self.invoice_id and (
+                self.invoice_id not in self.available_invoice_ids
+                or ('invoice_type' in self.invoice_id._fields and not self.invoice_id.invoice_type)):
+            self.invoice_id = False
+            self.project_id = False
+            self.item_des = False
+            return {
+                'domain': {
+                    'invoice_id': [('id', 'in', self.available_invoice_ids.ids)],
+                    'project_id': [],
+                    'item_des': [],
+                },
+            }
+        if self.invoice_id and self.invoice_id.project_id:
+            self.project_id = self.invoice_id.project_id
+        elif self.invoice_id:
+            self.project_id = False
+        else:
+            self.project_id = False
+        if self.item_des not in self.available_invoice_line_ids:
+            self.item_des = False
+        self._sync_complaint_type_from_invoice_type()
+        return {
+            'domain': {
+                'invoice_id': [('id', 'in', self.available_invoice_ids.ids)],
+                'project_id': [('id', 'in', self.invoice_project_ids.ids)],
+                'item_des': [('id', 'in', self.available_invoice_line_ids.ids)],
+            },
+        }
+
+    @api.onchange('complaint_type')
+    def _onchange_complaint_type(self):
+        for rec in self:
+            if rec.invoice_id and rec.invoice_id not in rec.available_invoice_ids:
+                rec.invoice_id = False
+                rec.project_id = False
+                rec.item_des = False
+        return {
+            'domain': {
+                'invoice_id': [('id', 'in', self.available_invoice_ids.ids)],
+            },
+        }
+
+    def _normalized_selection_value(self, value):
+        return (value or '').strip().lower().replace(' ', '_').replace('/', '_')
+
+    def _invoice_type_matches_complaint_type(self, invoice):
+        self.ensure_one()
+        invoice_type = invoice.invoice_type if invoice and 'invoice_type' in invoice._fields else False
+        if not self.complaint_type or not invoice_type:
+            return True
+        complaint_type_label = dict(self._fields['complaint_type'].selection).get(self.complaint_type, '')
+        normalized_invoice_type = self._normalized_selection_value(invoice_type.name)
+        return normalized_invoice_type in (
+            self._normalized_selection_value(self.complaint_type),
+            self._normalized_selection_value(complaint_type_label),
+        )
+
+    def _invoice_type_to_complaint_type(self):
+        self.ensure_one()
+        invoice_type = self.invoice_id.invoice_type if self.invoice_id and 'invoice_type' in self.invoice_id._fields else False
+        if not invoice_type:
+            return False
+        normalized_name = self._normalized_selection_value(invoice_type.name)
+        selection_by_key = dict(self._fields['complaint_type'].selection)
+        selection_by_label = {
+            self._normalized_selection_value(label): key
+            for key, label in self._fields['complaint_type'].selection
+        }
+        if normalized_name in selection_by_key:
+            return normalized_name
+        return selection_by_label.get(normalized_name)
+
+    def _sync_complaint_type_from_invoice_type(self):
+        for rec in self:
+            complaint_type = rec._invoice_type_to_complaint_type()
+            if complaint_type:
+                rec.complaint_type = complaint_type
+
+    @api.onchange('qt_no')
+    def _onchange_qt_no(self):
+        for rec in self:
+            if not rec.qt_no:
+                continue
+            rec.partner_id = rec.qt_no.partner_id
+            rec.project_id = rec.qt_no.project_id
+            rec.client_email = rec.qt_no.partner_id.email
+            rec.client_contact = rec.qt_no.partner_id.phone or rec.qt_no.partner_id.mobile
+            if not rec.complaint_details and rec.qt_no.note:
+                rec.complaint_details = rec.qt_no.note
+
+    def _compute_select_invoice(self):
+        sale_order_model = self.env['sale.order'] if self.env.registry.get('sale.order') else False
+        for rec in self:
+            rec.select_invoice = False
+            if not sale_order_model:
+                continue
+            sale_order = sale_order_model.search([('task_id', '=', rec.id)], limit=1)
+            if sale_order:
+                posted_invoices = sale_order.invoice_ids.filtered(
+                    lambda invoice: invoice.state == 'posted' and invoice.move_type == 'out_invoice'
+                )
+                rec.select_invoice = posted_invoices[:1].id if posted_invoices else False
+
+    @api.depends('material_line_ids', 'material_line_ids.amount_done')
+    def _compute_material_amount_done_total(self):
+        for rec in self:
+            total_amount = sum(rec.material_line_ids.mapped('amount_done'))
+            rec.material_amount_done_total = total_amount
+            rec.material_cost_total = total_amount
+
+    def _is_material_fully_issued(self):
+        self.ensure_one()
+        material_lines = self.material_line_ids
+        if not material_lines:
+            return False
+        picking_model = self.env['stock.picking']
+        pickings = picking_model.search([
+            ('issue_project_task_id', '=', self.id),
+            ('state', '=', 'done'),
+        ])
+        for line in material_lines:
+            moves = pickings.move_ids_without_package.filtered(
+                lambda move: move.product_id.id == line.product_id.id and move.state != 'cancel'
+            )
+            if sum(moves.mapped('quantity_done')) < line.quantity:
+                return False
+        return True
+
+    def _compute_issue_note_done(self):
+        for task in self:
+            task.issue_note_done = task._is_material_fully_issued()
+
+    def _search_issue_note_done(self, operator, value):
+        tasks = self.env['material.request.line'].search([]).mapped('task_id')
+        done_tasks = tasks.filtered(lambda task: task._is_material_fully_issued())
+        if (operator in ('=', '==') and value) or (operator == '!=' and not value):
+            return [('id', 'in', done_tasks.ids)]
+        return [('id', 'not in', done_tasks.ids)]
+
+    def _update_issue_note_done(self):
+        self.invalidate_cache(['issue_note_done'])
+
+    def _fsm_cancel_tasks(self, include_related=False):
+        tasks = self.sudo().with_context(active_test=False)
+        if not tasks:
+            return True
+
+        if include_related:
+            tasks._fsm_cancel_related_documents()
+
+        vals = {
+            'date_end': fields.Date.context_today(self),
+            'closing_remarks': _('Cancelled'),
+        }
+        if 'active' in tasks._fields:
+            vals['active'] = False
+        if 'next_action' in tasks._fields:
+            vals['next_action'] = 'closed'
+        tasks.write(vals)
+        return True
+
+    def _fsm_cancel_related_documents(self):
+        tasks = self.sudo().with_context(active_test=False)
+        if self.env.registry.get('planning.slot'):
+            self.env['planning.slot'].sudo().search([('task_id', 'in', tasks.ids)]).unlink()
+
+        pickings = self.env['stock.picking'].sudo().search([('issue_project_task_id', 'in', tasks.ids)])
+        for picking in pickings:
+            try:
+                if picking.state not in ('done', 'cancel'):
+                    picking.action_cancel()
+                elif picking.state == 'done':
+                    picking.move_ids_without_package.write({'state': 'cancel'})
+                    picking.write({'state': 'cancel'})
+            except Exception:
+                pass
+
+        orders = self.env['sale.order'].sudo().search([('task_id', 'in', tasks.ids)])
+        for order in orders:
+            try:
+                if order.state not in ('cancel',):
+                    order.action_cancel()
+            except Exception:
+                pass
+
+        invoices = tasks.mapped('invoice_id') | orders.mapped('invoice_ids')
+        for invoice in invoices.sudo():
+            try:
+                if invoice.state == 'posted':
+                    invoice.button_draft()
+                if hasattr(invoice, 'button_cancel') and invoice.state != 'cancel':
+                    invoice.button_cancel()
+            except Exception:
+                pass
+        return True
+
+    def action_fsm_cancel_selected(self):
+        return self._fsm_cancel_tasks(include_related=False)
+
+    @api.model
+    def action_fsm_cancel_all_tasks(self):
+        tasks = self.with_context(active_test=False).search([('is_fsm', '=', True)])
+        return tasks._fsm_cancel_tasks(include_related=False)
+
+    @api.model
+    def action_fsm_cancel_all_tasks_with_related(self):
+        tasks = self.with_context(active_test=False).search([('is_fsm', '=', True)])
+        return tasks._fsm_cancel_tasks(include_related=True)
+
+    @api.depends('timesheet_ids.amount')
+    def _compute_timesheet_cost_total(self):
+        for rec in self:
+            rec.timesheet_cost_total = abs(sum(rec.timesheet_ids.mapped('amount')))
+
+    @api.depends('material_cost_total', 'timesheet_cost_total')
+    def _compute_total_service_cost(self):
+        for rec in self:
+            rec.total_service_cost = rec.material_cost_total + rec.timesheet_cost_total
+
+    def action_approve_task(self):
+        self.write({'approved_by': self.env.user.id})
+
+    @api.depends('create_date', 'date_end')
+    def _compute_age_days(self):
+        today = fields.Date.context_today(self)
+        for rec in self:
+            if rec.create_date:
+                end_date = rec.date_end or today
+                rec.age_days = (end_date - rec.create_date.date()).days
+            else:
+                rec.age_days = 0
