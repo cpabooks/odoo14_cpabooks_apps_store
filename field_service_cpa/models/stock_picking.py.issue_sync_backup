@@ -1,0 +1,86 @@
+from odoo import api, fields, models
+
+
+class StockPicking(models.Model):
+    _inherit = 'stock.picking'
+
+    issue_crn_number = fields.Char(
+        string='CRN Number',
+        related='issue_project_task_id.task_seq',
+        readonly=True,
+        store=True,
+    )
+    issue_customer_id = fields.Many2one(
+        'res.partner',
+        string='Customer',
+        related='issue_project_task_id.partner_id',
+        readonly=True,
+        store=True,
+    )
+    issue_source_document = fields.Char(
+        string='Source Document',
+        compute='_compute_issue_source_document',
+        readonly=True,
+        store=True,
+    )
+
+    @api.model
+    def default_get(self, fields_list):
+        result = super().default_get(fields_list)
+        if 'picking_type_id' in fields_list and not result.get('picking_type_id'):
+            default_type = self.env['ir.default'].sudo().get('stock.picking', 'picking_type_id')
+            if default_type:
+                result['picking_type_id'] = default_type
+        return result
+
+    @api.depends('issue_project_task_id', 'issue_project_task_id.qt_no')
+    def _compute_issue_source_document(self):
+        sale_order_model = self.env['sale.order'] if self.env.registry.get('sale.order') else False
+        for picking in self:
+            source = False
+            task = picking.issue_project_task_id
+            if task:
+                if task.qt_no:
+                    source = task.qt_no.name
+                elif sale_order_model:
+                    order = sale_order_model.search([('task_id', '=', task.id)], limit=1, order='id desc')
+                    source = order.name if order else False
+            picking.issue_source_document = source
+
+    @api.onchange('issue_project_task_id')
+    def _onchange_issue_project_task_id_populate_crn_details(self):
+        result = super()._onchange_issue_project_task_id()
+        for picking in self:
+            task = picking.issue_project_task_id
+            if not task:
+                continue
+            picking.partner_id = task.partner_id or task.project_id.partner_id
+            if task.qt_no:
+                picking.origin = task.qt_no.name
+            elif picking.issue_source_document:
+                picking.origin = picking.issue_source_document
+            elif task.task_seq:
+                picking.origin = task.task_seq
+        return result
+
+    @api.onchange('picking_type_id')
+    def _onchange_remember_issue_picking_type_id(self):
+        if self.picking_type_id:
+            self.env['ir.default'].sudo().set(
+                'stock.picking',
+                'picking_type_id',
+                self.picking_type_id.id,
+            )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        pickings = super().create(vals_list)
+        for picking in pickings.filtered('picking_type_id'):
+            self.env['ir.default'].sudo().set('stock.picking', 'picking_type_id', picking.picking_type_id.id)
+        return pickings
+
+    def write(self, vals):
+        result = super().write(vals)
+        if vals.get('picking_type_id'):
+            self.env['ir.default'].sudo().set('stock.picking', 'picking_type_id', vals['picking_type_id'])
+        return result
