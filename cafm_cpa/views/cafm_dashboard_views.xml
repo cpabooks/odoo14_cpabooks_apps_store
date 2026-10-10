@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="action_cafm_cpa_dashboard" model="ir.actions.client">
+            <field name="name">CPAi CAFM Dashboard</field>
+            <field name="tag">cafm_cpa_dashboard</field>
+        </record>
+
+        <menuitem id="menu_cafm_dashboard_folder"
+                  name="Dashboard"
+                  parent="menu_cafm_cpa_root"
+                  sequence="5"/>
+
+        <menuitem id="menu_cafm_cpa_dashboard"
+                  name="Operations Dashboard"
+                  parent="menu_cafm_dashboard_folder"
+                  action="action_cafm_cpa_dashboard"
+                  sequence="1"/>
+
+        <record id="menu_cafm_cpa_root" model="ir.ui.menu">
+            <field name="action" ref="action_cafm_cpa_dashboard"/>
+        </record>
+    </data>
+
+</odoo>
