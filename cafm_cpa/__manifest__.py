@@ -3,7 +3,7 @@
 # After adding or replacing that file: Apps > Update Apps List (developer mode).
 {
     'name': 'Facility Management',
-    'version': '14.0.1.1.167',
+    'version': '14.0.1.1.168',
     'author': 'CPA Books',
     'summary': 'Facility management, CAFM, AMC contracts, PPM and maintenance service calls',
     'sequence': -100,
@@ -15,7 +15,7 @@
     'price': 0.00,
     'currency': 'USD',
     'images': ['static/description/banner_store.jpg'],
-    'live_test_url': 'https://www.cpabooks.org/apps/cafm',
+    'live_test_url': 'https://www.cpabooks.org/contactus',
     'depends': [
         'maintenance',
         'project',

@@ -15,13 +15,13 @@ do the work, invoice and close.
     'currency': 'USD',
     'sequence': -90,
     'images': ['static/description/banner_store.jpg'],
-    'live_test_url': 'https://www.cpabooks.org/apps/field-service',
+    'live_test_url': 'https://www.cpabooks.org/contactus',
 
     # Categories can be used to filter modules in modules listing
     # Check https://github.com/odoo/odoo/blob/14.0/odoo/addons/base/data/ir_module_category_data.xml
     # for the full list
     'category': 'Services/Field Service',
-    'version': '14.0.1.0.2',
+    'version': '14.0.1.0.3',
 
     # any module necessary for this one to work correctly
     'depends': [
