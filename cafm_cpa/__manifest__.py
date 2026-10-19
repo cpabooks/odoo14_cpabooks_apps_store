@@ -3,7 +3,7 @@
 # After adding or replacing that file: Apps > Update Apps List (developer mode).
 {
     'name': 'Facility Management',
-    'version': '14.0.1.1.166',
+    'version': '14.0.1.1.167',
     'author': 'CPA Books',
     'summary': 'Facility management, CAFM, AMC contracts, PPM and maintenance service calls',
     'sequence': -100,

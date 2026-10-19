@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Fire Alarm and Fire Fighting',
-    'version': '14.0.1.0.22',
+    'version': '14.0.1.0.23',
     'author': 'CPA Books',
     'summary': 'Fire alarm and fire fighting jobs from inspection and quotation to invoice',
     'sequence': -95,
