@@ -15,11 +15,11 @@ Purchase, Inventory, Project and CRM in Odoo 14.
     'website': 'https://www.cpabooks.co',
 
     'category': 'Productivity',
-    'version': '14.0.1.66',
+    'version': '14.0.1.67',
     'license': 'LGPL-3',
     'price': 0.00,
     'currency': 'USD',
-    'live_test_url': 'https://www.cpabooks.org/apps/re-sequence',
+    'live_test_url': 'https://www.cpabooks.org/contactus',
 
     'images': [
         'static/description/banner_screenshot.jpg',
