@@ -9,7 +9,7 @@ CRM, job estimate, quotation, design, BoM, manufacturing,
 purchase requisition, quality check, stock, invoice, and payment.
     """,
     'category': 'Manufacturing',
-    'version': '14.0.1.0.1',
+    'version': '14.0.1.0.2',
     'author': 'CPA Books',
     'website': 'https://www.cpabooks.co',
     'support': 'info@cpabooks.org',
