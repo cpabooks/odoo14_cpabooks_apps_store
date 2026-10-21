@@ -372,8 +372,29 @@ def store_header(mod):
         'background-color:#F4F6F8;margin:16px 0 18px;"><tr>%s</tr></table>'
         '<div style="font-size:16px;font-weight:800;color:#102A52;margin:0 0 10px;">Key Features:</div>'
         '%s'
+        '%s'
         '</div>'
-    ) % (e(mod["title"]), e(mod["title"]), e(mod.get("store_summary") or mod["summary"]), pills_html, badges, feature_rows)
+    ) % (e(mod["title"]), e(mod["title"]), e(mod.get("store_summary") or mod["summary"]), pills_html, badges, feature_rows, feature_gallery(mod))
+
+
+def feature_gallery(mod):
+    items = mod.get("gallery") or []
+    blocks = []
+    for number, item in enumerate(items, 1):
+        subject, image, alt = item
+        blocks.append(
+            '<div style="margin:22px 0 6px;">'
+            '<div style="margin:0 0 10px;">'
+            '<span style="display:inline-block;width:26px;height:26px;line-height:26px;'
+            'text-align:center;border-radius:13px;background-color:#2166C1;color:#FFFFFF;'
+            'font-size:13px;font-weight:800;margin-right:8px;vertical-align:middle;">%d</span>'
+            '<span style="color:#102A52;font-size:20px;font-weight:800;vertical-align:middle;">%s</span>'
+            '</div>'
+            '<img src="%s" alt="%s" style="width:100%%;max-width:100%%;height:auto;display:block;'
+            'border:0;border-radius:16px;"/>'
+            '</div>' % (number, e(subject), image, e(alt))
+        )
+    return "".join(blocks)
 
 
 def render(mod):
@@ -384,14 +405,17 @@ def render(mod):
         % point(p["icon"], p["bg"], p["title"], p["text"])
         for p in mod["hero_card"]["points"]
     )
-    used_images = {block["image"] for block in mod["sections"]}
-    if mod["hero_image"] not in used_images:
-        mod["sections"].insert(0, S(
-            True, mod["hero_image"], mod["hero_alt"], mod["category"],
-            mod["hero_card"]["title"], mod["hero_card"]["emphasis"],
-            mod["hero_card"]["body"], mod["hero_card"]["points"], "",
-        ))
-    features = "".join(feature_block(i, block) for i, block in enumerate(mod["sections"]))
+    if mod.get("gallery"):
+        features = ""
+    else:
+        used_images = {block["image"] for block in mod["sections"]}
+        if mod["hero_image"] not in used_images:
+            mod["sections"].insert(0, S(
+                True, mod["hero_image"], mod["hero_alt"], mod["category"],
+                mod["hero_card"]["title"], mod["hero_card"]["emphasis"],
+                mod["hero_card"]["body"], mod["hero_card"]["points"], "",
+            ))
+        features = "".join(feature_block(i, block) for i, block in enumerate(mod["sections"]))
     cards = "".join(card(c["icon"], c["bg"], c["title"], c["text"]) for c in mod["cards"])
     steps = "".join(
         step(str(i + 1).zfill(2), s["title"], s["text"], last=(i == len(mod["steps"]) - 1))
@@ -700,6 +724,20 @@ add(
     category="Financial statements",
     title="Audited Financial Statements",
     summary="Build the statement pack from the Odoo trial balance: profit or loss, financial position, equity, cash flow, PPE and notes.",
+    highlights=[
+        "Build the year-end pack from the trial balance",
+        "Set company, currency, two years and posted journals",
+        "Profit or loss, financial position, cash flow, equity, PPE and notes",
+        "Review alerts and internal notes before printing",
+        "Choose the period, then export PDF, Excel, Word or CSV",
+    ],
+    gallery=[
+        ("From the trial balance to the full pack", "afg_seq_01.jpg", "Year-end pack built from the trial balance"),
+        ("Company and period setup", "afg_seq_02.jpg", "Company, currency, two years and posted journals"),
+        ("Statements with comparative years", "afg_seq_03.jpg", "Financial position with two years side by side"),
+        ("Review before you print", "afg_seq_04.jpg", "Review alerts and internal notes"),
+        ("Choose the period, then export", "afg_seq_05.jpg", "Period, report level, page setup and export"),
+    ],
     hero_points=[
         ("#22C55E", "Profit or loss and financial position"),
         ("#3B82F6", "Equity, cash flow and PPE"),
