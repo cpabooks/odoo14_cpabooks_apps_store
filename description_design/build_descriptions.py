@@ -291,6 +291,69 @@ def heading(kicker, title, emphasis, intro):
     ) % (e(kicker), e(title), e(emphasis), e(intro))
 
 
+def _badge(bg, mark, mark_bg, mark_color, title, subtitle):
+    return (
+        '<div style="display:inline-block;width:16%%;min-width:148px;vertical-align:top;'
+        'box-sizing:border-box;padding:4px;font-size:13px;text-align:left;">'
+        '<div style="background-color:%s;border:1px solid #E6EDF5;border-radius:12px;'
+        'padding:10px 8px;min-height:62px;">'
+        '<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
+        'text-align:center;border-radius:8px;background-color:%s;color:%s;'
+        'font-size:11px;font-weight:800;margin-right:6px;vertical-align:middle;">%s</span>'
+        '<span style="display:inline-block;vertical-align:middle;max-width:108px;">'
+        '<span style="display:block;font-weight:800;color:#102A52;font-size:13px;line-height:1.2;">%s</span>'
+        '<span style="display:block;color:#64748B;font-size:11px;line-height:1.3;">%s</span>'
+        '</span></div></div>'
+    ) % (bg, mark_bg, mark_color, mark, e(title), e(subtitle))
+
+
+def store_header(mod):
+    """Apps Store header: module icon, name, summary, edition pills, proof row, key features."""
+    highlights = mod.get("highlights") or [text for _color, text in mod["hero_points"][:5]]
+    feature_rows = "".join(
+        '<div style="margin:0 0 8px;">'
+        '<span style="display:inline-block;width:22px;height:22px;line-height:22px;'
+        'text-align:center;border-radius:11px;background-color:#E7EEFB;color:#3B5BDB;'
+        'font-size:12px;font-weight:800;margin-right:8px;vertical-align:middle;">%s</span>'
+        '<span style="color:#1E293B;font-size:15px;font-weight:600;vertical-align:middle;">%s</span>'
+        '</div>' % (number, e(text))
+        for number, text in enumerate(highlights, 1)
+    )
+    badges = "".join([
+        _badge("#F4F8FF", "#1", "#F5C451", "#7A4B00", "#1", "Since 2014"),
+        _badge("#E9F8EF", "IN", "#22A559", "#FFFFFF", "Trusted in", "Singapore, Saudi Arabia, Thailand, India, UAE"),
+        _badge("#FFF8E8", "5", "#F5B400", "#FFFFFF", "Most Rated", "Five stars"),
+        _badge("#FFF0F0", "^", "#F04438", "#FFFFFF", "Most Selling", "Best seller"),
+        _badge("#F4F0FF", "od", "#714B67", "#FFFFFF", "odoo", "Gold Partner"),
+        _badge("#EEF4FF", "10", "#3B82F6", "#FFFFFF", "10K+", "Customers"),
+    ])
+    pill = (
+        '<span style="display:inline-block;background-color:%s;color:#FFFFFF;'
+        'border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;'
+        'margin:2px 3px;">%s</span>'
+    )
+    pills_html = pill % ("#12B76A", "Community") + pill % ("#7C3AED", "Enterprise") + pill % ("#6D28D9", "Odoo.sh")
+    return (
+        '<div style="background-color:#FFFFFF;padding:8px 4px 18px;margin:0 0 8px;">'
+        '<table width="100%%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+        '<tr>'
+        '<td width="92" valign="top" style="padding:4px 14px 4px 0;">'
+        '<div style="background-color:#EAF2FF;border-radius:18px;padding:8px;width:84px;">'
+        '<img src="icon.png" alt="%s" style="width:68px;height:68px;display:block;border:0;border-radius:12px;"/>'
+        '</div></td>'
+        '<td valign="middle" style="padding:4px 8px 4px 0;">'
+        '<div style="font-size:34px;line-height:1.1;font-weight:800;color:#14213D;margin:0 0 6px;">%s</div>'
+        '<div style="font-size:15px;line-height:1.55;color:#475569;max-width:640px;">%s</div>'
+        '</td>'
+        '<td valign="top" align="right" style="padding:6px 0 4px 8px;white-space:nowrap;">%s</td>'
+        '</tr></table>'
+        '<div style="font-size:0;margin:14px 0 16px;">%s</div>'
+        '<div style="font-size:16px;font-weight:800;color:#102A52;margin:0 0 10px;">Key Features:</div>'
+        '%s'
+        '</div>'
+    ) % (e(mod["title"]), e(mod["title"]), e(mod.get("store_summary") or mod["summary"]), pills_html, badges, feature_rows)
+
+
 def render(mod):
     hero_points = "".join(hero_bullet(color, text) for color, text in mod["hero_points"])
     card_points = "".join(
@@ -321,6 +384,8 @@ def render(mod):
     )
     page = '''<div style="font-family:%(font)s;color:#14213D;background-color:#FFFFFF;padding:8px 4px 20px;line-height:1.5;">
 <div style="max-width:1080px;margin:0 auto;">
+
+@@HEADER@@
 
 <div style="background-color:#EAF3FF;border:1px solid #D5E4F7;padding:22px 18px 18px;margin:0 0 16px;">
   <div style="margin:0 0 14px;">
@@ -406,7 +471,7 @@ def render(mod):
         '<a href="https://www.cpabooks.org" style="color:#2166C1;font-weight:700;text-decoration:none;">www.cpabooks.org</a>'
         '</p></div>'
     ) % brand(False)
-    return page % {
+    page = page % {
         "font": FONT,
         "brand": brand(False),
         "pill": version_pill(),
@@ -429,6 +494,7 @@ def render(mod):
         "why": why,
         "footer": footer,
     }
+    return page.replace("@@HEADER@@", store_header(mod))
 
 
 def P(icon, bg, title, text):
@@ -545,8 +611,16 @@ add(
 add(
     "sequences_cpa",
     category="Document numbering",
-    title="Invoice Sequence Numbering",
+    title="Re-Sequence",
     summary="Reset and align document numbers for accounting, sales, inventory, project and CRM from one screen.",
+    store_summary="Manage all your Odoo sequences in one place. Reset prefix, year, month and digits for every selected journal in one action.",
+    highlights=[
+        "Reset sequence prefix at once",
+        "Apply for one or multiple companies",
+        "Set yearly or monthly sequence",
+        "Change number of digits easily",
+        "Update 20, 30 or more journals in seconds",
+    ],
     hero_points=[
         ("#22C55E", "Invoice, sale and stock numbers"),
         ("#8B5CF6", "Bulk prefix and padding"),
