@@ -452,7 +452,7 @@ def render(mod):
         <p style="font-size:14px;line-height:1.6;color:#14213D;margin:0 0 14px;">%(card_body)s</p>
         <div style="font-size:0;">%(card_points)s</div>
         <div style="margin-top:8px;">
-          <a href="https://www.cpabooks.org/contactus" style="display:inline-block;background-color:#2166C1;color:#FFFFFF;text-decoration:none;font-weight:800;font-size:14px;border-radius:999px;padding:11px 18px;">Contact CPA Books &#8594;</a>
+          <a href="https://cpabooks.org/contactus?debug=1" style="display:inline-block;background-color:#2166C1;color:#FFFFFF;text-decoration:none;font-weight:800;font-size:14px;border-radius:999px;padding:11px 18px;">Contact CPA Books &#8594;</a>
         </div>
       </div>
     </div>
@@ -502,7 +502,7 @@ def render(mod):
                 "CPA Books publishes Odoo applications for accounting and day-to-day operations. This page describes only what this module does.")
         + '<div style="text-align:center;font-size:14px;color:#3E4E68;line-height:1.7;">'
         + 'Publisher: CPA Books<br/>License: LGPL-3<br/>'
-        + 'Website: <a href="https://www.cpabooks.org" style="color:#2166C1;font-weight:700;text-decoration:none;">www.cpabooks.org</a>'
+        + 'Website: <a href="https://cpabooks.org/contactus?debug=1" style="color:#2166C1;font-weight:700;text-decoration:none;">cpabooks.org/contactus</a>'
         + ' &nbsp;·&nbsp; <a href="https://www.cpabooks.co" style="color:#2166C1;font-weight:700;text-decoration:none;">www.cpabooks.co</a>'
         + '</div>',
     )
@@ -518,7 +518,7 @@ def render(mod):
         '<span style="color:#2166C1;"> &nbsp;·&nbsp; </span>'
         '<a href="tel:+971562568128" style="color:#2166C1;font-weight:700;text-decoration:none;">+971 56 256 8128</a>'
         '<span style="color:#2166C1;"> &nbsp;·&nbsp; </span>'
-        '<a href="https://www.cpabooks.org" style="color:#2166C1;font-weight:700;text-decoration:none;">www.cpabooks.org</a>'
+        '<a href="https://cpabooks.org/contactus?debug=1" style="color:#2166C1;font-weight:700;text-decoration:none;">cpabooks.org/contactus</a>'
         '</p></div>'
     ) % brand(False)
     page = page % {

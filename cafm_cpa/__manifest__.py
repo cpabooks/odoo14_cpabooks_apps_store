@@ -15,7 +15,7 @@
     'price': 0.00,
     'currency': 'USD',
     'images': ['static/description/banner_store.jpg'],
-    'live_test_url': 'https://www.cpabooks.org/contactus',
+    'live_test_url': 'https://cpabooks.org/contactus?debug=1',
     'depends': [
         'maintenance',
         'project',
