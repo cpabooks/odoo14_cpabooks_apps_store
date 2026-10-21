@@ -291,20 +291,12 @@ def heading(kicker, title, emphasis, intro):
     ) % (e(kicker), e(title), e(emphasis), e(intro))
 
 
-def _badge(bg, mark, mark_bg, mark_color, title, subtitle):
+def _dark_card(inner):
     return (
-        '<div style="display:inline-block;width:16%%;min-width:148px;vertical-align:top;'
-        'box-sizing:border-box;padding:4px;font-size:13px;text-align:left;">'
-        '<div style="background-color:%s;border:1px solid #E6EDF5;border-radius:12px;'
-        'padding:10px 8px;min-height:62px;">'
-        '<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-        'text-align:center;border-radius:8px;background-color:%s;color:%s;'
-        'font-size:11px;font-weight:800;margin-right:6px;vertical-align:middle;">%s</span>'
-        '<span style="display:inline-block;vertical-align:middle;max-width:108px;">'
-        '<span style="display:block;font-weight:800;color:#102A52;font-size:13px;line-height:1.2;">%s</span>'
-        '<span style="display:block;color:#64748B;font-size:11px;line-height:1.3;">%s</span>'
-        '</span></div></div>'
-    ) % (bg, mark_bg, mark_color, mark, e(title), e(subtitle))
+        '<td width="16%%" valign="top" style="padding:6px;background-color:#F4F6F8;">'
+        '<div style="background-color:#171C2E;border-radius:16px;padding:18px 8px;'
+        'text-align:center;min-height:108px;">%s</div></td>'
+    ) % inner
 
 
 def store_header(mod):
@@ -319,13 +311,42 @@ def store_header(mod):
         '</div>' % (number, e(text))
         for number, text in enumerate(highlights, 1)
     )
+    purple = "#7C6BF2"
+    gold = "#F5B400"
     badges = "".join([
-        _badge("#F4F8FF", "#1", "#F5C451", "#7A4B00", "#1", "Since 2014"),
-        _badge("#E9F8EF", "IN", "#22A559", "#FFFFFF", "Trusted in", "Singapore, Saudi Arabia, Thailand, India, UAE"),
-        _badge("#FFF8E8", "5", "#F5B400", "#FFFFFF", "Most Rated", "Five stars"),
-        _badge("#FFF0F0", "^", "#F04438", "#FFFFFF", "Most Selling", "Best seller"),
-        _badge("#F4F0FF", "od", "#714B67", "#FFFFFF", "odoo", "Gold Partner"),
-        _badge("#EEF4FF", "10", "#3B82F6", "#FFFFFF", "10K+", "Customers"),
+        _dark_card(
+            '<div style="color:%s;font-size:26px;font-weight:800;line-height:1.1;">#1</div>'
+            '<div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:8px;">Since 2014</div>'
+            % purple
+        ),
+        _dark_card(
+            '<div style="color:%s;font-size:16px;font-weight:800;line-height:1.2;">Trusted in</div>'
+            '<div style="color:%s;font-size:11px;font-weight:600;line-height:1.35;margin-top:6px;">'
+            'Singapore, Saudi Arabia, Thailand, India, UAE</div>'
+            % (purple, purple)
+        ),
+        _dark_card(
+            '<div style="color:%s;font-size:18px;letter-spacing:2px;line-height:1;">&#9733;&#9733;&#9733;&#9733;&#9733;</div>'
+            '<div style="color:#FFFFFF;font-size:13px;font-weight:700;margin-top:8px;">Most Rated</div>'
+            % gold
+        ),
+        _dark_card(
+            '<div style="color:%s;font-size:26px;font-weight:800;line-height:1;">&#8599;</div>'
+            '<div style="color:#FFFFFF;font-size:13px;font-weight:700;margin-top:8px;">Most Selling</div>'
+            % purple
+        ),
+        _dark_card(
+            '<div style="color:#FFFFFF;font-size:22px;font-weight:800;line-height:1;">odoo</div>'
+            '<div style="margin-top:8px;">'
+            '<span style="display:inline-block;background-color:%s;color:#1A1400;'
+            'font-size:11px;font-weight:800;border-radius:4px;padding:3px 7px;">Gold Partner</span>'
+            '</div>' % gold
+        ),
+        _dark_card(
+            '<div style="color:%s;font-size:26px;font-weight:800;line-height:1.1;">10K+</div>'
+            '<div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:8px;">Customers</div>'
+            % purple
+        ),
     ])
     pill = (
         '<span style="display:inline-block;background-color:%s;color:#FFFFFF;'
@@ -347,7 +368,8 @@ def store_header(mod):
         '</td>'
         '<td valign="top" align="right" style="padding:6px 0 4px 8px;white-space:nowrap;">%s</td>'
         '</tr></table>'
-        '<div style="font-size:0;margin:14px 0 16px;">%s</div>'
+        '<table width="100%%" cellpadding="0" cellspacing="0" style="border-collapse:separate;'
+        'background-color:#F4F6F8;margin:16px 0 18px;"><tr>%s</tr></table>'
         '<div style="font-size:16px;font-weight:800;color:#102A52;margin:0 0 10px;">Key Features:</div>'
         '%s'
         '</div>'
