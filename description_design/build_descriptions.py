@@ -14,14 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
-# Alternating feature-card backgrounds. Neighbours are never the same.
-BACKGROUNDS = [
-    "linear-gradient(180deg,#FFFFFF 0%,#F7FBFF 100%)",
-    "linear-gradient(160deg,#F4F0FF 0%,#EEF5FF 100%)",
-    "linear-gradient(180deg,#F3F8FF 0%,#FFFFFF 100%)",
-    "linear-gradient(160deg,#FFF8F3 0%,#F4F0FF 100%)",
-    "linear-gradient(180deg,#F7FBFF 0%,#EEF4FF 100%)",
-]
+# Solid colors only. Odoo keeps background-color and drops many gradients,
+# which previously left pale text on a white page.
+BACKGROUNDS = ["#EAF3FF", "#F2EDFF", "#FFFFFF", "#EEF6FF", "#F7F4FF"]
 
 
 def e(value):
@@ -58,10 +53,10 @@ def brand(light=False):
 
 def version_pill():
     return (
-        '<span style="display:inline-block;background:#0C2E62;color:#FFFFFF;'
+        '<span style="display:inline-block;background-color:#102A52;color:#FFFFFF;'
         'border-radius:999px;padding:7px 8px 7px 14px;font-size:12px;font-weight:700;'
         'vertical-align:middle;">Built for odoo '
-        '<span style="display:inline-block;background:#714B67;color:#FFFFFF;'
+        '<span style="display:inline-block;background-color:#714B67;color:#FFFFFF;'
         'border-radius:7px;padding:2px 8px;margin-left:4px;">14</span></span>'
     )
 
@@ -175,9 +170,9 @@ def hero_bullet(color, text):
     return (
         '<div style="margin:0 0 8px;">'
         '<span style="display:inline-block;width:22px;height:22px;line-height:22px;'
-        'text-align:center;border-radius:7px;background:%s;color:#FFFFFF;'
+        'text-align:center;border-radius:7px;background-color:%s;color:#FFFFFF;'
         'font-size:12px;font-weight:800;margin-right:8px;vertical-align:middle;">&#10003;</span>'
-        '<span style="color:#F4F8FF;font-size:14px;font-weight:600;vertical-align:middle;">%s</span>'
+        '<span style="color:#14213D;font-size:14px;font-weight:700;vertical-align:middle;">%s</span>'
         '</div>'
     ) % (color, e(text))
 
@@ -192,7 +187,7 @@ def feature_block(index, block):
         '<h2 style="font-size:30px;line-height:1.15;font-weight:800;margin:0 0 12px;'
         'color:#102A52;letter-spacing:-0.02em;">%s<br/>'
         '<span style="color:#2166C1;">%s</span></h2>'
-        '<p style="font-size:15px;line-height:1.65;color:#3E4E68;margin:0 0 16px;">%s</p>'
+        '<p style="font-size:15px;line-height:1.65;color:#14213D;margin:0 0 16px;">%s</p>'
         '%s'
         '%s'
         '</div>'
@@ -211,19 +206,15 @@ def feature_block(index, block):
     )
     image = shot(block["image"], block["alt"])
     left, right = (image, text) if block["image_first"] else (text, image)
-    bgcolor = "#FFFFFF" if index % 2 == 0 else "#F4F0FF"
     shell = (
-        '<div bgcolor="%s" style="background:%s;border-radius:28px;padding:28px 16px;'
-        'margin:18px 0;box-shadow:0 12px 32px rgba(16,42,82,0.06);">'
-        '<div style="font-size:0;text-align:center;">'
-        '<div style="display:inline-block;width:52%%;min-width:290px;max-width:560px;'
-        'vertical-align:middle;font-size:16px;text-align:left;padding:8px;'
-        'box-sizing:border-box;">@@LEFT@@</div>'
-        '<div style="display:inline-block;width:46%%;min-width:270px;max-width:480px;'
-        'vertical-align:middle;font-size:16px;text-align:left;padding:8px;'
-        'box-sizing:border-box;">@@RIGHT@@</div>'
-        '</div></div>'
-    ) % (bgcolor, bg)
+        '<table width="100%%" cellpadding="0" cellspacing="0" '
+        'style="background-color:%s;border:1px solid #D5E4F7;border-collapse:separate;'
+        'border-spacing:0;margin:0 0 16px;">'
+        '<tr>'
+        '<td width="50%%" valign="middle" style="background-color:%s;padding:22px 16px;">@@LEFT@@</td>'
+        '<td width="50%%" valign="middle" style="background-color:%s;padding:22px 16px;">@@RIGHT@@</td>'
+        '</tr></table>'
+    ) % (bg, bg, bg)
     return shell.replace("@@LEFT@@", left).replace("@@RIGHT@@", right)
 
 
@@ -278,11 +269,13 @@ def pills(items):
     )
 
 
-def section_shell(bg, inner, bgcolor="#FFFFFF"):
+def section_shell(color, inner, legacy=None):
+    if not str(color).startswith("#"):
+        color = legacy if legacy and str(legacy).startswith("#") else "#FFFFFF"
     return (
-        '<div bgcolor="%s" style="background:%s;border-radius:28px;padding:32px 18px;'
-        'margin:18px 0;box-shadow:0 12px 32px rgba(16,42,82,0.06);">%s</div>'
-    ) % (bgcolor, bg, inner)
+        '<div style="background-color:%s;border:1px solid #D5E4F7;padding:28px 16px;'
+        'margin:0 0 16px;">%s</div>'
+    ) % (color, inner)
 
 
 def heading(kicker, title, emphasis, intro):
@@ -306,6 +299,13 @@ def render(mod):
         % point(p["icon"], p["bg"], p["title"], p["text"])
         for p in mod["hero_card"]["points"]
     )
+    used_images = {block["image"] for block in mod["sections"]}
+    if mod["hero_image"] not in used_images:
+        mod["sections"].insert(0, S(
+            True, mod["hero_image"], mod["hero_alt"], mod["category"],
+            mod["hero_card"]["title"], mod["hero_card"]["emphasis"],
+            mod["hero_card"]["body"], mod["hero_card"]["points"], "",
+        ))
     features = "".join(feature_block(i, block) for i, block in enumerate(mod["sections"]))
     cards = "".join(card(c["icon"], c["bg"], c["title"], c["text"]) for c in mod["cards"])
     steps = "".join(
@@ -319,35 +319,34 @@ def render(mod):
         if mod.get("requirement_note")
         else ""
     )
-    page = '''<div style="font-family:%(font)s;color:#14213D;background:#F3F7FC;padding:16px 10px 28px;line-height:1.5;">
+    page = '''<div style="font-family:%(font)s;color:#14213D;background-color:#FFFFFF;padding:8px 4px 20px;line-height:1.5;">
 <div style="max-width:1080px;margin:0 auto;">
 
-<div bgcolor="#12356F" style="background:linear-gradient(135deg,#0E3A86 0%%,#1B5FBF 48%%,#3B82F6 100%%);border-radius:28px;padding:28px 22px 22px;box-shadow:0 22px 48px rgba(16,42,82,0.22);">
-  <div style="margin:0 0 18px;font-size:0;">
-    <div style="display:inline-block;width:58%%;min-width:260px;vertical-align:middle;font-size:16px;text-align:left;">%(brand)s</div>
-    <div style="display:inline-block;width:40%%;min-width:220px;vertical-align:middle;font-size:16px;text-align:right;">%(pill)s</div>
+<div style="background-color:#EAF3FF;border:1px solid #D5E4F7;padding:22px 18px 18px;margin:0 0 16px;">
+  <div style="margin:0 0 14px;">
+    <span style="display:inline-block;vertical-align:middle;margin-right:12px;">%(brand)s</span>
+    <span style="display:inline-block;vertical-align:middle;">%(pill)s</span>
   </div>
   <div style="font-size:0;">
     <div style="display:inline-block;width:48%%;min-width:280px;vertical-align:top;font-size:16px;text-align:left;padding:6px 12px 6px 0;box-sizing:border-box;">
-      <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#D6E6FF;margin-bottom:8px;">%(category)s</div>
-      <h1 style="font-size:40px;line-height:1.08;font-weight:800;margin:0 0 10px;color:#FFFFFF;letter-spacing:-0.03em;">%(title)s</h1>
-      <p style="font-size:16px;line-height:1.6;color:#E7F0FF;margin:0 0 16px;max-width:460px;">%(summary)s</p>
+      <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#2166C1;margin-bottom:8px;">%(category)s</div>
+      <h1 style="font-size:36px;line-height:1.1;font-weight:800;margin:0 0 10px;color:#102A52;letter-spacing:-0.03em;">%(title)s</h1>
+      <p style="font-size:16px;line-height:1.6;color:#14213D;margin:0 0 16px;max-width:460px;">%(summary)s</p>
       %(hero_points)s
     </div>
     <div style="display:inline-block;width:50%%;min-width:280px;vertical-align:top;font-size:16px;text-align:left;box-sizing:border-box;">
-      <div style="background:#FFFFFF;border-radius:22px;padding:22px 18px 12px;box-shadow:0 16px 36px rgba(8,28,68,0.18);">
+      <div style="background-color:#FFFFFF;border:1px solid #D5E4F7;border-radius:16px;padding:22px 18px 12px;">
         <div style="font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#2166C1;">%(card_kicker)s</div>
         <h2 style="font-size:28px;line-height:1.15;font-weight:800;margin:8px 0 8px;color:#102A52;">%(card_title)s <span style="color:#2166C1;">%(card_emphasis)s</span></h2>
-        <p style="font-size:14px;line-height:1.6;color:#52627A;margin:0 0 14px;">%(card_body)s</p>
+        <p style="font-size:14px;line-height:1.6;color:#14213D;margin:0 0 14px;">%(card_body)s</p>
         <div style="font-size:0;">%(card_points)s</div>
         <div style="margin-top:8px;">
-          <a href="https://www.cpabooks.org/contactus" style="display:inline-block;background:#2166C1;color:#FFFFFF;text-decoration:none;font-weight:800;font-size:14px;border-radius:999px;padding:11px 18px;">Contact CPA Books &#8594;</a>
+          <a href="https://www.cpabooks.org/contactus" style="display:inline-block;background-color:#2166C1;color:#FFFFFF;text-decoration:none;font-weight:800;font-size:14px;border-radius:999px;padding:11px 18px;">Contact CPA Books &#8594;</a>
         </div>
       </div>
     </div>
   </div>
-  <div style="margin:18px auto 8px;max-width:920px;">%(hero_shot)s</div>
-  <div style="text-align:center;color:#D6E6FF;font-size:12px;font-weight:800;letter-spacing:0.16em;margin-top:14px;">%(words)s</div>
+  <div style="text-align:center;color:#2166C1;font-size:12px;font-weight:800;letter-spacing:0.16em;margin-top:14px;">%(words)s</div>
 </div>
 
 %(features)s
@@ -393,23 +392,23 @@ def render(mod):
         + '</div>',
     )
     footer = (
-        '<div bgcolor="#102A52" style="background:#102A52;border-radius:28px;padding:28px 18px;'
-        'margin:18px 0 0;text-align:center;box-shadow:0 12px 32px rgba(16,42,82,0.16);">'
+        '<div style="background-color:#F2EDFF;border:1px solid #D5E4F7;padding:22px 16px;'
+        'text-align:center;">'
         '<div style="margin-bottom:12px;">%s</div>'
-        '<div style="color:#FFFFFF;font-weight:800;font-size:18px;margin-bottom:6px;">Technical support</div>'
-        '<p style="color:#D6E6FF;font-size:14px;margin:0 0 8px;line-height:1.6;">'
+        '<div style="color:#102A52;font-weight:800;font-size:18px;margin-bottom:6px;">Technical support</div>'
+        '<p style="color:#14213D;font-size:14px;margin:0 0 8px;line-height:1.6;">'
         'Questions about installation or how this module is meant to be used.</p>'
         '<p style="margin:0;font-size:14px;line-height:1.8;">'
-        '<a href="mailto:info@cpabooks.org" style="color:#FFFFFF;font-weight:700;text-decoration:none;">info@cpabooks.org</a>'
-        '<span style="color:#93C5FD;"> &nbsp;·&nbsp; </span>'
-        '<a href="tel:+971562568128" style="color:#FFFFFF;font-weight:700;text-decoration:none;">+971 56 256 8128</a>'
-        '<span style="color:#93C5FD;"> &nbsp;·&nbsp; </span>'
-        '<a href="https://www.cpabooks.org" style="color:#FFFFFF;font-weight:700;text-decoration:none;">www.cpabooks.org</a>'
+        '<a href="mailto:info@cpabooks.org" style="color:#2166C1;font-weight:700;text-decoration:none;">info@cpabooks.org</a>'
+        '<span style="color:#2166C1;"> &nbsp;·&nbsp; </span>'
+        '<a href="tel:+971562568128" style="color:#2166C1;font-weight:700;text-decoration:none;">+971 56 256 8128</a>'
+        '<span style="color:#2166C1;"> &nbsp;·&nbsp; </span>'
+        '<a href="https://www.cpabooks.org" style="color:#2166C1;font-weight:700;text-decoration:none;">www.cpabooks.org</a>'
         '</p></div>'
-    ) % brand(True)
+    ) % brand(False)
     return page % {
         "font": FONT,
-        "brand": brand(True),
+        "brand": brand(False),
         "pill": version_pill(),
         "category": e(mod["category"]),
         "title": e(mod["title"]),
@@ -628,27 +627,38 @@ add(
     hero_alt="Audited financial statements banner",
     words="LEDGER  ·  STATEMENTS  ·  EXPORT",
     sections=[
-        S(True, "feature_01_setup.jpg", "Company and period setup", "Setup", "Company and", "period setup",
-          "Configure the company, reporting periods, comparative periods and statement data from one place.",
-          [P("🏢", "#DCFCE7", "Company selection", "Single company or the companies you report together."),
-           P("📅", "#DBEAFE", "Period selection", "Yearly, monthly or a custom period."),
-           P("💱", "#EDE9FE", "Currency", "Uses the currencies already set in Odoo, including AED."),
-           P("📒", "#FFEDD5", "Posted journals", "Statement data is taken from posted Odoo journals.")],
-          "Screenshot: company and period setup."),
-        S(False, "feature_02_reporting.jpg", "Financial reporting", "Reporting", "Generate the", "financial pack",
-          "Create the statements with flexible periods, comparative columns and more than one report level.",
-          [P("📅", "#DCFCE7", "Comparative reporting", "Current year beside the prior year."),
-           P("📑", "#DBEAFE", "Report levels", "A presentation layout and a more detailed working layout."),
-           P("👁️", "#EDE9FE", "Print preview", "Review the pack before it is final."),
-           P("📤", "#FFEDD5", "Export", "PDF, Excel, Word and CSV.")],
-          "Screenshot: financial reporting."),
-        S(True, "feature_03_structure.jpg", "Financial statement structure", "Structure", "Map the", "chart of accounts",
-          "Map Odoo accounts into the statement groups used by the pack.",
-          [P("🧩", "#DCFCE7", "Statement sections", "Profit or loss, financial position, cash flow, equity and PPE."),
-           P("⚠️", "#DBEAFE", "Unmapped accounts", "See accounts that still need a group."),
-           P("🔁", "#EDE9FE", "Reuse the map", "Keep the structure and run it again next period."),
-           P("📝", "#FFEDD5", "Notes", "Supporting notes stay with the statements.")],
-          "Screenshot: financial structure."),
+        S(True, "banner_screenshot.jpg", "Audited financial statements pack", "Year-end pack", "From the trial balance", "to the full pack",
+          "The pack is built from the Odoo trial balance. Profit or loss, financial position, equity, cash flow, PPE and notes stay in one place.",
+          [P("📈", "#DCFCE7", "Profit or loss", "Income for the reporting period."),
+           P("🏦", "#DBEAFE", "Financial position", "Assets, liabilities and equity."),
+           P("💧", "#EDE9FE", "Equity and cash flow", "Equity movements and cash movements."),
+           P("🏗️", "#FFEDD5", "PPE and notes", "The PPE schedule and the notes to the statements."),
+           P("🖨️", "#CCFBF1", "Print the pack", "Preview, then send the pack out of Odoo.")],
+          ""),
+        S(False, "feature_01_setup.jpg", "Company and period setup", "Setup", "Company and", "period setup",
+          "Open one company file and set the years, the dates and the currency before the statement lines are reviewed.",
+          [P("🏢", "#DCFCE7", "Company", "The reporting company, with consolidated companies when they are used."),
+           P("💱", "#DBEAFE", "Currency", "The statement currency, such as AED."),
+           P("📅", "#EDE9FE", "Current and prior year", "Current year, prior year, and the start and end of each period."),
+           P("📒", "#FFEDD5", "Posted journals", "The data source is the posted Odoo journals."),
+           P("📊", "#CCFBF1", "Report lines", "Each line shows the section, the note, and the prior and current trial balance.")],
+          ""),
+        S(True, "feature_02_reporting.jpg", "Statement of financial position", "Statements", "Read the statements", "with comparative years",
+          "The statement screen lists assets, liabilities and equity, with a column for each year and a menu for the rest of the pack.",
+          [P("🏦", "#DCFCE7", "Financial position", "Property, inventory, receivables, cash, liabilities and equity."),
+           P("📑", "#DBEAFE", "The full pack", "Profit or loss, equity, cash flow, PPE, notes and validation are in the same menu."),
+           P("⚖️", "#EDE9FE", "Two years", "Prior year and current year sit side by side."),
+           P("⚠️", "#FFEDD5", "Review alerts", "A warning shows when the statements are not reconciled."),
+           P("📝", "#CCFBF1", "Internal notes", "Working notes stay on the screen and are not part of the printed pack.")],
+          ""),
+        S(False, "feature_03_structure.jpg", "Periods, report level and export", "Print and export", "Choose the period,", "then export",
+          "Pick the comparison, the report level and the page setup, then print or export the same pack.",
+          [P("📅", "#DCFCE7", "Period choice", "Last two years, last two months, the same month last year, or a custom period."),
+           P("🧩", "#DBEAFE", "Report level", "A presentation level or a detailed level with groups."),
+           P("↔️", "#EDE9FE", "Column order", "The year columns can be shown ascending."),
+           P("📄", "#FFEDD5", "Page setup", "Header margin, footer margin, and whether an empty page is stopped."),
+           P("📤", "#CCFBF1", "Export", "Print preview, PDF, Excel, Word and CSV.")],
+          ""),
     ],
     cards_intro="The statement pack prepared from Odoo accounting.",
     cards=[
