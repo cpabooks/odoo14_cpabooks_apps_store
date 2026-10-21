@@ -469,6 +469,10 @@ def render(mod):
 %(why)s
 %(footer)s
 
+<div style="margin:18px 0 4px;">
+<img src="apps_footer.jpg" alt="Available for Odoo 14 to 20. Email info.cpabooks@gmail.com or WhatsApp +971 56 256 8128." style="width:100%%;max-width:100%%;height:auto;display:block;border:0;border-radius:16px;"/>
+</div>
+
 </div>
 </div>'''
     cards_block = section_shell(
