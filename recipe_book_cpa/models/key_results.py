@@ -699,7 +699,7 @@ class RecipeKeyResults(models.Model):
         for start, end, products in windows:
             window_labels.append('%s to %s' % (start.strftime('%d/%m/%Y'), end.strftime('%d/%m/%Y')))
             found = self.env['account.move.line'].sudo().search(
-                bill_domain(start, end, products), order='move_id.invoice_date, move_id.name, id',
+                bill_domain(start, end, products),
             )
             extra = found.filtered(lambda line: line.id not in seen_ids)
             seen_ids.update(extra.ids)

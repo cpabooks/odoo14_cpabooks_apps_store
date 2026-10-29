@@ -9,6 +9,7 @@ Run from anywhere:
     python3 build_descriptions.py
 """
 import html
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1192,8 +1193,65 @@ add(
 )
 
 
+add(
+    "cpabooks_chart_of_accounts",
+    category="Accounting",
+    title="Chart of Accounts Management",
+    summary="IFRS-style account types, groups and ledger codes for Odoo 14, with COA reset, merge, "
+            "correspondent ledgers and opening balance entries.",
+    hero_points=[
+        ("#2166C1", "IFRS type, group and ledger codes"),
+        ("#16A34A", "Reset and regenerate COA codes"),
+        ("#F59E0B", "Merge and delete unused ledgers"),
+        ("#7C3AED", "Opening balance with automatic offset"),
+    ],
+    hero_card={
+        "kicker": "Chart of accounts",
+        "title": "Structured",
+        "emphasis": "ledger coding",
+        "body": "Account types, groups and ledgers follow one coding structure, from setup to reporting.",
+        "points": [
+            P("🏷️", "#DCFCE7", "IFRS coding", "Type, group and ledger codes in one structure."),
+            P("🔁", "#DBEAFE", "COA actions", "Reset codes, regroup and clean up ledgers."),
+            P("🔗", "#EDE9FE", "Correspondent", "Debit and credit correspondent ledgers."),
+            P("📒", "#FFEDD5", "Opening balance", "Post opening balances with an offset ledger."),
+        ],
+    },
+    hero_image="banner_store.jpg",
+    hero_alt="Chart of Accounts Management store banner",
+    words="SETUP  ·  CODE  ·  GROUP  ·  REPORT",
+    sections=[],
+    cards_intro="Tools that keep the chart of accounts structured and clean.",
+    cards=[
+        P("🏷️", "#DCFCE7", "IFRS coding wizard", "Generate type, group and ledger codes."),
+        P("🔁", "#DBEAFE", "Reset code options", "Reset all codes or one level at a time."),
+        P("🧹", "#EDE9FE", "Merge and delete", "Merge duplicate ledgers and remove unused ones."),
+        P("🔗", "#FFEDD5", "Correspondent ledgers", "Link debit and credit correspondent accounts."),
+        P("📒", "#CCFBF1", "Opening balance", "Opening entries with an automatic offset."),
+        P("📓", "#FCE7F3", "Journals from COA", "Create bank and cash journals from ledgers."),
+    ],
+    steps_intro="From a fresh database to a coded chart of accounts.",
+    steps=[
+        {"title": "Install", "text": "The default COA groups and ledgers are prepared."},
+        {"title": "Code", "text": "Run the IFRS coding wizard on types, groups and ledgers."},
+        {"title": "Clean up", "text": "Merge, regroup or delete unused ledgers."},
+        {"title": "Open", "text": "Post opening balances and start working."},
+    ],
+    compat_intro="This release is built for Odoo 14. Later Odoo versions are not part of this module.",
+    depends=["Accounting", "Purchase", "Products", "Discuss"],
+    requirement_note="Uses standard Odoo Accounting, Purchase and Products. No other CPA Books module is required.",
+    own_builder="build_coa_showcase.py",
+)
+
+
 def main():
+    only = set(sys.argv[1:])
     for mod in MODULES:
+        if only and mod["technical"] not in only:
+            continue
+        if mod.get("own_builder"):
+            print("skip", mod["technical"], "- built by", mod["own_builder"])
+            continue
         target = ROOT / mod["technical"] / "static" / "description" / "index.html"
         html_out = render(mod)
         target.write_text(html_out, encoding="utf-8")

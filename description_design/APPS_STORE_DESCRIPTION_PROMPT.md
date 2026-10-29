@@ -33,4 +33,10 @@ Create one modern, premium, reusable Apps Store description for every CPA Books 
 python3 description_design/build_descriptions.py
 ```
 
+`cpabooks_chart_of_accounts` uses the cpabooks.org showcase design (same as https://cpabooks.org/apps/chart-of-accounts) and has its own builder; `build_descriptions.py` skips it:
+
+```bash
+cd description_design && python3 build_coa_showcase.py
+```
+
 Previous description HTML is in `description_design/backup/`.
