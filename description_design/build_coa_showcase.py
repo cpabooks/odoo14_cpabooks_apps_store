@@ -269,9 +269,9 @@ def feature_block(index, feature):
     copy = (
         '<div style="display:inline-block;width:40%%;min-width:300px;vertical-align:middle;box-sizing:border-box;'
         'padding:10px %s 10px %s;font-size:16px;text-align:left;">'
-        '%s%s<p style="font-size:16px;line-height:1.7;color:%s;margin:0 0 14px;">%s</p>%s</div>'
+        '%s<p style="font-size:16px;line-height:1.7;color:%s;margin:0 0 14px;">%s</p>%s</div>'
     ) % ("10px" if reverse else "28px", "28px" if reverse else "10px",
-         kicker("Feature %02d" % (index + 1)), split_heading(feature["title"], 2, 38),
+         split_heading(feature["title"], 2, 38),
          MUTED, e(feature["text"]), points)
     media = (
         '<div style="display:inline-block;width:60%%;min-width:300px;vertical-align:middle;box-sizing:border-box;'
