@@ -10,7 +10,7 @@ type / group / ledger coding, automatic ledger codes, COA reset and
 regenerate wizards, merge and delete of unused ledgers, opening balance
 entry, correspondent Dr/Cr ledgers and product COA codes.
     """,
-    'author': 'CPA Books',
+    'author': 'CPA Books (WhastApp +971562568128)',
     'website': 'https://www.cpabooks.co',
     'support': 'info@cpabooks.org',
     'category': 'Accounting/Accounting',
