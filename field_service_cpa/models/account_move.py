@@ -6,6 +6,8 @@ from odoo import api, fields, models
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    invoice_type = fields.Many2one('invoice.type', string='Invoice Type')
+    project_id = fields.Many2one('project.project', string='Project / Job')
     # Mirror PT v1 delivery print toggles so FSM upgrades succeed when PT
     # views are newer than PT Python on the server (live partial deploy).
     show_delivery_mode = fields.Boolean(string='Show Delivery Mode', default=False)
@@ -33,3 +35,16 @@ class AccountMove(models.Model):
         tasks = orders.mapped('task_id').filtered('is_fsm')
         if tasks and hasattr(tasks, '_cpabooks_refresh_fsm_quotation_display'):
             tasks._cpabooks_refresh_fsm_quotation_display()
+
+
+class InvoiceType(models.Model):
+    _name = 'invoice.type'
+    _description = 'Invoice Type'
+
+    name = fields.Char(required=True)
+
+
+class AccountMoveLine(models.Model):
+    _inherit = 'account.move.line'
+
+    guaranteed = fields.Boolean(string='Guaranteed', default=False)

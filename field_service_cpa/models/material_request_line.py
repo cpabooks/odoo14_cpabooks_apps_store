@@ -2,20 +2,19 @@ from odoo import api, fields, models
 
 
 class MaterialRequestLine(models.Model):
-    _inherit = 'material.request.line'
+    _name = 'material.request.line'
+    _description = 'Material Request Line'
 
+    task_id = fields.Many2one('project.task', string='Task', ondelete='cascade')
+    product_id = fields.Many2one('product.product', string='Product', required=True)
+    description = fields.Char(string='Description')
+    quantity = fields.Float(string='Quantity', default=1.0)
     task_crn_number = fields.Char(
         string='CRN No',
         compute='_compute_task_crn_number',
         store=True,
         readonly=True,
     )
-
-    @api.depends('task_id', 'task_id.task_seq')
-    def _compute_task_crn_number(self):
-        for line in self:
-            task = line.sudo().task_id
-            line.task_crn_number = task.task_seq if task else False
     issue_move_id = fields.Many2one(
         'stock.move',
         string='Issue Move',
@@ -25,6 +24,12 @@ class MaterialRequestLine(models.Model):
     quantity_done = fields.Float(string='Done Quantity', compute='get_quantity_done')
     amount_done = fields.Float(string='Amount Done', compute='get_quantity_done')
     test_quantity_issued = fields.Float(string='Test Issued Quantity', copy=False)
+
+    @api.depends('task_id', 'task_id.task_seq')
+    def _compute_task_crn_number(self):
+        for line in self:
+            task = line.sudo().task_id
+            line.task_crn_number = task.task_seq if task else False
 
     def init(self):
         self.env.cr.execute("""

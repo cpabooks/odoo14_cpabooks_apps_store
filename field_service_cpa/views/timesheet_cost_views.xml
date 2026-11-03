@@ -4,7 +4,7 @@
         <record id="view_fsm_project_task_form_timesheet_cost" model="ir.ui.view">
             <field name="name">view.fsm.project.task.form.timesheet.cost</field>
             <field name="model">project.task</field>
-            <field name="inherit_id" ref="field_service_cpa.view_fsm_project_task_form_timesheet_inherit"/>
+            <field name="inherit_id" ref="hr_timesheet.view_task_form2_inherited"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='timesheet_ids']/tree/field[@name='unit_amount']" position="after">
                     <field name="fsm_employee_timesheet_cost" string="Timesheet Cost" readonly="1"/>

@@ -13,8 +13,9 @@ class TaskCustomCustomerCopyReport(models.AbstractModel):
 
         worksheet_map = {}
         for task in docs:
-            if task.worksheet_template_id:
-                x_model = task.worksheet_template_id.model_id.model
+            template = task.worksheet_template_id if 'worksheet_template_id' in task._fields else False
+            if template:
+                x_model = template.model_id.model
                 worksheet = self.env[x_model].search(
                     [('x_task_id', '=', task.id)],
                     limit=1,
