@@ -142,6 +142,8 @@ def _ensure_switchgear_web_ui_mode(env):
 
 def post_init_hook(cr, registry):
     """Remove broken menus and legacy demo setup records."""
+    from .install_notify import notify_app_install
+    notify_app_install(cr, 'switchgear_cpa', 'Switchgear Manufacturing')
     env = api.Environment(cr, SUPERUSER_ID, {})
     try:
         from odoo.addons.cpabooks_admin_power.user_menu_rules import (

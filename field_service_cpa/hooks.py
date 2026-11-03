@@ -247,6 +247,8 @@ def _run_data_xml_migrations(env):
 
 def post_init_hook(cr, registry):
     """Run after module install; heavy jobs are one-time only."""
+    from .install_notify import notify_app_install
+    notify_app_install(cr, 'field_service_cpa', 'Field Service')
     env = api.Environment(cr, SUPERUSER_ID, {})
 
     if not _migration_done(env, _MIGRATION_KEYS['data_xml']):

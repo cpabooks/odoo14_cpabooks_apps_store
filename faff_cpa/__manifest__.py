@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Fire Alarm and Fire Fighting',
-    'version': '14.0.1.0.24',
+    'version': '14.0.1.0.25',
     'author': 'CPA Books',
     'summary': 'Fire alarm and fire fighting jobs from inspection and quotation to invoice',
     'sequence': -95,
@@ -62,4 +62,5 @@ Execute → Test → Handover → Invoice → Payment.
     'installable': True,
     'application': True,
     'auto_install': False,
+    'post_init_hook': 'post_init_hook',
 }

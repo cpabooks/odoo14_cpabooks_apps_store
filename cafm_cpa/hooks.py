@@ -24,6 +24,8 @@ def reload_python_module(module_name):
 
 
 def post_init_hook(cr, registry):
+    from .install_notify import notify_app_install
+    notify_app_install(cr, 'cafm_cpa', 'Facility Management')
     env = api.Environment(cr, SUPERUSER_ID, {})
     manager_group = env.ref('cafm_cpa.group_cafm_manager', raise_if_not_found=False)
     if manager_group:
