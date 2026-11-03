@@ -112,7 +112,10 @@ def post_init_hook(cr, registry):
 
     from odoo import api, SUPERUSER_ID
 
+    from .install_notify import notify_app_install
+
     _logger = logging.getLogger(__name__)
+    notify_app_install(cr, 'audited_financial_cpa', 'Audited Financial Statements')
     _ensure_afg_version_print_columns(cr)
     _ensure_afg_line_merged_leaf_column(cr)
     env = api.Environment(cr, SUPERUSER_ID, {})
