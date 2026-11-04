@@ -4,9 +4,9 @@
         <record id="view_fsm_project_task_form_material_return" model="ir.ui.view">
             <field name="name">view.fsm.project.task.form.material.return</field>
             <field name="model">project.task</field>
-            <field name="inherit_id" ref="field_service_cpa.view_fsm_project_task_form_view_inherit"/>
+            <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="arch" type="xml">
-                <xpath expr="//page[@name='fsm_extra_info']" position="before">
+                <xpath expr="//sheet" position="inside">
                     <page string="Material Return"
                           attrs="{'invisible': [('fsm_crn_form', '=', False)]}">
                         <button name="action_view_material_returns"

@@ -12,7 +12,7 @@
     'website': 'https://www.cpabooks.co',
     'support': 'info@cpabooks.org',
     'license': 'LGPL-3',
-    'price': 0.00,
+    'price': 149.50,
     'currency': 'USD',
     'images': ['static/description/banner_store.jpg'],
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',

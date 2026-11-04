@@ -9,7 +9,7 @@
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="priority">310</field>
             <field name="arch" type="xml">
-                <xpath expr="//div[@role='alert'][hasclass('alert-warning')][.//field[@name='planning_overlap']]" position="attributes">
+                <xpath expr="//div[@role='alert'][hasclass('alert-warning')][.//field[@name='planning_overlap']]" position="attributes" optional="true">
                     <attribute name="invisible">1</attribute>
                 </xpath>
             </field>

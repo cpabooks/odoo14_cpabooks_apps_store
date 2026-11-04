@@ -70,7 +70,7 @@
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="priority" eval="100"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='stage_id']/following-sibling::field[@name='state'][1]" position="attributes">
+                <xpath expr="//field[@name='stage_id']/following-sibling::field[@name='state'][1]" position="attributes" optional="true">
                     <attribute name="invisible">context.get('fsm_mode', False)</attribute>
                 </xpath>
             </field>
@@ -86,10 +86,10 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="hr_timesheet.view_task_form2_inherited"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='planned_hours']" position="attributes">
+                <xpath expr="//field[@name='planned_hours']" position="attributes" optional="true">
                     <attribute name="invisible">context.get('fsm_mode', False)</attribute>
                 </xpath>
-                <xpath expr="//field[@name='subtask_planned_hours']" position="attributes">
+                <xpath expr="//field[@name='subtask_planned_hours']" position="attributes" optional="true">
                     <attribute name="invisible">context.get('fsm_mode', False)</attribute>
                 </xpath>
             </field>
@@ -101,7 +101,7 @@
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="priority">300</field>
             <field name="arch" type="xml">
-                <xpath expr="//button[@name='action_fsm_validate']" position="replace"/>
+                <xpath expr="//button[@name='action_fsm_validate']" position="replace" optional="true"/>
             </field>
         </record>
 
@@ -113,7 +113,7 @@
                 <!-- Only target nodes present on both old and new sale_timesheet arches.
                      remaining_hours_so / remaining_hours_so_label exist only after a
                      newer sale_timesheet view sync; xpath on them breaks upgrades. -->
-                <xpath expr="//field[@name='timesheet_product_id']" position="attributes">
+                <xpath expr="//field[@name='timesheet_product_id']" position="attributes" optional="true">
                     <attribute name="invisible">context.get('fsm_mode', False)</attribute>
                 </xpath>
             </field>
@@ -125,32 +125,19 @@
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="priority">300</field>
             <field name="arch" type="xml">
-                <xpath expr="//button[@name='action_view_timesheets']" position="attributes">
+                <xpath expr="//button[@name='action_view_timesheets']" position="attributes" optional="true">
                     <attribute name="invisible">1</attribute>
                 </xpath>
             </field>
         </record>
 
-        <!-- Skipped: depends on all_in_one_schedule_activity_management.activity_task_form_inherit_dashboard,
-             which is missing in the current database. -->
-
-        <record id="view_fsm_project_task_form_hide_check_list_page" model="ir.ui.view">
-            <field name="name">view.fsm.project.task.form.hide.check.list.page</field>
-            <field name="model">project.task</field>
-            <field name="inherit_id"
-                   ref="all_in_one_schedule_activity_management.inherit_project_task_form_description_page"/>
-            <field name="priority">300</field>
-            <field name="arch" type="xml">
-                <xpath expr="//page[@name='description_lines_page']" position="attributes">
-                    <attribute name="invisible">1</attribute>
-                </xpath>
-            </field>
-        </record>
+        <!-- Checklist hide view omitted: it inherited a custom module XML ID
+             (all_in_one_schedule_activity_management) that apps-store users do not have. -->
 
         <record id="view_fsm_project_task_form_show_cost_summary" model="ir.ui.view">
             <field name="name">view.fsm.project.task.form.show.cost.summary</field>
             <field name="model">project.task</field>
-            <field name="inherit_id" ref="view_fsm_project_task_form_view_inherit"/>
+            <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="priority">350</field>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='tag_ids']" position="after">

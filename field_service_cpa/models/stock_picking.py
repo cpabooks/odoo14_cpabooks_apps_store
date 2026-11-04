@@ -6,6 +6,12 @@ from odoo.tools.float_utils import float_is_zero
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
+    issue_project_task_id = fields.Many2one(
+        'project.task',
+        string='CRN',
+        index=True,
+        ondelete='set null',
+    )
     issue_crn_number = fields.Char(
         string='CRN Number',
         related='issue_project_task_id.task_seq',
@@ -78,8 +84,7 @@ class StockPicking(models.Model):
             picking.issue_source_document = source
 
     @api.onchange('issue_project_task_id')
-    def _onchange_issue_project_task_id_populate_crn_details(self):
-        result = super()._onchange_issue_project_task_id()
+    def _onchange_issue_project_task_id(self):
         for picking in self:
             task = picking.issue_project_task_id
             if not task:
@@ -94,7 +99,6 @@ class StockPicking(models.Model):
             elif task.task_seq:
                 picking.origin = task.task_seq
             picking._fill_move_locations_from_picking()
-        return result
 
     @api.onchange('picking_type_id', 'location_id', 'location_dest_id')
     def _onchange_locations_propagate_to_moves(self):

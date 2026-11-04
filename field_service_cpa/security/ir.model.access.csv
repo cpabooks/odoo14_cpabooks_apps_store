@@ -1,6 +1,11 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_contact_person,access_contact_person,model_contact_person,base.group_user,1,1,1,1
+access_invoice_type,access_invoice_type,model_invoice_type,base.group_user,1,1,1,1
 access_material_line_req,access_material_line_req,model_material_request_line,base.group_user,1,1,1,1
+access_material_return_line,access_material_return_line,model_material_return_line,base.group_user,1,1,1,1
+access_customer_part_line,access_customer_part_line,model_project_task_customer_part_line,base.group_user,1,1,1,1
+access_customer_labour_line,access_customer_labour_line,model_project_task_customer_labour_line,base.group_user,1,1,1,1
+access_fsm_material_consumption_report,access_fsm_material_consumption_report,model_fsm_material_consumption_report,base.group_user,1,1,1,1
 access_site_location,access_site_location,model_site_location,base.group_user,1,1,1,1
 access_complaint_detail,access_complaint_detail,model_complaint_detail,base.group_user,1,1,1,1
 access_fsm_test_data_record,access_fsm_test_data_record,model_cpabooks_fsm_test_data_record,field_service_cpa.group_fsm_manager,1,1,1,1

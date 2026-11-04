@@ -11,7 +11,7 @@ do the work, invoice and close.
     'website': "https://www.cpabooks.co",
     'support': 'info@cpabooks.org',
     'license': 'LGPL-3',
-    'price': 0.00,
+    'price': 198.00,
     'currency': 'USD',
     'sequence': -90,
     'images': ['static/description/banner_store.jpg'],
@@ -21,12 +21,14 @@ do the work, invoice and close.
     # Check https://github.com/odoo/odoo/blob/14.0/odoo/addons/base/data/ir_module_category_data.xml
     # for the full list
     'category': 'Services/Field Service',
-    'version': '14.0.1.0.4',
+    'version': '14.0.1.0.6',
 
-    # any module necessary for this one to work correctly
+    # Official Odoo addons only — apps-store installs must not require
+    # addons-community / CPABooks custom modules.
     'depends': [
         'project',
         'sale_management',
+        'sale_timesheet',
         'stock',
         'purchase',
         'account',
@@ -44,6 +46,8 @@ do the work, invoice and close.
         'data/invoice_type_data.xml',
         'data/project_project_data.xml',
         'data/project_task_data.xml',
+        'views/crn_service_assets.xml',
+        'views/crn_service_menus.xml',
         'views/report_project_task.xml',
         'views/complaint_detail_views.xml',
         'views/project_project_views_inherit.xml',
@@ -67,8 +71,6 @@ do the work, invoice and close.
         'views/fsm_task_cancel_actions.xml',
         'views/fsm_project_task.xml',
         'views/fsm_crn_labels_views.xml',
-        'views/crn_service_assets.xml',
-        'views/crn_service_menus.xml',
         'views/fsm_dashboard_views.xml',
         'views/fsm_material_consumption_views.xml',
         'views/fsm_store_views.xml',

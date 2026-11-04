@@ -34,10 +34,10 @@
                     </attribute>
                 </xpath>
 
-                <xpath expr="//field[@name='planned_date_begin']" position="replace">
+                <xpath expr="//field[@name='planned_date_begin']" position="replace" optional="true">
                     <field name="date_start" optional="hide"/>
                 </xpath>
-                <xpath expr="//field[@name='planned_date_end']" position="replace">
+                <xpath expr="//field[@name='planned_date_end']" position="replace" optional="true">
                     <field name="date_end" optional="hide"/>
                 </xpath>
                 <xpath expr="//field[@name='stage_id']" position="attributes">
@@ -76,13 +76,13 @@
                             name="assigned_to_me"
                             domain="[('user_id', '=', uid)]"/>
                 </xpath>
-                <xpath expr="//filter[@name='planned_today']" position="attributes">
+                <xpath expr="//filter[@name='planned_today']" position="attributes" optional="true">
                     <attribute name="invisible">1</attribute>
                 </xpath>
-                <xpath expr="//filter[@name='planned_future']" position="attributes">
+                <xpath expr="//filter[@name='planned_future']" position="attributes" optional="true">
                     <attribute name="invisible">1</attribute>
                 </xpath>
-                <xpath expr="//filter[@name='planned_future']" position="after">
+                <xpath expr="//filter[@name='planned_future']" position="after" optional="true">
                     <filter string="To Quotation Issue"
                             name="to_quotation_issue"
                             domain="[('next_action', '=', 'issue'), ('fsm_stage_group', '=', 'site_visited')]"/>

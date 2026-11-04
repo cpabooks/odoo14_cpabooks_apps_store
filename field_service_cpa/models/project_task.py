@@ -1397,7 +1397,10 @@ class ProjectTask(models.Model):
 
     def _fsm_workflow_reload_form_action(self):
         self.ensure_one()
-        action = self.env.ref('industry_fsm.project_task_action_fsm').read()[0]
+        action_rec = self.env.ref('industry_fsm.project_task_action_fsm', raise_if_not_found=False)
+        if not action_rec:
+            action_rec = self.env.ref('project.action_view_task')
+        action = action_rec.read()[0]
         action['views'] = [(False, 'form')]
         action['res_id'] = self.id
         action['target'] = 'current'

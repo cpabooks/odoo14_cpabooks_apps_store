@@ -2,7 +2,16 @@
 import logging
 
 from odoo import api, models
-from odoo.tools.template_inheritance import locate_node
+
+try:
+    from odoo.tools.template_inheritance import locate_node
+except ImportError:
+    def locate_node(source, spec):
+        expr = spec.get('expr') if spec is not None else None
+        if not expr or source is None:
+            return None
+        found = source.xpath(expr)
+        return found[0] if found else None
 
 _logger = logging.getLogger(__name__)
 
@@ -23,15 +32,24 @@ class IrUiView(models.Model):
             optional = (spec.get('optional') or '').strip().lower()
             if optional not in ('1', 'true', 'optional'):
                 continue
-            if spec.get('expr') and locate_node(source, spec) is None:
+            try:
+                found = locate_node(source, spec) if spec.get('expr') else None
+            except Exception:
+                found = None
+            if spec.get('expr') and found is None:
                 parent = spec.getparent()
                 if parent is not None:
                     parent.remove(spec)
-                    _logger.info(
-                        'CPABooks FSM: skipped optional xpath %s on view %s',
-                        spec.get('expr'),
-                        self.name or self.id,
-                    )
+                else:
+                    spec.tag = 'data'
+                    spec.attrib.clear()
+                    for child in list(spec):
+                        spec.remove(child)
+                _logger.info(
+                    'CPABooks FSM: skipped optional xpath %s on view %s',
+                    spec.get('expr'),
+                    self.name or self.id,
+                )
 
     def apply_inheritance_specs(self, source, specs_tree, pre_locate=lambda s: True):
         try:
