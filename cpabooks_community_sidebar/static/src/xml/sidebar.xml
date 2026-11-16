@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-extend="Menu">
+        <t t-jquery=".o_menu_apps" t-operation="after">
+            <a href="#" class="o_ccs_nav_btn" title="Show default community menu bar">Default menu</a>
+        </t>
+        <t t-jquery="nav.o_main_navbar" t-operation="after">
+            <aside class="o_ccs_sidebar" role="navigation">
+                <div class="o_ccs_head">Apps</div>
+                <div class="o_ccs_search_wrap">
+                    <input type="search" class="o_ccs_search" placeholder="Search apps"/>
+                </div>
+                <nav class="o_ccs_apps"/>
+            </aside>
+        </t>
+    </t>
+    <t t-extend="UserMenu.Actions">
+        <t t-jquery="a[data-menu='logout']" t-operation="before">
+            <a role="menuitem" href="#" class="dropdown-item o_ccs_profile_default">Default menu</a>
+        </t>
+    </t>
+</templates>

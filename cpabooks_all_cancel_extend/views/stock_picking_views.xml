@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_cpa_cancel" model="ir.ui.view">
+        <field name="name">stock.picking.form.cpa.cancel</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='action_cancel']" position="after">
+                <button name="action_cpa_cancel" type="object" string="Cancel Done Transfer"
+                        states="done" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
+                        confirm="Cancel this done transfer? The stock will be put back."/>
+                <button name="action_cpa_set_draft" type="object" string="Reset to Draft"
+                        states="cancel" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

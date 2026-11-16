@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend" name="CPABooks Community Sidebar CSS">
+        <xpath expr="." position="inside">
+            <link rel="stylesheet" type="text/scss"
+                  href="/cpabooks_community_sidebar/static/src/scss/sidebar.scss"/>
+        </xpath>
+    </template>
+
+    <template id="assets_js" name="CPABooks Community Sidebar JS">
+        <script type="text/javascript"
+                src="/cpabooks_community_sidebar/static/src/js/sidebar.js"/>
+    </template>
+
+    <template id="webclient_ccs_js" inherit_id="web.webclient_bootstrap" name="CPABooks Community Sidebar script">
+        <xpath expr="//t[@t-call-assets='web.assets_backend_prod_only']" position="after">
+            <t t-call-assets="cpabooks_community_sidebar.assets_js" t-css="false"/>
+        </xpath>
+    </template>
+</odoo>
