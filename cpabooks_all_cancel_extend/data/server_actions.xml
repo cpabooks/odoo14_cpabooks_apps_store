@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_sale_mass_confirm" model="ir.actions.server">
+        <field name="name">Confirm Quotations</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(6, 0, [ref('sales_team.group_sale_salesman')])]"/>
+        <field name="state">code</field>
+        <field name="code">
+orders = records.filtered(lambda o: o.state in ('draft', 'sent'))
+if orders:
+    orders.action_confirm()
+        </field>
+    </record>
+
+    <record id="action_purchase_mass_confirm" model="ir.actions.server">
+        <field name="name">Confirm RFQs</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(6, 0, [ref('purchase.group_purchase_user')])]"/>
+        <field name="state">code</field>
+        <field name="code">
+orders = records.filtered(lambda o: o.state in ('draft', 'sent'))
+if orders:
+    orders.button_confirm()
+        </field>
+    </record>
+</odoo>
