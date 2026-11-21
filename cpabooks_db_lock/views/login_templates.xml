@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="login_layout_db_lock" inherit_id="web.login_layout" name="Database Manager Lock: login footer">
+        <xpath expr="//a[@href='/web/database/manager']" position="attributes">
+            <attribute name="t-if">request.db and request.env['ir.config_parameter'].sudo().get_param('cpabooks_db_lock.unlocked')</attribute>
+        </xpath>
+    </template>
+
+    <template id="login_db_lock" inherit_id="web.login" name="Database Manager Lock: database selector">
+        <xpath expr="//a[@href='/web/database/selector']/.." position="attributes">
+            <attribute name="t-if">request.db and request.env['ir.config_parameter'].sudo().get_param('cpabooks_db_lock.unlocked')</attribute>
+        </xpath>
+    </template>
+</odoo>
