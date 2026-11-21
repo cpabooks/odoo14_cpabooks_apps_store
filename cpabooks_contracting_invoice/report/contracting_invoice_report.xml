@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_contracting_invoice" model="ir.actions.report">
+        <field name="name">Contracting Invoice</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">cpabooks_contracting_invoice.report_contracting_invoice</field>
+        <field name="report_file">cpabooks_contracting_invoice.report_contracting_invoice</field>
+        <field name="print_report_name">'Contracting Invoice - %s' % (object.name or 'Draft')</field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_contracting_invoice_document">
+        <t t-call="web.external_layout">
+            <t t-set="o" t-value="o.with_context(lang=lang)"/>
+            <t t-set="construction" t-value="o.is_construction_invoice"/>
+            <t t-set="lines" t-value="o.invoice_line_ids.sorted(key=lambda l: (-l.sequence, l.date, l.move_name, -l.id), reverse=True)"/>
+            <t t-set="display_discount" t-value="any(l.contract_discount for l in lines)"/>
+            <t t-set="address">
+                <address t-field="o.partner_id" t-options='{"widget": "contact", "fields": ["address", "name"], "no_marker": True}'/>
+                <div t-if="o.partner_id.vat" class="mt16">
+                    <t t-if="o.company_id.country_id.vat_label" t-esc="o.company_id.country_id.vat_label" id="inv_tax_id_label"/>
+                    <t t-else="">Tax ID</t>: <span t-field="o.partner_id.vat"/>
+                </div>
+            </t>
+            <div class="page">
+                <h2>
+                    <span t-if="o.move_type == 'out_invoice' and o.state == 'posted'">Invoice</span>
+                    <span t-if="o.move_type == 'out_invoice' and o.state == 'draft'">Draft Invoice</span>
+                    <span t-if="o.move_type == 'out_invoice' and o.state == 'cancel'">Cancelled Invoice</span>
+                    <span t-if="o.move_type == 'out_refund'">Credit Note</span>
+                    <span t-if="o.name != '/'" t-field="o.name"/>
+                </h2>
+                <div class="text-muted mb8">
+                    <span t-if="construction">Construction Invoice</span>
+                    <span t-else="">Labour Supply Invoice</span>
+                </div>
+
+                <div id="informations" class="row mt32 mb32">
+                    <div class="col-auto col-3 mw-100 mb-2" t-if="o.invoice_date" name="invoice_date">
+                        <strong>Invoice Date:</strong>
+                        <p class="m-0" t-field="o.invoice_date"/>
+                    </div>
+                    <div class="col-auto col-3 mw-100 mb-2" t-if="o.invoice_date_due and o.move_type == 'out_invoice' and o.state == 'posted'" name="due_date">
+                        <strong>Due Date:</strong>
+                        <p class="m-0" t-field="o.invoice_date_due"/>
+                    </div>
+                    <div class="col-auto col-3 mw-100 mb-2" t-if="o.invoice_origin" name="origin">
+                        <strong>Source:</strong>
+                        <p class="m-0" t-field="o.invoice_origin"/>
+                    </div>
+                    <div class="col-auto col-3 mw-100 mb-2" t-if="o.ref" name="reference">
+                        <strong>Reference:</strong>
+                        <p class="m-0" t-field="o.ref"/>
+                    </div>
+                </div>
+
+                <table class="table table-sm o_main_table" name="contracting_invoice_line_table">
+                    <thead>
+                        <tr>
+                            <th name="th_count" class="text-left">#</th>
+                            <th name="th_description" class="text-left">Item &amp; Description</th>
+                            <th name="th_quantity" class="text-right">Qty</th>
+                            <th name="th_priceunit" class="text-right">Unit Price</th>
+                            <th name="th_discount" t-if="display_discount" class="text-right">Disc.%</th>
+                            <th name="th_contract_amount" class="text-right">Amount Excl. Tax</th>
+                            <t t-if="construction">
+                                <th name="th_previous_pct" class="text-right">Previous %</th>
+                                <th name="th_work_done_pct" class="text-right">Work Done %</th>
+                                <th name="th_work_done_amount" class="text-right">Work Done Amt</th>
+                            </t>
+                            <th name="th_taxes" class="text-right">Tax</th>
+                            <th name="th_total" class="text-right">Amount Incl. Tax</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-set="count" t-value="0"/>
+                        <t t-set="sum_contract" t-value="0.0"/>
+                        <t t-set="sum_total" t-value="0.0"/>
+                        <t t-foreach="lines" t-as="line">
+                            <tr t-att-class="'bg-200 font-weight-bold o_line_section' if line.display_type == 'line_section' else 'font-italic o_line_note' if line.display_type == 'line_note' else ''">
+                                <t t-if="not line.display_type">
+                                    <t t-set="count" t-value="count + 1"/>
+                                    <t t-set="sum_contract" t-value="sum_contract + line.contract_amount"/>
+                                    <t t-set="sum_total" t-value="sum_total + line.price_total"/>
+                                    <td name="td_count"><span t-esc="count"/></td>
+                                    <td name="td_description">
+                                        <span t-field="line.name" t-options="{'widget': 'text'}"/>
+                                        <span t-if="construction and line.contract_guaranteed" class="badge badge-secondary">Gtee</span>
+                                    </td>
+                                    <td name="td_quantity" class="text-right">
+                                        <span t-field="line.quantity"/>
+                                        <span t-field="line.product_uom_id" groups="uom.group_uom"/>
+                                    </td>
+                                    <td name="td_priceunit" class="text-right">
+                                        <span class="text-nowrap" t-field="line.price_unit"/>
+                                    </td>
+                                    <td name="td_discount" t-if="display_discount" class="text-right">
+                                        <span t-field="line.contract_discount"/>
+                                    </td>
+                                    <td name="td_contract_amount" class="text-right">
+                                        <span class="text-nowrap" t-field="line.contract_amount"
+                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                    </td>
+                                    <t t-if="construction">
+                                        <td name="td_previous_pct" class="text-right">
+                                            <span t-esc="'%.2f' % line.contract_previous_pct"/>%
+                                        </td>
+                                        <td name="td_work_done_pct" class="text-right">
+                                            <span t-esc="'%.2f' % line.contract_work_done_pct"/>%
+                                        </td>
+                                        <td name="td_work_done_amount" class="text-right">
+                                            <span class="text-nowrap" t-field="line.price_subtotal"
+                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                        </td>
+                                    </t>
+                                    <td name="td_taxes" class="text-right">
+                                        <span t-esc="', '.join(map(lambda x: (x.description or x.name), line.tax_ids))"/>
+                                    </td>
+                                    <td name="td_total" class="text-right">
+                                        <span class="text-nowrap" t-field="line.price_total"
+                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                    </td>
+                                </t>
+                                <t t-if="line.display_type">
+                                    <td t-att-colspan="(10 if construction else 7) + (1 if display_discount else 0)">
+                                        <span t-field="line.name" t-options="{'widget': 'text'}"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </t>
+                        <tr class="border-black font-weight-bold" name="contracting_subtotal_row">
+                            <td t-att-colspan="4 + (1 if display_discount else 0)">Sub Total</td>
+                            <td class="text-right">
+                                <span class="text-nowrap" t-esc="sum_contract"
+                                      t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                            </td>
+                            <t t-if="construction">
+                                <td/>
+                                <td/>
+                                <td class="text-right">
+                                    <span class="text-nowrap" t-field="o.amount_untaxed"
+                                          t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                </td>
+                            </t>
+                            <td/>
+                            <td class="text-right">
+                                <span class="text-nowrap" t-esc="sum_total"
+                                      t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="clearfix">
+                    <div id="total" class="row">
+                        <div class="col-7">
+                            <p class="mt16">
+                                <strong>Amount In Words:</strong>
+                                <span t-esc="o.currency_id.amount_to_text(o.amount_total)"/>
+                            </p>
+                        </div>
+                        <div class="col-5">
+                            <table class="table table-sm" style="page-break-inside: avoid;">
+                                <tr class="border-black o_subtotal">
+                                    <td><strong>Total Amount Excl. Tax</strong></td>
+                                    <td class="text-right">
+                                        <span t-field="o.amount_untaxed"/>
+                                    </td>
+                                </tr>
+                                <t t-foreach="o.amount_by_group" t-as="amount_by_group">
+                                    <tr>
+                                        <td><span class="text-nowrap" t-esc="amount_by_group[0]"/></td>
+                                        <td class="text-right o_price_total">
+                                            <span class="text-nowrap" t-esc="amount_by_group[3]"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                                <tr class="border-black o_total">
+                                    <td><strong>Total Invoice Amount</strong></td>
+                                    <td class="text-right">
+                                        <span class="text-nowrap" t-field="o.amount_total"/>
+                                    </td>
+                                </tr>
+                                <t t-if="o.state == 'posted' and o.amount_residual != o.amount_total">
+                                    <tr class="border-black">
+                                        <td><strong>Amount Due</strong></td>
+                                        <td class="text-right">
+                                            <span t-field="o.amount_residual"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <p t-if="o.move_type == 'out_invoice' and o.payment_reference" name="payment_communication">
+                    Please use the following communication for your payment: <b><span t-field="o.payment_reference"/></b>
+                </p>
+                <p t-if="o.invoice_payment_term_id" name="payment_term">
+                    <span t-field="o.invoice_payment_term_id.note"/>
+                </p>
+                <p t-if="o.narration" name="comment">
+                    <span t-field="o.narration"/>
+                </p>
+            </div>
+        </t>
+    </template>
+
+    <template id="report_contracting_invoice">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-set="lang" t-value="o.partner_id.lang"/>
+                <t t-call="cpabooks_contracting_invoice.report_contracting_invoice_document" t-lang="lang"/>
+            </t>
+        </t>
+    </template>
+</odoo>
