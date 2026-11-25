@@ -25,12 +25,12 @@
                     </div>
                     <separator string="Pages to print (preview)"/>
                     <field name="line_ids" nolabel="1">
-                        <tree editable="bottom" create="0" delete="0">
+                        <list editable="bottom" create="0" delete="0">
                             <field name="include_page" widget="boolean_toggle" string="Include"/>
                             <field name="name"/>
                             <field name="preview_text"/>
                             <field name="page_key" invisible="1"/>
-                        </tree>
+                        </list>
                     </field>
                 </sheet>
                 <footer>

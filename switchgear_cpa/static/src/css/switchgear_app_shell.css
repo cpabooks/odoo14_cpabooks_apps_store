@@ -72,12 +72,28 @@ body.o_switchgear_app_shell .o_form_view .oe_title .o_switchgear_enquiry_number 
 }
 
 /* Fill Odoo .o_content flex slot (enterprise webclient_layout) */
-body.o_switchgear_app_shell .o_action > .o_content {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    padding: 0;
-    overflow: hidden;
+/* Odoo 19: one fixed sidebar for the whole Switchgear app; action area shifted. */
+aside.o_switchgear_app_sidebar.o_switchgear_global_sidebar {
+    position: fixed;
+    top: var(--o-navbar-height, 46px);
+    left: 0;
+    bottom: 0;
+    max-height: none;
+    z-index: 20;
+}
+body.o_switchgear_app_shell .o_action_manager {
+    margin-left: 268px;
+}
+body.o_switchgear_app_shell .o_switchgear_sidebar_host {
+    display: none;
+}
+body.o_switchgear_app_shell .o_menu_sections {
+    display: none !important;
+}
+@media (max-width: 991px) {
+    body.o_switchgear_app_shell .o_action_manager {
+        margin-left: 220px;
+    }
 }
 
 body.o_switchgear_app_shell .o_action > .o_content > .o_switchgear_app_layout {

@@ -8,6 +8,7 @@ from odoo.addons.sequences_cpa.models.sequence_format import format_year
 
 class CommonMetthod(models.AbstractModel):
     _name = "common.method"
+    _description = "CPABooks Sequence Helpers"
 
     @api.model
     def _cpabooks_prefix_year(self, date_obj):
@@ -175,6 +176,9 @@ class CommonMetthod(models.AbstractModel):
         That can rewrite nested account.move searches so limit=1 is lost and
         ``search(...).sequence_number`` raises Expected singleton.
         """
+        if 'sequence_prefix' not in self.env[model]._fields:
+            # Odoo 17+ account.payment no longer inherits account.move fields.
+            return 0
         Move = self.env[model].sudo().with_context(
             cpabooks_jv_view_mode=False,
             cpabooks_odoo_fix_jv_view_mode=False,

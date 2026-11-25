@@ -5,7 +5,7 @@ from werkzeug.exceptions import NotFound
 
 from odoo import http
 from odoo.http import request
-from odoo.addons.web.controllers.main import Database
+from odoo.addons.web.controllers.database import Database
 
 _logger = logging.getLogger(__name__)
 

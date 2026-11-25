@@ -1,321 +1,201 @@
-odoo.define('cpabooks_community_sidebar.permanent', function (require) {
-    "use strict";
+/** @odoo-module **/
+/**
+ * Community App Sidebar (Odoo 19)
+ *
+ * Fixed left sidebar listing every installed app with its sub menus and a
+ * search box. "Default menu" (systray button or user menu) switches back to
+ * the standard Odoo top menu bar; the choice is remembered in the browser.
+ */
+import { Component, useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
+import { useBus, useService } from "@web/core/utils/hooks";
 
-    var Menu = require('web.Menu');
-    var UserMenu = require('web.UserMenu');
-    var session = require('web.session');
-    var WebClient = require('web.WebClient');
+const STORAGE_KEY = "cpabooks_community_sidebar.default_menu";
+const COLORS = ["#0f766e", "#1d4ed8", "#7c3aed", "#be185d", "#c2410c", "#15803d", "#0369a1", "#4338ca"];
 
-    var menuWidget = null;
-
-    function parseActionId(action) {
-        if (!action) {
-            return false;
-        }
-        var parts = String(action).split(',');
-        return parts.length > 1 ? parseInt(parts[1], 10) : false;
+function letterColor(name) {
+    let n = 0;
+    for (const ch of name || "") {
+        n = (n + ch.charCodeAt(0)) % COLORS.length;
     }
+    return COLORS[n];
+}
 
-    function letterColor(name) {
-        var colors = ['#0f766e', '#1d4ed8', '#7c3aed', '#be185d', '#c2410c', '#15803d', '#0369a1', '#4338ca'];
-        var n = 0;
-        var s = name || '';
-        var i;
-        for (i = 0; i < s.length; i++) {
-            n = (n + s.charCodeAt(i)) % colors.length;
-        }
-        return colors[n];
+function isDefaultMenu() {
+    try {
+        return browser.localStorage.getItem(STORAGE_KEY) === "1";
+    } catch {
+        return false;
     }
+}
 
-    function menuTree() {
-        if (session.menu_data && session.menu_data.children && session.menu_data.children.length) {
-            return session.menu_data.children;
-        }
-        if (menuWidget && menuWidget.menu_data && menuWidget.menu_data.children) {
-            return menuWidget.menu_data.children;
-        }
-        return [];
+function applyMode(defaultMenu) {
+    document.body.classList.add("o_ccs_enabled");
+    document.body.classList.toggle("o_ccs_show_default_menu", defaultMenu);
+}
+
+export function toggleDefaultMenu() {
+    const defaultMenu = !isDefaultMenu();
+    try {
+        browser.localStorage.setItem(STORAGE_KEY, defaultMenu ? "1" : "0");
+    } catch {
+        // private window: keep the choice for this page only
     }
+    applyMode(defaultMenu);
+}
 
-    function ensureChrome() {
-        var $nav = $('.o_main_navbar').first();
-        if (!$nav.length) {
-            return false;
-        }
-        if (!$('.o_ccs_nav_btn').length) {
-            $nav.find('.o_menu_apps').after(
-                '<a href="#" class="o_ccs_nav_btn" title="Show default community menu bar">Default menu</a>'
-            );
-        }
-        if (!$('.o_ccs_sidebar').length) {
-            $nav.after(
-                '<aside class="o_ccs_sidebar" role="navigation">' +
-                '<div class="o_ccs_head">Apps</div>' +
-                '<div class="o_ccs_search_wrap"><input type="search" class="o_ccs_search" placeholder="Search apps"/></div>' +
-                '<nav class="o_ccs_apps"/></aside>'
-            );
-        }
-        $('.o_ccs_sidebar').attr('data-ccs-ran', '1');
+function menuMatches(menu, query) {
+    if ((menu.name || "").toLowerCase().includes(query)) {
         return true;
     }
+    return (menu.childrenTree || []).some((child) => menuMatches(child, query));
+}
 
-    function $leaf(menu, cls) {
-        var actionId = parseActionId(menu.action);
-        return $('<a href="#" class="' + cls + '"/>')
-            .attr('title', menu.name)
-            .attr('data-menu', menu.id)
-            .attr('data-action-id', actionId || '')
-            .append($('<span class="o_ccs_label"/>').text(menu.name));
+export class SidebarMenuNode extends Component {
+    static template = "cpabooks_community_sidebar.SidebarMenuNode";
+    static props = {
+        menu: Object,
+        query: String,
+        activeMenuId: { optional: true },
+        onOpenMenu: Function,
+    };
+
+    setup() {
+        this.state = useState({ open: false });
     }
 
-    function $nested(children) {
-        var $box = $('<div class="o_ccs_subs2"/>');
-        var i;
-        for (i = 0; i < children.length; i++) {
-            var child = children[i];
-            if (child.children && child.children.length) {
-                $box.append($nestedGroup(child));
-            } else {
-                $box.append($leaf(child, 'o_ccs_leaf'));
-            }
+    get children() {
+        const children = this.props.menu.childrenTree || [];
+        if (!this.props.query) {
+            return children;
         }
-        return $box;
+        return children.filter((child) => menuMatches(child, this.props.query));
     }
 
-    function $nestedGroup(menu) {
-        var $g = $('<div class="o_ccs_sub_group"/>');
-        var $tog = $('<a href="#" class="o_ccs_sub_toggle"/>')
-            .attr('title', menu.name)
-            .attr('data-menu', menu.id)
-            .attr('data-action-id', parseActionId(menu.action) || '');
-        $tog.append($('<span class="o_ccs_twisty fa fa-caret-right"/>'));
-        $tog.append($('<span class="o_ccs_label"/>').text(menu.name));
-        $g.append($tog);
-        $g.append($nested(menu.children));
-        return $g;
+    get isOpen() {
+        return this.state.open || Boolean(this.props.query);
     }
 
-    function $appRow(app) {
-        var $wrap = $('<div class="o_ccs_group"/>').attr('data-menu-id', app.id);
-        var $a = $('<a href="#" class="o_ccs_app"/>')
-            .attr('title', app.name)
-            .attr('data-menu-id', app.id)
-            .attr('data-action-id', parseActionId(app.action) || '');
-        $a.append(
-            $('<span class="o_ccs_icon"/>').append(
-                $('<span class="o_ccs_letter"/>')
-                    .text((app.name || 'A').charAt(0).toUpperCase())
-                    .css('background', letterColor(app.name))
-            )
-        );
-        $a.append($('<span class="o_ccs_label"/>').text(app.name));
-        var kids = app.children || [];
-        if (kids.length) {
-            $a.append($('<span class="o_ccs_caret fa fa-chevron-right"/>'));
+    onClick() {
+        if (this.children.length) {
+            this.state.open = !this.state.open;
         }
-        $wrap.append($a);
-        if (kids.length) {
-            var $subs = $('<div class="o_ccs_subs"/>');
-            var i;
-            for (i = 0; i < kids.length; i++) {
-                var child = kids[i];
-                if (child.children && child.children.length) {
-                    $subs.append($nestedGroup(child));
-                } else {
-                    $subs.append($leaf(child, 'o_ccs_sub'));
-                }
-            }
-            $wrap.append($subs);
-        }
-        return $wrap;
-    }
-
-    function expandGroup($g, open) {
-        $g.toggleClass('o_ccs_open', open);
-        $g.find('> .o_ccs_app .o_ccs_caret').toggleClass('fa-chevron-down', open).toggleClass('fa-chevron-right', !open);
-    }
-
-    function fillSidebar() {
-        if (!ensureChrome()) {
-            return;
-        }
-        var $nav = $('.o_ccs_apps');
-        if (!$nav.length) {
-            return;
-        }
-        var apps = menuTree();
-        if (!apps.length) {
-            return;
-        }
-        if ($nav.children('.o_ccs_group').length === apps.length) {
-            return;
-        }
-        $nav.empty();
-        var i;
-        for (i = 0; i < apps.length; i++) {
-            $nav.append($appRow(apps[i]));
-        }
-        $('.o_ccs_sidebar').attr('data-ccs-apps', String(apps.length));
-        var current = menuWidget && menuWidget.current_primary_menu;
-        if (current) {
-            var $cur = $nav.children('.o_ccs_group[data-menu-id="' + current + '"]');
-            expandGroup($cur, true);
-            $cur.children('.o_ccs_app').addClass('active');
+        if (this.props.menu.actionID) {
+            this.props.onOpenMenu(this.props.menu);
         }
     }
+}
+SidebarMenuNode.components = { SidebarMenuNode };
 
-    function bindOnce() {
-        var $doc = $(document);
-        if ($doc.data('ccsBound')) {
-            return;
-        }
-        $doc.data('ccsBound', true);
-        $doc.on('click.ccs', '.o_ccs_caret', function (ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            var $g = $(ev.currentTarget).closest('.o_ccs_group');
-            expandGroup($g, !$g.hasClass('o_ccs_open'));
+export class CommunitySidebar extends Component {
+    static template = "cpabooks_community_sidebar.CommunitySidebar";
+    static components = { SidebarMenuNode };
+    static props = {};
+
+    setup() {
+        this.menuService = useService("menu");
+        const current = this.menuService.getCurrentApp();
+        this.state = useState({
+            search: "",
+            openAppId: current ? current.id : false,
+            currentAppId: current ? current.id : false,
+            activeMenuId: false,
         });
-        $doc.on('click.ccs', '.o_ccs_app', function (ev) {
-            ev.preventDefault();
-            var $el = $(ev.currentTarget);
-            var $g = $el.closest('.o_ccs_group');
-            $('.o_ccs_group').not($g).removeClass('o_ccs_open');
-            $('.o_ccs_group').not($g).find('> .o_ccs_app .o_ccs_caret')
-                .removeClass('fa-chevron-down').addClass('fa-chevron-right');
-            expandGroup($g, true);
-            var app = {
-                menuID: parseInt($el.attr('data-menu-id'), 10),
-                actionID: parseInt($el.attr('data-action-id'), 10),
-            };
-            if (menuWidget && menuWidget._appsMenu && menuWidget._appsMenu._openApp) {
-                menuWidget._appsMenu._openApp(app);
+        useBus(this.env.bus, "MENUS:APP-CHANGED", () => {
+            const app = this.menuService.getCurrentApp();
+            this.state.currentAppId = app ? app.id : false;
+            if (app) {
+                this.state.openAppId = app.id;
             }
         });
-        $doc.on('click.ccs', '.o_ccs_sub, .o_ccs_leaf', function (ev) {
-            ev.preventDefault();
-            var $el = $(ev.currentTarget);
-            var menuId = parseInt($el.attr('data-menu'), 10);
-            var actionId = parseInt($el.attr('data-action-id'), 10);
-            $('.o_ccs_sub, .o_ccs_leaf').removeClass('active');
-            $el.addClass('active');
-            if (menuWidget && actionId) {
-                menuWidget._on_secondary_menu_click(menuId, actionId);
-            }
-        });
-        $doc.on('click.ccs', '.o_ccs_sub_toggle', function (ev) {
-            ev.preventDefault();
-            var $g = $(ev.currentTarget).closest('.o_ccs_sub_group');
-            $g.toggleClass('o_ccs_open');
-            var actionId = parseInt($(ev.currentTarget).attr('data-action-id'), 10);
-            var menuId = parseInt($(ev.currentTarget).attr('data-menu'), 10);
-            if (menuWidget && actionId) {
-                menuWidget._on_secondary_menu_click(menuId, actionId);
-            }
-        });
-        $doc.on('input.ccs', '.o_ccs_search', function () {
-            var q = ($(this).val() || '').toLowerCase();
-            $('.o_ccs_group').each(function () {
-                var $g = $(this);
-                var name = ($g.children('.o_ccs_app').attr('title') || '').toLowerCase();
-                var hit = !q || name.indexOf(q) !== -1;
-                if (!hit) {
-                    $g.find('.o_ccs_label').each(function () {
-                        if (($(this).text() || '').toLowerCase().indexOf(q) !== -1) {
-                            hit = true;
-                        }
-                    });
-                }
-                $g.toggle(hit);
-                if (hit && q) {
-                    expandGroup($g, true);
-                }
-            });
-        });
-        $doc.on('click.ccs', '.o_ccs_nav_btn, .o_ccs_profile_default', function (ev) {
-            ev.preventDefault();
-            ev.stopImmediatePropagation();
-            $('body').toggleClass('o_ccs_show_default_menu');
-        });
+        applyMode(isDefaultMenu());
     }
 
-    function boot(menu) {
-        if (menu) {
-            menuWidget = menu;
+    get query() {
+        return this.state.search.trim().toLowerCase();
+    }
+
+    get apps() {
+        const apps = this.menuService.getApps().map((app) => this.menuService.getMenuAsTree(app.id));
+        if (!this.query) {
+            return apps;
         }
-        bindOnce();
-        fillSidebar();
+        return apps.filter((app) => menuMatches(app, this.query));
     }
 
-    Menu.include({
-        start: function () {
-            var self = this;
-            menuWidget = this;
-            var def = this._super.apply(this, arguments);
-            boot(self);
-            if (def && typeof def.then === 'function') {
-                def.then(function () {
-                    boot(self);
-                });
-            }
-            setTimeout(function () { boot(self); }, 50);
-            setTimeout(function () { boot(self); }, 400);
-            setTimeout(function () { boot(self); }, 1500);
-            return def;
-        },
-        change_menu_section: function (primary_menu_id) {
-            this._super.apply(this, arguments);
-            $('.o_ccs_app').removeClass('active');
-            var $g = $('.o_ccs_group[data-menu-id="' + primary_menu_id + '"]');
-            $g.children('.o_ccs_app').addClass('active');
-            expandGroup($g, true);
-        },
-    });
+    appChildren(app) {
+        const children = app.childrenTree || [];
+        if (!this.query) {
+            return children;
+        }
+        return children.filter((child) => menuMatches(child, this.query));
+    }
 
-    WebClient.include({
-        show_application: function () {
-            var self = this;
-            var def = this._super.apply(this, arguments);
-            var go = function () {
-                boot(self.menu);
-            };
-            if (def && typeof def.then === 'function') {
-                return def.then(function (res) {
-                    go();
-                    return res;
-                });
-            }
-            go();
-            return def;
-        },
-    });
+    isAppOpen(app) {
+        return Boolean(this.query) || this.state.openAppId === app.id;
+    }
 
-    UserMenu.include({
-        start: function () {
-            var self = this;
-            var def = this._super.apply(this, arguments);
-            var inject = function () {
-                if (!self.$('.o_ccs_profile_default').length) {
-                    self.$('a[data-menu="logout"]').before(
-                        $('<a/>', {
-                            href: '#',
-                            class: 'dropdown-item o_ccs_profile_default',
-                            role: 'menuitem',
-                        }).text('Default menu')
-                    );
-                }
-                bindOnce();
-            };
-            inject();
-            if (def && def.then) {
-                return def.then(function (res) {
-                    inject();
-                    return res;
-                });
-            }
-            return def;
-        },
-    });
+    letter(app) {
+        return (app.name || "A").charAt(0).toUpperCase();
+    }
 
-    bindOnce();
+    color(app) {
+        return letterColor(app.name);
+    }
+
+    onSearch(ev) {
+        this.state.search = ev.target.value || "";
+    }
+
+    toggleApp(app) {
+        this.state.openAppId = this.state.openAppId === app.id ? false : app.id;
+    }
+
+    openApp(app) {
+        this.state.openAppId = app.id;
+        this.state.activeMenuId = false;
+        this.menuService.selectMenu(app);
+    }
+
+    openMenu(menu) {
+        this.state.activeMenuId = menu.id;
+        this.menuService.selectMenu(menu);
+    }
+
+    showDefaultMenu() {
+        toggleDefaultMenu();
+    }
+}
+
+export class CommunitySidebarSystray extends Component {
+    static template = "cpabooks_community_sidebar.SystrayToggle";
+    static props = {};
+
+    get title() {
+        return _t("Switch between the app sidebar and the default menu bar");
+    }
+
+    onClick() {
+        toggleDefaultMenu();
+    }
+}
+
+registry.category("main_components").add("cpabooks_community_sidebar", {
+    Component: CommunitySidebar,
 });
+
+registry.category("systray").add(
+    "cpabooks_community_sidebar.toggle",
+    { Component: CommunitySidebarSystray },
+    { sequence: 100 }
+);
+
+registry.category("user_menuitems").add("cpabooks_community_sidebar_default_menu", () => ({
+    type: "item",
+    id: "cpabooks_community_sidebar_default_menu",
+    description: _t("Default menu"),
+    callback: toggleDefaultMenu,
+    sequence: 45,
+}));

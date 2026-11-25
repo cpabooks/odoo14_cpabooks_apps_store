@@ -14,9 +14,7 @@ class AccountMoveInheritance(models.Model):
     name = fields.Char(string='Number', copy=False, index=True,
                        tracking=True)
 
-    invoice_date = fields.Date(string='Invoice/Bill Date', readonly=True, index=True, copy=False,
-                               states={'draft': [('readonly', False)]},
-                               default=lambda self:datetime.datetime.now().date())
+    invoice_date = fields.Date(default=lambda self: datetime.datetime.now().date())
 
     system_admin=fields.Boolean(compute="_get_system_admin")
 
@@ -26,7 +24,7 @@ class AccountMoveInheritance(models.Model):
         return not name or name in ('/', 'DRAFT', 'draft', 'Draft', 'NEW', 'new', 'New')
 
     def _constrains_date_sequence(self):
-        payment_moves = self.filtered('payment_id')
+        payment_moves = self.filtered('origin_payment_id')
         super(AccountMoveInheritance, self - payment_moves)._constrains_date_sequence()
 
     def _get_sequence_component_index(self, sequence_obj, split_seq, component):
@@ -52,7 +50,7 @@ class AccountMoveInheritance(models.Model):
         split_seq[idx] = value
         return True
 
-    def _sequence_matches_date(self, split_name_parts, date_obj, year_index, month_index=None):
+    def _cpabooks_sequence_matches_date(self, split_name_parts, date_obj, year_index, month_index=None):
         if not split_name_parts or year_index is False or year_index >= len(split_name_parts):
             return False
         if str(date_obj.year) != split_name_parts[year_index]:
@@ -194,7 +192,7 @@ class AccountMoveInheritance(models.Model):
 
     def _get_journal_voucher_backdated_sequence_name(self, move_date):
         self.ensure_one()
-        if self.move_type != 'entry' or self.payment_id:
+        if self.move_type != 'entry' or self.origin_payment_id:
             return False
         if not move_date:
             return False
@@ -229,7 +227,7 @@ class AccountMoveInheritance(models.Model):
         ).search(
             [
                 ('move_type', '=', 'entry'),
-                ('payment_id', '=', False),
+                ('origin_payment_id', '=', False),
                 ('company_id', '=', company_id),
                 ('id', '!=', self.id),
                 ('sequence_prefix', '=', sequence_prefix),
@@ -246,7 +244,7 @@ class AccountMoveInheritance(models.Model):
     #     for rec in self:
     #         get_admin_power_group=self.env['res.groups'].sudo().search([('name','=ilike','Sequence Editor')])
     #         if get_admin_power_group:
-    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.users.ids:
+    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.user_ids.ids:
     #                 rec.system_admin=True
     #             else:
     #                 rec.system_admin=False
@@ -261,7 +259,7 @@ class AccountMoveInheritance(models.Model):
             rec.system_admin = False
             get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
             if get_admin_power_group:
-                if self.env.user.id in get_admin_power_group.users.ids:
+                if self.env.user.id in get_admin_power_group.user_ids.ids:
                     rec.system_admin = True
                 else:
                     rec.system_admin = False
@@ -406,7 +404,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no_month_year_monthly(get_sequence_object,
@@ -452,7 +450,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence += "/"
                     # date_obj = datetime.strptime(str(vals_list['invoice_date']), '%Y-%m-%d')
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no_month_year_monthly(get_sequence_object,
@@ -490,7 +488,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no_month_year_monthly(get_sequence_object,date_obj, model)
@@ -585,7 +583,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index): #and not inv_name.startswith(without_last_index_sequence):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index): #and not inv_name.startswith(without_last_index_sequence):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no(
@@ -661,7 +659,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index): #and not inv_name.startswith(without_last_index_sequence):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index): #and not inv_name.startswith(without_last_index_sequence):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no(get_sequence_object,date_obj, model)
@@ -795,7 +793,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no_month_year_monthly(get_sequence_object,
@@ -834,7 +832,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index, get_month_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no_month_year_monthly(get_sequence_object,
@@ -915,7 +913,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index):
                         orginal_sequence = inv_name.split('/')
 
                     else:
@@ -959,7 +957,7 @@ class AccountMoveInheritance(models.Model):
                     without_last_index_sequence = "/".join(split_sequence_prefix)
                     without_last_index_sequence += "/"
 
-                    if self._sequence_matches_date(split_inv_name, date_obj, get_year_index):
+                    if self._cpabooks_sequence_matches_date(split_inv_name, date_obj, get_year_index):
                         orginal_sequence = inv_name.split('/')
                     else:
                         get_highest_sequence_no = common_method.get_highest_seq_no(
@@ -1023,8 +1021,16 @@ class AccountMoveInheritance(models.Model):
                 get_sequence = "/".join(split_seq)
             return get_sequence
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_AccountMoveInheritance(vals)
+        return records
+
+    def _create_single_AccountMoveInheritance(self, vals_list):
         if 'name' in vals_list.keys() and vals_list.get('name') not in ('/','DRAFT','draft','Draft','NEW','new','New'):
             return super(AccountMoveInheritance, self).create(vals_list)
         res=super(AccountMoveInheritance, self).create(vals_list)
@@ -1035,7 +1041,7 @@ class AccountMoveInheritance(models.Model):
                 [('sequence_for', '=', 'sale_invoice'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
             if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                inv_name = res.name
+                inv_name = (res.name or '')
             if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 inv_name = ''
 
@@ -1069,7 +1075,7 @@ class AccountMoveInheritance(models.Model):
                 [('sequence_for', '=', 'credit_note'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
             if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                inv_name = res.name
+                inv_name = (res.name or '')
             if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 inv_name = ''
             get_sequence = self.env['ir.sequence'].next_by_sequence_for('credit_note')
@@ -1090,7 +1096,7 @@ class AccountMoveInheritance(models.Model):
                 [('sequence_for', '=', 'purchase_bill'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
             if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                inv_name = res.name
+                inv_name = (res.name or '')
             if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 inv_name = ''
             get_sequence = self.env['ir.sequence'].next_by_sequence_for('purchase_bill')
@@ -1118,7 +1124,7 @@ class AccountMoveInheritance(models.Model):
                 [('sequence_for', '=', 'debit_note'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
             if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                inv_name = res.name
+                inv_name = (res.name or '')
             if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 inv_name = ''
             get_sequence = self.env['ir.sequence'].next_by_sequence_for('debit_note')
@@ -1134,12 +1140,12 @@ class AccountMoveInheritance(models.Model):
                 raise ValidationError(_("Sequence is not set for debit note"))
             res.name=get_sequence or _('/')
 
-        if res.move_type=='entry' and not res.payment_id and not self._context.get('skip_payment_move_sequence'):
+        if res.move_type=='entry' and not res.origin_payment_id and not self.env.context.get('skip_payment_move_sequence'):
             get_sequence_object = self.env['ir.sequence'].sudo().search(
                 [('sequence_for', '=', 'journal_voucher'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
             if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                inv_name = res.name
+                inv_name = (res.name or '')
             if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 inv_name = ''
             # next_number = self.get_next_number(res.date)
@@ -1207,7 +1213,7 @@ class AccountMoveInheritance(models.Model):
             len(self) == 1
             and not preserve_posted_entry_name
             and self.move_type == 'entry'
-            and not self.payment_id
+            and not self.origin_payment_id
             and 'date' in vals_list
             and not isinstance(vals_list.get('date'), bool)
             and 'name' not in vals_list
@@ -1223,9 +1229,9 @@ class AccountMoveInheritance(models.Model):
             and 'date' in vals_list
             and not isinstance(vals_list.get('date'), bool)
             and 'name' not in vals_list
-            and self.payment_id
+            and self.origin_payment_id
         ):
-            payment = self.payment_id
+            payment = self.origin_payment_id
             sequence_date = vals_list.get('date') or self.date
             sequence_for = payment._get_payment_sequence_code()
             prepared_name = payment._get_backdated_sequence_name(sequence_for, sequence_date) if sequence_for else False
@@ -1262,7 +1268,7 @@ class AccountMoveInheritance(models.Model):
                             [('sequence_for', '=', 'sale_invoice'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
                         if (res.name!='/' or (res.name or '').upper()!='DRAFT' or (res.name or '').upper()!='NEW') or ((res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW') and res.data_from_excel==False):
-                            inv_name=res.name
+                            inv_name=(res.name or '')
                         elif res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             # inv_name = ''
                             inv_name = ''
@@ -1289,7 +1295,7 @@ class AccountMoveInheritance(models.Model):
                             [('sequence_for', '=', 'credit_note'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
                         if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                            inv_name = res.name
+                            inv_name = (res.name or '')
                         if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             inv_name = ''
 
@@ -1313,7 +1319,7 @@ class AccountMoveInheritance(models.Model):
                             [('sequence_for', '=', 'purchase_bill'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
                         if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                            inv_name = res.name
+                            inv_name = (res.name or '')
                         if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             inv_name = ''
 
@@ -1334,7 +1340,7 @@ class AccountMoveInheritance(models.Model):
                             [('sequence_for', '=', 'debit_note'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
                         if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                            inv_name = res.name
+                            inv_name = (res.name or '')
                         if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             inv_name = ''
 
@@ -1352,14 +1358,14 @@ class AccountMoveInheritance(models.Model):
                                 raise ValidationError(_("Sequence is not set for debit note"))
                             res.name = get_sequence or _('/')
 
-                    if res.move_type=='entry' and not res.payment_id:
+                    if res.move_type=='entry' and not res.origin_payment_id:
                         if journal_voucher_name_prepared:
                             continue
                         get_sequence_object = self.env['ir.sequence'].sudo().search(
                             [('sequence_for', '=', 'journal_voucher'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
                         if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                            inv_name = res.name
+                            inv_name = (res.name or '')
                         if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             inv_name = ''
 
@@ -1383,7 +1389,7 @@ class AccountMoveInheritance(models.Model):
                     return rec
             # or (res.name == '/' and not isinstance(res.date, bool))
             elif 'date' in vals_list.keys() and not isinstance(vals_list['date'], bool) and  res.move_type=='entry':
-                if payment_move_name_prepared and res.payment_id:
+                if payment_move_name_prepared and res.origin_payment_id:
                     continue
                 # if ('date' in vals_list.keys() and not str(vals_list['date']).find(str(datetime.datetime.now().year))>-1) or res.name.find(str(datetime.datetime.now().year))==-1:
                 if res.move_type == 'out_invoice':
@@ -1391,7 +1397,7 @@ class AccountMoveInheritance(models.Model):
                         [('sequence_for', '=', 'sale_invoice'), ('company_id', 'in', [company_id, False])],
                         limit=1, )
                     if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                        inv_name = res.name
+                        inv_name = (res.name or '')
                     if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                         inv_name = ''
 
@@ -1419,7 +1425,7 @@ class AccountMoveInheritance(models.Model):
                         [('sequence_for', '=', 'credit_note'), ('company_id', 'in', [company_id, False])],
                         limit=1, )
                     if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                        inv_name = res.name
+                        inv_name = (res.name or '')
                     if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                         inv_name = ''
 
@@ -1442,7 +1448,7 @@ class AccountMoveInheritance(models.Model):
                         [('sequence_for', '=', 'purchase_bill'), ('company_id', 'in', [company_id, False])],
                         limit=1, )
                     if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                        inv_name = res.name
+                        inv_name = (res.name or '')
                     if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                         inv_name = ''
 
@@ -1469,7 +1475,7 @@ class AccountMoveInheritance(models.Model):
                         [('sequence_for', '=', 'debit_note'), ('company_id', 'in', [company_id, False])],
                         limit=1, )
                     if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                        inv_name = res.name
+                        inv_name = (res.name or '')
                     if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                         inv_name = ''
 
@@ -1487,12 +1493,12 @@ class AccountMoveInheritance(models.Model):
                             raise ValidationError(_("Sequence is not set for debit note"))
                         res.name = get_sequence or _('/')
 
-                if res.move_type == 'entry' and not res.payment_id:
+                if res.move_type == 'entry' and not res.origin_payment_id:
                     get_sequence_object = self.env['ir.sequence'].sudo().search(
                         [('sequence_for', '=', 'journal_voucher'), ('company_id', 'in', [company_id, False])],
                         limit=1, )
                     if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
-                        inv_name = res.name
+                        inv_name = (res.name or '')
                     if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                         inv_name = ''
 
@@ -1529,7 +1535,7 @@ class AccountMoveInheritance(models.Model):
                     })
             elif (
                 rec.move_type == 'entry'
-                and not rec.payment_id
+                and not rec.origin_payment_id
                 and rec._cpabooks_posted_name_conflict()
             ):
                 while rec._cpabooks_posted_name_conflict():

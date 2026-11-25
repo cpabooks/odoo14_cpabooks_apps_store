@@ -1,8 +1,20 @@
-odoo.define('field_service_cpa.crn_app_shell', function (require) {
-'use strict';
+/** @odoo-module **/
+/**
+ * Complaint Registration Management (CRN / Field Service) app shell, Odoo 19.
+ *
+ * Odoo 14 wrapped each action's .o_content in a layout with a left sidebar.
+ * In Odoo 19 the sidebar is one fixed OWL component (main_components) and the
+ * action area is shifted with CSS (body.o_crn_app_shell). Sidebar entries whose
+ * action is not installed (Enterprise industry_fsm, optional CPABooks apps)
+ * are hidden. AppShell keeps the API used by the CRN client actions.
+ */
+import { Component, onWillStart, useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
+import { useBus, useService } from "@web/core/utils/hooks";
+import { _ } from "@field_service_cpa/js/legacy_compat";
 
-var ActionManager = require('web.ActionManager');
-var core = require('web.core');
+const $ = window.jQuery;
 
 var SHELL_CLASS = 'o_crn_app_shell';
 var MAIN_MENU_CLASS = 'o_crn_show_main_menu';
@@ -70,52 +82,6 @@ function filterNavItems(options) {
         }
         return _.extend({}, block, {items: items});
     }).filter(Boolean);
-}
-
-function renderSidebarHtml(activeKey, options) {
-    var html = '<aside class="o_crn_app_sidebar">' +
-        '<div class="o_crn_app_sidebar_title">Complaint Registration Management</div>' +
-        '<ul class="list-group list-group-flush o_crn_app_sidebar_nav">';
-    _.each(filterNavItems(options), function (block) {
-        if (block.section) {
-            var sectionCls = block.sectionClass ? (' ' + block.sectionClass) : '';
-            html += '<li class="list-group-item o_crn_app_sidebar_section' + sectionCls + '">' +
-                _.escape(block.section) + '</li>';
-        }
-        var isMainSection = block.sectionClass === 'o_crn_section_home';
-        _.each(block.items, function (item) {
-            var cls = item.key === activeKey ? ' active' : '';
-            var tierCls = isMainSection ? ' o_crn_app_sidebar_item_main' : ' o_crn_app_sidebar_item_sub';
-            html += '<li class="list-group-item' + tierCls + cls + '">' +
-                '<a href="#" data-nav-key="' + item.key + '">' + _.escape(item.label) + '</a></li>';
-        });
-    });
-    html += '</ul></aside>';
-    return html;
-}
-
-function bindSidebarNav($sidebar, doActionFn) {
-    $sidebar.find('.o_crn_app_sidebar_nav a').off('click').on('click', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        var navKey = $(ev.currentTarget).data('navKey');
-        var selectedItem = null;
-        _.each(NAV_ITEMS, function (block) {
-            _.each(block.items, function (item) {
-                if (!selectedItem && item.key === navKey) {
-                    selectedItem = item;
-                }
-            });
-        });
-        if (selectedItem) {
-            if (selectedItem.special === 'open_app_menu') {
-                return AppShell.openMainMenu();
-            }
-            if (selectedItem.xmlid && doActionFn) {
-                return doActionFn(selectedItem);
-            }
-        }
-    });
 }
 
 function getActionContext(action) {
@@ -245,332 +211,146 @@ function isFsmShellAction(action) {
     return false;
 }
 
-function findMenuWidget(actionManager) {
-    var widget = actionManager;
-    var guard = 0;
-    while (widget && guard < 12) {
-        if (widget.menu) {
-            return widget.menu;
-        }
-        widget = widget.getParent ? widget.getParent() : null;
-        guard += 1;
+
+function openAppsMenu() {
+    const toggle = document.querySelector(
+        ".o_navbar_apps_menu button, .o_navbar_apps_menu .dropdown-toggle, .o_main_navbar .o_menu_toggle"
+    );
+    if (toggle) {
+        toggle.click();
     }
-    return null;
+    return Promise.resolve();
 }
 
-function findAppById(nodes, id) {
-    var list = nodes || [];
-    for (var i = 0; i < list.length; i++) {
-        if (list[i].id === id) {
-            return list[i];
-        }
-        var child = findAppById(list[i].children, id);
-        if (child) {
-            return child;
-        }
-    }
-    return null;
-}
-
-function isFieldServicePrimaryMenu(actionManager) {
-    try {
-        var menu = findMenuWidget(actionManager);
-        if (menu && menu.current_primary_menu && menu.menu_data) {
-            var apps = menu.menu_data.children || [];
-            var app = _.find(apps, function (item) {
-                return item.id === menu.current_primary_menu;
-            });
-            if (app && app.xmlid === FSM_ROOT_XMLID) {
-                return true;
-            }
-            // Secondary: primary id is under FSM root tree
-            var fsmRoot = _.find(apps, function (item) {
-                return item.xmlid === FSM_ROOT_XMLID;
-            });
-            if (fsmRoot && findAppById([fsmRoot], menu.current_primary_menu)) {
-                return true;
-            }
-        }
-    } catch (e) {
-        // ignore
-    }
-    // DOM fallback while Field Service top menus are still painted
-    var sections = ($('.o_main_navbar .o_menu_sections').text() || '');
-    if (sections.indexOf('CRN Processing Cycle') !== -1 || sections.indexOf('All CRNs') !== -1) {
-        return true;
-    }
-    return false;
-}
-
-function isListViewMode(mode) {
-    return mode === 'tree' || mode === 'list';
-}
-
-function normalizeViewModeForWeb(mode) {
-    return isListViewMode(mode) ? 'list' : mode;
-}
-
-function getViewMode(view) {
-    if (_.isArray(view)) {
-        return view[1];
-    }
-    return view && view.type;
-}
-
-function getViewId(view) {
-    if (_.isArray(view)) {
-        return view[0] || false;
-    }
-    return (view && (view.viewID || view.view_id)) || false;
-}
-
-function isListFirstCandidate(action) {
-    return action && action.type === 'ir.actions.act_window' && action.res_model &&
-        !action.res_id && action.target !== 'new';
-}
-
-function ensureTreeViewFirst(action) {
-    if (!isListFirstCandidate(action)) {
-        return action;
-    }
-    var views = action.views || [];
-    if (!views.length && action.view_mode) {
-        views = _.map(String(action.view_mode).split(','), function (mode) {
-            mode = $.trim(mode);
-            return mode ? [false, mode] : null;
-        });
-        views = _.filter(views, Boolean);
-    }
-    if (views.length === 1 && getViewMode(views[0]) === 'form') {
-        return action;
-    }
-    var treeViews = _.filter(views, function (view) { return isListViewMode(getViewMode(view)); });
-    var formViews = _.filter(views, function (view) { return getViewMode(view) === 'form'; });
-    var otherViews = _.filter(views, function (view) {
-        return !isListViewMode(getViewMode(view)) && getViewMode(view) !== 'form';
-    });
-    if (treeViews.length) {
-        action.views = treeViews.concat(otherViews).concat(formViews);
-    } else {
-        action.views = [[false, 'list']].concat(otherViews).concat(
-            formViews.length ? formViews : [[false, 'form']]
-        );
-    }
-    action.views = _.map(action.views, function (view) {
-        return [getViewId(view), normalizeViewModeForWeb(getViewMode(view))];
-    });
-    action.view_mode = _.map(action.views, function (view) { return view[1]; }).join(',');
-    return action;
-}
-
-function listFirstOptions(options) {
-    return _.extend({}, options || {}, {viewType: 'list'});
-}
-
-function stackHasFsm(actionManager) {
-    return _.some(actionManager.controllerStack || [], function (controller) {
-        return controller && controller.action && isFsmShellAction(controller.action);
-    });
-}
-
-var AppShell = {
+export const AppShell = {
     SHELL_CLASS: SHELL_CLASS,
     MAIN_MENU_CLASS: MAIN_MENU_CLASS,
-
-    activate: function () {
-        $('body').addClass(SHELL_CLASS).removeClass(MAIN_MENU_CLASS);
+    NAV_ITEMS: NAV_ITEMS,
+    activate() {
+        document.body.classList.add(SHELL_CLASS);
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    showMainMenuBar: function () {
-        // Kept for API compat — Field Service always hides top submenu.
-        $('body').removeClass(MAIN_MENU_CLASS);
+    showMainMenuBar() {
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    hideMainMenuBar: function () {
-        $('body').removeClass(MAIN_MENU_CLASS);
+    hideMainMenuBar() {
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    openMainMenu: function () {
-        var $toggle = $('nav.o_main_navbar > a.o_menu_toggle, .o_main_navbar .o_menu_toggle').first();
-        if ($toggle.length) {
-            $toggle.trigger('click');
-        }
-        return $.when();
+    openMainMenu: openAppsMenu,
+    deactivate() {
+        document.body.classList.remove(SHELL_CLASS, MAIN_MENU_CLASS);
     },
-
-    deactivate: function () {
-        $('body').removeClass(SHELL_CLASS).removeClass(MAIN_MENU_CLASS);
-        $('.o_crn_app_layout').each(function () {
-            var $layout = $(this);
-            var $content = $layout.closest('.o_content');
-            if ($content.length) {
-                $layout.find('.o_crn_app_content').children().appendTo($content);
-                $layout.remove();
-            }
-        });
-    },
-
-    /**
-     * Legacy name kept for callers. Shell now follows Field Service app/actions,
-     * not only Settings app_web_ui_mode=crm_fsm.
-     */
-    isCrmSidebarMode: function () {
+    isCrmSidebarMode() {
         return true;
     },
-
-    isNativeBackendScreen: function (action) {
-        return action && action.res_model === 'res.config.settings';
+    isNativeBackendScreen(action) {
+        return action && action.res_model === "res.config.settings";
     },
-
-    shouldUseShell: function (actionManager, action) {
-        if (this.isNativeBackendScreen(action)) {
-            return false;
-        }
-        return isFsmShellAction(action) ||
-            stackHasFsm(actionManager) ||
-            isFieldServicePrimaryMenu(actionManager);
+    isFsmShellAction: isFsmShellAction,
+    activeKeyFromAction: activeKeyFromAction,
+    setSidebarActive() {},
+    // Global sidebar component in Odoo 19: nothing to mount per action.
+    mountSidebar() {
+        return $();
     },
-
-    ensureTreeViewFirst: ensureTreeViewFirst,
-
-    listFirstOptions: listFirstOptions,
-
-    mountSidebar: function ($host, activeKey, doActionFn, options) {
-        if (!$host || !$host.length) {
-            return $();
-        }
-        options = options || {};
-        var $existing = $host.children('.o_crn_app_sidebar');
-        if ($existing.length) {
-            $existing.replaceWith($(renderSidebarHtml(activeKey, options)));
-        } else {
-            $host.prepend($(renderSidebarHtml(activeKey, options)));
-        }
-        var $sidebar = $host.children('.o_crn_app_sidebar').first();
-        bindSidebarNav($sidebar, doActionFn);
-        return $sidebar;
+    wrapActionContent($content) {
+        return $content || $();
     },
-
-    wrapActionContent: function ($content, activeKey, doActionFn, options) {
-        if (!$content || !$content.length) {
-            return $();
-        }
-        options = options || {};
-        var $layout = $content.children('.o_crn_app_layout').first();
-        if (!$layout.length) {
-            $layout = $('<div class="o_crn_app_layout"/>');
-            var $sidebarHost = $('<div class="o_crn_sidebar_host"/>');
-            var $main = $('<div class="o_crn_app_content"/>');
-            $main.append($content.contents());
-            $layout.append($sidebarHost).append($main);
-            $content.empty().append($layout);
-        }
-        this.mountSidebar($layout.children('.o_crn_sidebar_host').first(), activeKey, doActionFn, options);
-        return $layout.find('.o_crn_app_content').first();
+    getSidebarOptions() {
+        return Promise.resolve({ isSystemAdmin: user.isSystem });
     },
-
-    getSidebarOptions: function () {
-        return require('web.session').user_has_group('base.group_system').then(function (isSystemAdmin) {
-            return {isSystemAdmin: !!isSystemAdmin};
-        }).guardedCatch(function () {
-            return {isSystemAdmin: false};
-        });
+    listFirstOptions(options) {
+        return options || {};
     },
-
-    syncActionManager: function (actionManager, action) {
-        if (!actionManager) {
-            return;
-        }
-        var self = this;
-        if (!this.shouldUseShell(actionManager, action)) {
-            this.deactivate();
-            return;
-        }
-        this.activate();
-        this.hideMainMenuBar();
-        // Dashboard / processing-cycle client actions mount their own left sidebar.
-        if (action && (action.tag === 'crn_service_dashboard' || action.tag === 'crn_processing_cycle')) {
-            return;
-        }
-        var activeKey = activeKeyFromAction(action);
-        var $action = $('.o_action_manager .o_action').filter(':visible').last();
-        var $content = $action.children('.o_content').first();
-        if (!$content.length) {
-            $content = $action.find('.o_content').first();
-        }
-        if (!$content.length) {
-            return;
-        }
-        var doActionFn = function (item) {
-            if (item.xmlid) {
-                return actionManager.do_action(item.xmlid, AppShell.listFirstOptions());
-            }
-            return $.when();
-        };
-        this.getSidebarOptions().then(function (options) {
-            self.wrapActionContent($content, activeKey, doActionFn, options);
-            var $sidebar = $content.find('.o_crn_app_sidebar').first();
-            if ($sidebar.length) {
-                $sidebar.scrollTop(0);
-            }
-            $content.find('.o_crn_app_sidebar_nav .list-group-item').removeClass('active');
-            $content.find('.o_crn_app_sidebar_nav a[data-nav-key="' + activeKey + '"]')
-                .closest('.list-group-item').addClass('active');
-        });
+    ensureTreeViewFirst(action) {
+        return action;
     },
 };
 
-var _lastActionManager = null;
+export class CrnShellSidebar extends Component {
+    static template = "field_service_cpa.CrnShellSidebar";
+    static props = {};
 
-ActionManager.include({
-    _handleAction: function (action, options) {
-        var self = this;
-        _lastActionManager = this;
-        var forceListFirst = isListFirstCandidate(action) &&
-            (isFsmShellAction(action) || stackHasFsm(this));
-        if (forceListFirst) {
-            action = AppShell.ensureTreeViewFirst(action);
-            options = AppShell.listFirstOptions(options);
-        }
-        return this._super(action, options).then(function () {
-            AppShell.syncActionManager(self, action);
+    setup() {
+        this.menu = useService("menu");
+        this.actionService = useService("action");
+        this.orm = useService("orm");
+        this.state = useState({ active: false, activeKey: "dashboard", available: null });
+        const sync = () => this.sync();
+        useBus(this.env.bus, "ACTION_MANAGER:UI-UPDATED", sync);
+        useBus(this.env.bus, "MENUS:APP-CHANGED", sync);
+        onWillStart(async () => {
+            const xmlids = [];
+            for (const block of NAV_ITEMS) {
+                for (const item of block.items) {
+                    if (item.xmlid) {
+                        xmlids.push(item.xmlid);
+                    }
+                }
+            }
+            try {
+                this.state.available = await this.orm.call("project.task", "crn_shell_existing_xmlids", [xmlids]);
+            } catch {
+                this.state.available = xmlids;
+            }
         });
-    },
+        sync();
+    }
 
-    _pushController: function (controller) {
-        var self = this;
-        _lastActionManager = this;
-        var result = this._super.apply(this, arguments);
-        var action = controller && controller.action;
-        // Re-wrap after list↔form switches that rebuild .o_content.
-        window.setTimeout(function () {
-            AppShell.syncActionManager(self, action);
-        }, 0);
-        return result;
-    },
-});
+    get blocks() {
+        const available = new Set(this.state.available || []);
+        return filterNavItems({ isSystemAdmin: user.isSystem })
+            .map((block) => ({
+                ...block,
+                items: block.items.filter((item) => !item.xmlid || available.has(item.xmlid)),
+            }))
+            .filter((block) => block.items.length);
+    }
 
-core.bus.on('show_home_menu', null, function () {
-    AppShell.deactivate();
-});
-core.bus.on('will_show_home_menu', null, function () {
-    AppShell.deactivate();
-});
-core.bus.on('change_menu_section', null, function () {
-    // When switching into Field Service primary menu, keep shell ready.
-    window.setTimeout(function () {
-        var am = _lastActionManager;
-        if (!am) {
-            return;
+    sync() {
+        const app = this.menu.getCurrentApp();
+        const controller = this.actionService.currentController;
+        const action = controller && controller.action;
+        let active;
+        if (action && action.res_model === "res.config.settings") {
+            active = false;
+        } else if (app) {
+            active = app.xmlid === FSM_ROOT_XMLID;
+        } else {
+            active = Boolean(action && ["crn_service_dashboard", "crn_processing_cycle"].includes(action.tag));
         }
-        var controller = am.getCurrentController && am.getCurrentController();
-        if (!controller && am.controllers && am.controllerStack && am.controllerStack.length) {
-            controller = am.controllers[am.controllerStack[am.controllerStack.length - 1]];
+        this.state.active = active;
+        this.state.activeKey = activeKeyFromAction(action);
+        if (active) {
+            AppShell.activate();
+        } else {
+            AppShell.deactivate();
         }
-        var action = controller && controller.action;
-        AppShell.syncActionManager(am, action);
-    }, 50);
+    }
+
+    itemClass(block, item) {
+        const main = block.sectionClass === "o_crn_section_home";
+        return {
+            "list-group-item": true,
+            o_crn_app_sidebar_item_main: main,
+            o_crn_app_sidebar_item_sub: !main,
+            active: item.key === this.state.activeKey,
+        };
+    }
+
+    async onItem(item) {
+        if (item.special === "open_app_menu") {
+            return openAppsMenu();
+        }
+        if (item.xmlid) {
+            this.state.activeKey = item.key;
+            await this.actionService.doAction(item.xmlid, { clearBreadcrumbs: true });
+        }
+    }
+}
+
+registry.category("main_components").add("field_service_cpa.crn_shell_sidebar", {
+    Component: CrnShellSidebar,
 });
 
-return AppShell;
-});
+export default AppShell;

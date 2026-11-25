@@ -1,10 +1,9 @@
-odoo.define('recipe_book_cpa.dashboard', function (require) {
-    'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@recipe_book_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
 
-    var AbstractAction = require('web.AbstractAction');
-    var core = require('web.core');
-
-    var RecipeStatusDashboard = AbstractAction.extend({
+const $ = window.jQuery;
+    var RecipeStatusDashboard = legacyAction({
         template: 'RecipeStatusDashboard',
         hasControlPanel: false,
         events: {
@@ -43,10 +42,10 @@ odoo.define('recipe_book_cpa.dashboard', function (require) {
                 type: 'ir.actions.act_window',
                 name: name,
                 res_model: model,
-                view_mode: recipe ? 'kanban,tree,form' : 'tree,form',
+                view_mode: recipe ? 'kanban,list,form' : 'list,form',
                 views: recipe
-                    ? [[false, 'kanban'], [false, 'tree'], [false, 'form']]
-                    : [[false, 'tree'], [false, 'form']],
+                    ? [[false, 'kanban'], [false, 'list'], [false, 'form']]
+                    : [[false, 'list'], [false, 'form']],
                 domain: domain,
                 target: 'current',
             });
@@ -97,6 +96,5 @@ odoo.define('recipe_book_cpa.dashboard', function (require) {
         },
     });
 
-    core.action_registry.add('cpabooks_recipe_dashboard', RecipeStatusDashboard);
-    return RecipeStatusDashboard;
-});
+    registerLegacyAction('cpabooks_recipe_dashboard', RecipeStatusDashboard);
+    export default RecipeStatusDashboard;

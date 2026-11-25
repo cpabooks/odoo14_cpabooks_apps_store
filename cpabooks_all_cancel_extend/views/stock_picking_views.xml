@@ -7,10 +7,10 @@
         <field name="arch" type="xml">
             <xpath expr="//header/button[@name='action_cancel']" position="after">
                 <button name="action_cpa_cancel" type="object" string="Cancel Done Transfer"
-                        states="done" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
-                        confirm="Cancel this done transfer? The stock will be put back."/>
+                        groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
+                        confirm="Cancel this done transfer? The stock will be put back." invisible="state != 'done'"/>
                 <button name="action_cpa_set_draft" type="object" string="Reset to Draft"
-                        states="cancel" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"/>
+                        groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted" invisible="state != 'cancel'"/>
             </xpath>
         </field>
     </record>

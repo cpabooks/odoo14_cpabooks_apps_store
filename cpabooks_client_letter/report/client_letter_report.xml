@@ -18,7 +18,7 @@
                             <div t-if="partner and partner.city" t-esc="partner.city"/>
                             <div t-if="partner and partner.state_id" t-esc="partner.state_id.name"/>
                             <div t-if="partner and partner.country_id" t-esc="partner.country_id.name"/>
-                            <div t-if="(partner and (partner.phone or partner.mobile)) or doc.customer_phone">Phone: <span t-esc="(partner.phone or partner.mobile) if partner and (partner.phone or partner.mobile) else doc.customer_phone"/></div>
+                            <div t-if="(partner and partner.phone) or doc.customer_phone">Phone: <span t-esc="partner.phone if partner and partner.phone else doc.customer_phone"/></div>
                             <div t-if="(partner and partner.email) or doc.customer_email">Email: <span t-esc="partner.email if partner and partner.email else doc.customer_email"/></div>
                             <div t-if="(partner and partner.website) or doc.customer_website">Website: <span t-esc="partner.website if partner and partner.website else doc.customer_website"/></div>
                         </div>

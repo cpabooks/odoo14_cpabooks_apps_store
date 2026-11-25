@@ -22,12 +22,13 @@ class HrEmployee(models.Model):
         return super().search(args, offset=offset, limit=limit, order=order, count=count)
 
     @api.model
-    def name_search(self, name='', args=None, operator='ilike', limit=100):
+    def name_search(self, name='', domain=None, operator='ilike', limit=100):
+        args = domain
         if self._fsm_employee_picker_active():
             return super(HrEmployee, self.sudo()).name_search(
-                name, args=args, operator=operator, limit=limit
+                name, domain=args, operator=operator, limit=limit
             )
-        return super().name_search(name, args=args, operator=operator, limit=limit)
+        return super().name_search(name, domain=args, operator=operator, limit=limit)
 
     def read(self, fields=None, load='_classic_read'):
         if self._fsm_employee_picker_active():

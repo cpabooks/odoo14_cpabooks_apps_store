@@ -54,8 +54,16 @@ class SwitchgearDesignDocument(models.Model):
                 1 for line in rec.received_line_ids if line.attachment
             )
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SwitchgearDesignDocument(vals)
+        return records
+
+    def _create_single_SwitchgearDesignDocument(self, vals):
         if vals.get('name', '/') in (False, '/'):
             vals['name'] = self.env['ir.sequence'].next_by_code(
                 'switchgear.design.document',
@@ -81,8 +89,16 @@ class SwitchgearDesignDocumentSentLine(models.Model):
     attachment_name = fields.Char(string='File Name')
     date_sent = fields.Date(string='Date Sent', default=fields.Date.context_today)
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SwitchgearDesignDocumentSentLine(vals)
+        return records
+
+    def _create_single_SwitchgearDesignDocumentSentLine(self, vals):
         if not vals.get('sr') and vals.get('register_id'):
             lines = self.search([('register_id', '=', vals['register_id'])])
             vals['sr'] = (max(lines.mapped('sr') or [0])) + 1
@@ -107,8 +123,16 @@ class SwitchgearDesignDocumentReceivedLine(models.Model):
     attachment_name = fields.Char(string='File Name')
     date_received = fields.Date(string='Date Received', default=fields.Date.context_today)
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SwitchgearDesignDocumentReceivedLine(vals)
+        return records
+
+    def _create_single_SwitchgearDesignDocumentReceivedLine(self, vals):
         if not vals.get('sr') and vals.get('register_id'):
             lines = self.search([('register_id', '=', vals['register_id'])])
             vals['sr'] = (max(lines.mapped('sr') or [0])) + 1

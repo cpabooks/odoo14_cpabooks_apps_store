@@ -222,7 +222,6 @@ class SequenceInheritance(models.Model):
         'stock_return_note': (
             'stock.picking', [('name', '=like', 'MRN/%')], 'name',
         ),
-        'stock_adjustment': ('stock.inventory', [], 'saj_number'),
         'payment_voucher': ('account.payment', [('payment_type', '=', 'outbound')], 'name'),
         'receipt_voucher': ('account.payment', [('payment_type', '=', 'inbound')], 'name'),
         'fsm_crn': ('project.task', [], 'task_seq'),
@@ -253,7 +252,10 @@ class SequenceInheritance(models.Model):
         return highest + 1
 
     def _cpabooks_document_lookup(self, sequence_for):
-        return self._CPABOOKS_SEQUENCE_DOCUMENT_LOOKUP.get(sequence_for)
+        lookup = self._CPABOOKS_SEQUENCE_DOCUMENT_LOOKUP.get(sequence_for)
+        if lookup and lookup[0] not in self.env:
+            return None
+        return lookup
 
     @api.model
     def _cpabooks_is_monthly_pattern(self, pattern):
@@ -931,7 +933,7 @@ class SequenceInheritance(models.Model):
             be used.
         """
         self._cpabooks_ensure_sequence_columns()
-        self.check_access_rights('read')
+        self.check_access('read')
         company_id = self.env.company.id
         seq_ids = self.search([('sequence_for', '=', sequence_for), ('company_id', 'in', [company_id, False])],limit=1,
                               order='company_id')
@@ -982,7 +984,7 @@ class SequenceInheritance(models.Model):
             (multi-company cases), the one from the user's current company will
             be used.
         """
-        self.check_access_rights('read')
+        self.check_access('read')
         company_id = self.env.company.id
         seq_ids = self.search([('sequence_for_journals', '=', sequence_for), ('company_id', 'in', [company_id, False])],limit=1,
                               order='company_id')
@@ -1014,8 +1016,16 @@ class SequenceInheritance(models.Model):
             return result
         return seq_id._next(sequence_date=sequence_date)
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SequenceInheritance(vals)
+        return records
+
+    def _create_single_SequenceInheritance(self, vals_list):
         self._cpabooks_ensure_sequence_columns()
         if isinstance(vals_list, dict):
             vals_to_check = [vals_list]

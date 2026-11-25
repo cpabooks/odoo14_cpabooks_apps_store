@@ -1,14 +1,13 @@
-odoo.define('field_service_cpa.crn_service_dashboard_action', function (require) {
-'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@field_service_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc, loadChartJs, chartV2ToV4 } from "@field_service_cpa/js/legacy_compat";
+import { AppShell } from "@field_service_cpa/js/crn_app_shell";
 
-var AbstractAction = require('web.AbstractAction');
-var core = require('web.core');
-var rpc = require('web.rpc');
-var AppShell = require('field_service_cpa.crn_app_shell');
-
+const $ = window.jQuery;
 var _t = core._t;
 
-var CrnServiceDashboardAction = AbstractAction.extend({
+var CrnServiceDashboardAction = legacyAction({
     contentTemplate: 'CrnServiceDashboard',
     xmlDependencies: ['/field_service_cpa/static/src/xml/crn_service_dashboard.xml'],
 
@@ -217,7 +216,6 @@ var CrnServiceDashboardAction = AbstractAction.extend({
     },
 });
 
-core.action_registry.add('crn_service_dashboard', CrnServiceDashboardAction);
+registerLegacyAction('crn_service_dashboard', CrnServiceDashboardAction);
 
-return CrnServiceDashboardAction;
-});
+export default CrnServiceDashboardAction;

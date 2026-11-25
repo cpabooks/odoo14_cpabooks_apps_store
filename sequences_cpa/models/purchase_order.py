@@ -28,7 +28,7 @@ class PurchaseOrderInheritance(models.Model):
     #     for rec in self:
     #         get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
     #         if get_admin_power_group:
-    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.users.ids:
+    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.user_ids.ids:
     #                 rec.system_admin = True
     #             else:
     #                 rec.system_admin = False
@@ -43,7 +43,7 @@ class PurchaseOrderInheritance(models.Model):
             rec.system_admin = False
             get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
             if get_admin_power_group:
-                if self.env.user.id in get_admin_power_group.users.ids:
+                if self.env.user.id in get_admin_power_group.user_ids.ids:
                     rec.system_admin = True
                 else:
                     rec.system_admin = False
@@ -53,11 +53,19 @@ class PurchaseOrderInheritance(models.Model):
             #     else:
             #         rec.system_admin = False
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
-        print(vals_list)
-        res = super(PurchaseOrderInheritance, self).create(vals_list)
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_PurchaseOrderInheritance(vals)
+        return records
+
+    def _create_single_PurchaseOrderInheritance(self, vals_list):
+        # core create() writes the default name into vals in place: read it first
         requested_name = vals_list.get('name') if isinstance(vals_list, dict) else False
+        res = super(PurchaseOrderInheritance, self).create(dict(vals_list))
         if not requested_name or res._cpabooks_is_sequence_placeholder(requested_name):
             res.name = res._cpabooks_next_purchase_name(vals_list.get('date_order'))
         elif res._cpabooks_purchase_name_exists(res.name):

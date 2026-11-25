@@ -8,7 +8,7 @@ class RecipeBook(models.Model):
     _inherit = ['mail.thread'] if False else []
     _order = 'name'
 
-    name = fields.Char(required=True, tracking=False)
+    name = fields.Char(required=True)
     code = fields.Char()
     company_id = fields.Many2one('res.company', required=True, default=lambda s: s.env.company)
     branch = fields.Char(help='Branch/location name. Kept generic for Odoo 14 CE/EE compatibility.')
@@ -96,7 +96,7 @@ class RecipeBook(models.Model):
 
     def action_sales(self):
         self.ensure_one()
-        return {'type':'ir.actions.act_window','name':_('Sales Lines'),'res_model':'sale.order.line','view_mode':'tree,form','domain':[('product_id','=',self.sale_product_id.id),('order_id.state','in',['sale','done'])]}
+        return {'type':'ir.actions.act_window','name':_('Sales Lines'),'res_model':'sale.order.line','view_mode':'list,form','domain':[('product_id','=',self.sale_product_id.id),('order_id.state','in',['sale','done'])]}
 
 class RecipeLine(models.Model):
     _name = 'cpabooks.recipe.line'
@@ -178,7 +178,7 @@ class RecipeLine(models.Model):
         for company_id, group in grouped.items():
             product_ids = list({line.product_id.id for line in group if line.product_id})
             purchase = self._purchase_avg_cost(product_ids, company_id)
-            products = Product.browse(product_ids).with_context(force_company=company_id)
+            products = Product.browse(product_ids).with_company(company_id)
             standard = {product.id: product.standard_price or 0.0 for product in products}
             for line in group:
                 product_id = line.product_id.id
@@ -189,10 +189,10 @@ class RecipeLine(models.Model):
     def _recompute_book_costs(self):
         self.search([]).modified(['product_id'])
         self.env['cpabooks.prep.recipe.line'].search([]).modified(['product_id'])
-        self.recompute()
+        self.env.flush_all()
         self.env['cpabooks.recipe'].search([]).modified(['line_ids'])
         self.env['cpabooks.prep.recipe'].search([]).modified(['line_ids'])
-        self.recompute()
+        self.env.flush_all()
 
 class PrepRecipe(models.Model):
     _name='cpabooks.prep.recipe'; _description='Prep / Sub Recipe'

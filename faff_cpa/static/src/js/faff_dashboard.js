@@ -1,13 +1,13 @@
-odoo.define("faff_cpa.dashboard", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@faff_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc } from "@faff_cpa/js/legacy_compat";
+import * as faffShell from "@faff_cpa/js/faff_shell_sidebar";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-    var rpc = require("web.rpc");
-
+const $ = window.jQuery;
     var _t = core._t;
 
-    var FaffDashboardAction = AbstractAction.extend({
+    var FaffDashboardAction = legacyAction({
         contentTemplate: "FaffDashboard",
         xmlDependencies: ["/faff_cpa/static/src/xml/faff_dashboard.xml"],
 
@@ -25,7 +25,7 @@ odoo.define("faff_cpa.dashboard", function (require) {
             var self = this;
             this.set("title", _t("FAFF Dashboard"));
             try {
-                require("faff_cpa.shell").requestSyncSidebar(true);
+                faffShell.requestSyncSidebar(true);
             } catch (e) { /* ignore */ }
             return this._super.apply(this, arguments).then(function () {
                 return self._loadData().then(function () {
@@ -116,6 +116,5 @@ odoo.define("faff_cpa.dashboard", function (require) {
         },
     });
 
-    core.action_registry.add("faff_dashboard", FaffDashboardAction);
-    return FaffDashboardAction;
-});
+    registerLegacyAction("faff_dashboard", FaffDashboardAction);
+    export default FaffDashboardAction;

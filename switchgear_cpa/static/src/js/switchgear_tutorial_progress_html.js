@@ -1,50 +1,32 @@
-odoo.define('switchgear_cpa.tutorial_progress_html', function (require) {
-'use strict';
+/** @odoo-module **/
+/** Render the tutorial wizard progress HTML (decode escaped markup). */
+import { Component, markup } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
-var AbstractField = require('web.AbstractField');
-var fieldRegistry = require('web.field_registry');
+function decodeEntities(value) {
+    if (!value) {
+        return "";
+    }
+    const text = String(value);
+    if (text.indexOf("&lt;") === -1 && text.indexOf("&#") === -1) {
+        return text;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    return textarea.value;
+}
 
-/**
- * Render tutorial sidebar HTML (avoid escaped markup as plain text).
- */
-var TutorialProgressHtml = AbstractField.extend({
-    className: 'o_field_sg_tutorial_progress_html',
-    supportedFieldTypes: ['html', 'char', 'text'],
+export class SgTutorialProgressHtml extends Component {
+    static template = "switchgear_cpa.SgTutorialProgressHtml";
+    static props = { ...standardFieldProps };
 
-    _decodeEntities: function (value) {
-        if (!value) {
-            return '';
-        }
-        var text = String(value);
-        if (text.indexOf('&lt;') === -1 && text.indexOf('&#') === -1) {
-            return text;
-        }
-        var textarea = document.createElement('textarea');
-        textarea.innerHTML = text;
-        return textarea.value;
-    },
+    get html() {
+        return markup(decodeEntities(this.props.record.data[this.props.name] || ""));
+    }
+}
 
-    _renderReadonly: function () {
-        this.$el.empty();
-        var html = this._decodeEntities(this.value || '');
-        if (html) {
-            $('<div class="o_sg_tut_progress_wrap"/>').html(html).appendTo(this.$el);
-        }
-    },
-
-    _renderEdit: function () {
-        this._renderReadonly();
-    },
-
-    reset: function (record, event) {
-        this._super.apply(this, arguments);
-        if (!event || event.target !== this) {
-            this._render();
-        }
-    },
-});
-
-fieldRegistry.add('sg_tutorial_progress_html', TutorialProgressHtml);
-
-return TutorialProgressHtml;
+registry.category("fields").add("sg_tutorial_progress_html", {
+    component: SgTutorialProgressHtml,
+    supportedTypes: ["html", "char", "text"],
 });

@@ -7,8 +7,9 @@
         <field name="arch" type="xml">
             <xpath expr="//header/button[@name='button_draft']" position="after">
                 <button name="action_cpa_cancel" type="object" string="Cancel Entry"
-                        states="posted" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
-                        confirm="Cancel this posted entry? Linked payments follow the setting in Accounting > Settings."/>
+                        groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
+                        invisible="state != 'posted'"
+                        confirm="Cancel this posted entry? Linked payments follow the setting in Accounting &gt; Settings."/>
             </xpath>
         </field>
     </record>
@@ -20,8 +21,8 @@
         <field name="arch" type="xml">
             <xpath expr="//form/header" position="inside">
                 <button name="action_cpa_cancel" type="object" string="Cancel Payment"
-                        states="posted" groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
-                        confirm="Cancel this posted payment?"/>
+                        groups="cpabooks_all_cancel_extend.group_cpa_cancel_posted"
+                        confirm="Cancel this posted payment?" invisible="state not in ('in_process', 'paid')"/>
             </xpath>
         </field>
     </record>

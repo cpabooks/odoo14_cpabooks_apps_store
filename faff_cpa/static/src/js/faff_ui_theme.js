@@ -1,5 +1,7 @@
-odoo.define("faff_cpa.ui_theme", function (require) {
-    "use strict";
+/** @odoo-module **/
+
+const $ = window.jQuery;
+
 
     /**
      * FAFF UI theme (Default = light, Dark = fire/red shell).
@@ -80,11 +82,5 @@ odoo.define("faff_cpa.ui_theme", function (require) {
         return theme;
     }
 
-    return {
-        THEME_KEY: THEME_KEY,
-        readTheme: readTheme,
-        applyUiTheme: applyUiTheme,
-        injectNavbarThemeToggle: injectNavbarThemeToggle,
-        syncShellTheme: syncShellTheme,
-    };
-});
+
+export { THEME_KEY, readTheme, applyUiTheme, injectNavbarThemeToggle, syncShellTheme };

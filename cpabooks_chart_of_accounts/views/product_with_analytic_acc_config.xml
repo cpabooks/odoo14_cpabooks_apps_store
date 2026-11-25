@@ -11,57 +11,57 @@
                     <notebook>
                         <page string="Create Vehicle Ledger" name="vehicle_coa">
                             <field name="vehicle_coa">
-                                <tree string="Create Vehicle Ledger" editable="bottom">
+                                <list string="Create Vehicle Ledger" editable="bottom">
                                     <field name="vehicle_no"/>
                                     <field name="expense_ledger_id"/>
 <!--                                    <field name="analytic_acc_id"/>-->
 <!--                                    <field name="analytic_group_id"/>-->
 <!--                                    <field name="item_id"/>-->
                                     <field name="company_id" invisible="1"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                         <page string="Available Vehicle Ledgers" name="created_coa">
 <!--                            <field name="created_coa" readonly="1">-->
                             <field name="created_coa">
-                                <tree string="Available Vehicle Ledgers" editable="bottom">
+                                <list string="Available Vehicle Ledgers" editable="bottom">
                                     <field name="vehicle_no"/>
                                     <field name="expense_ledger_id"/>
                                     <field name="analytic_acc_id"/>
                                     <field name="analytic_group_id"/>
                                     <field name="item_id"/>
                                     <field name="company_id" invisible="1"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
 
                          <page string="Create Visa Product" name="visa_product">
                             <field name="visa_products">
-                                <tree string="Create Visa Product" editable="bottom">
+                                <list string="Create Visa Product" editable="bottom">
                                     <field name="visa_product"/>
                                     <field name="expense_ledger_id" required="1"/>
 
-                                </tree>
+                                </list>
                             </field>
                         </page>
                         <page string="Available Visa Products" name="created_visa_products">
                             <field name="created_visa_products">
-                                <tree string="Available Visa Products" editable="bottom">
+                                <list string="Available Visa Products" editable="bottom">
                                     <field name="visa_product"/>
                                     <field name="expense_ledger_id"/>
 
-                                </tree>
+                                </list>
                             </field>
                         </page>
 
                         <page string="Available Visa Analytic Accounts" name="created_visa_ana_acc">
                             <field name="created_visa_ana_acc">
-                                <tree string="Available Visa Analytic Accounts" editable="bottom">
+                                <list string="Available Visa Analytic Accounts" editable="bottom">
                                     <field name="analytic_acc_id"/>
                                     <field name="analytic_group_id"/>
                                     <field name="company_id" invisible="1"/>
 
-                                </tree>
+                                </list>
                             </field>
                         </page>
                     </notebook>

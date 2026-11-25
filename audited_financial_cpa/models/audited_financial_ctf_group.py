@@ -87,9 +87,10 @@ class AuditedFinancialCtfGroup(models.Model):
     has_ledgers = fields.Boolean(compute="_compute_has_ledgers", string="Has ledgers")
     indent_name = fields.Char(compute="_compute_indent_name", string="Description")
 
-    _sql_constraints = [
-        ("ctf_group_code_uniq", "unique(code)", "CTF group code must be unique."),
-    ]
+    _ctf_group_code_uniq = models.Constraint(
+        'unique(code)',
+        "CTF group code must be unique.",
+    )
 
     def _ctf_depth(self):
         self.ensure_one()

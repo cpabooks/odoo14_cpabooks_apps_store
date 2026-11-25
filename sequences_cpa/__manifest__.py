@@ -8,14 +8,14 @@
 CPA Books Re-Sequences
 ======================
 Manage and re-sequence document numbers across Accounting, Sales,
-Purchase, Inventory, Project and CRM in Odoo 14.
+Purchase, Inventory, Project and CRM in Odoo 19.
     """,
 
     'author': 'CPA Books',
     'website': 'https://www.cpabooks.co',
 
     'category': 'Productivity',
-    'version': '14.0.1.68',
+    'version': '19.0.1.68',
     'license': 'LGPL-3',
     'price': 29.00,
     'currency': 'USD',
@@ -43,7 +43,6 @@ Purchase, Inventory, Project and CRM in Odoo 14.
         'views/purchase_order.xml',
         'views/stock_picking.xml',
         'views/set_company_prefix_vew.xml',
-        'views/assets.xml',
         'security/security.xml',
         'security/ir.model.access.csv',
         'data/create_sequences.xml',

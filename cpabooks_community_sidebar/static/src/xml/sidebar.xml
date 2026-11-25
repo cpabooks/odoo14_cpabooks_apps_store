@@ -1,22 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <t t-extend="Menu">
-        <t t-jquery=".o_menu_apps" t-operation="after">
-            <a href="#" class="o_ccs_nav_btn" title="Show default community menu bar">Default menu</a>
-        </t>
-        <t t-jquery="nav.o_main_navbar" t-operation="after">
-            <aside class="o_ccs_sidebar" role="navigation">
-                <div class="o_ccs_head">Apps</div>
-                <div class="o_ccs_search_wrap">
-                    <input type="search" class="o_ccs_search" placeholder="Search apps"/>
+
+    <t t-name="cpabooks_community_sidebar.CommunitySidebar">
+        <aside class="o_ccs_sidebar" role="navigation">
+            <div class="o_ccs_head d-flex align-items-center">
+                <span class="flex-grow-1">Apps</span>
+                <a href="#" class="o_ccs_nav_btn" title="Show the default menu bar"
+                   t-on-click.prevent="showDefaultMenu">Default menu</a>
+            </div>
+            <div class="o_ccs_search_wrap">
+                <input type="search" class="o_ccs_search" placeholder="Search apps"
+                       t-att-value="state.search" t-on-input="onSearch"/>
+            </div>
+            <nav class="o_ccs_apps">
+                <t t-foreach="apps" t-as="app" t-key="app.id">
+                    <div class="o_ccs_group" t-att-class="{'o_ccs_open': isAppOpen(app)}" t-att-data-menu-id="app.id">
+                        <a href="#" class="o_ccs_app" t-att-class="{'active': state.currentAppId === app.id}"
+                           t-att-title="app.name" t-on-click.prevent="() => this.openApp(app)">
+                            <span class="o_ccs_icon">
+                                <img t-if="app.webIconData" t-att-src="app.webIconData" alt=""/>
+                                <span t-else="" class="o_ccs_letter" t-attf-style="background: {{color(app)}};" t-esc="letter(app)"/>
+                            </span>
+                            <span class="o_ccs_label" t-esc="app.name"/>
+                            <span t-if="appChildren(app).length" class="o_ccs_caret fa"
+                                  t-att-class="isAppOpen(app) ? 'fa-chevron-down' : 'fa-chevron-right'"
+                                  t-on-click.prevent.stop="() => this.toggleApp(app)"/>
+                        </a>
+                        <div t-if="appChildren(app).length" class="o_ccs_subs">
+                            <t t-foreach="appChildren(app)" t-as="menu" t-key="menu.id">
+                                <SidebarMenuNode menu="menu" query="query" activeMenuId="state.activeMenuId"
+                                                 onOpenMenu.bind="openMenu"/>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </nav>
+        </aside>
+    </t>
+
+    <t t-name="cpabooks_community_sidebar.SidebarMenuNode">
+        <t t-if="props.menu.childrenTree and props.menu.childrenTree.length">
+            <div class="o_ccs_sub_group" t-att-class="{'o_ccs_open': isOpen}">
+                <a href="#" class="o_ccs_sub_toggle" t-att-title="props.menu.name" t-on-click.prevent="onClick">
+                    <span class="o_ccs_twisty fa fa-caret-right"/>
+                    <span class="o_ccs_label" t-esc="props.menu.name"/>
+                </a>
+                <div class="o_ccs_subs2">
+                    <t t-foreach="children" t-as="child" t-key="child.id">
+                        <SidebarMenuNode menu="child" query="props.query" activeMenuId="props.activeMenuId"
+                                         onOpenMenu="props.onOpenMenu"/>
+                    </t>
                 </div>
-                <nav class="o_ccs_apps"/>
-            </aside>
+            </div>
         </t>
+        <a t-else="" href="#" class="o_ccs_leaf" t-att-class="{'active': props.activeMenuId === props.menu.id}"
+           t-att-title="props.menu.name" t-on-click.prevent="onClick">
+            <span class="o_ccs_label" t-esc="props.menu.name"/>
+        </a>
     </t>
-    <t t-extend="UserMenu.Actions">
-        <t t-jquery="a[data-menu='logout']" t-operation="before">
-            <a role="menuitem" href="#" class="dropdown-item o_ccs_profile_default">Default menu</a>
-        </t>
+
+    <t t-name="cpabooks_community_sidebar.SystrayToggle">
+        <div class="o_ccs_systray d-flex align-items-center">
+            <button type="button" class="btn btn-link o_nav_entry" t-att-title="title" t-on-click="onClick">
+                <i class="fa fa-columns" role="img" aria-label="App sidebar"/>
+            </button>
+        </div>
     </t>
+
 </templates>

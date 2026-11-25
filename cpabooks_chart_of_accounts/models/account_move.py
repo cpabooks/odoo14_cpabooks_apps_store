@@ -183,7 +183,7 @@ class AccountMove(models.Model):
     def _cpabooks_invalidate_coa_balance_fields(self):
         accounts = self.mapped('line_ids.account_id')
         if accounts:
-            accounts.invalidate_cache(
+            accounts.invalidate_recordset(
                 ['cpabooks_opening_balance', 'cpabooks_ledger_balance']
             )
 

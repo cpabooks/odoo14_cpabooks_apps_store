@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="field_service_cpa.CrnShellSidebar">
+        <aside t-if="state.active" class="o_crn_app_sidebar o_crn_global_sidebar">
+            <div class="o_crn_app_sidebar_title">Complaint Registration Management</div>
+            <ul class="list-group list-group-flush o_crn_app_sidebar_nav">
+                <t t-foreach="blocks" t-as="block" t-key="block_index">
+                    <li t-if="block.section" t-attf-class="list-group-item o_crn_app_sidebar_section {{block.sectionClass or ''}}" t-esc="block.section"/>
+                    <t t-foreach="block.items" t-as="item" t-key="item.key">
+                        <li t-att-class="itemClass(block, item)">
+                            <a href="#" t-att-data-nav-key="item.key" t-on-click.prevent="() => this.onItem(item)" t-esc="item.label"/>
+                        </li>
+                    </t>
+                </t>
+            </ul>
+        </aside>
+    </t>
+</templates>

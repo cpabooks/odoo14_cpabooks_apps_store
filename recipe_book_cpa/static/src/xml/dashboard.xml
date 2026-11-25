@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
-    <t t-name="RecipeNavToggle">
-        <li class="o_recipe_nav_toggle">
-            <button type="button" class="o_nav_side" title="Sidebar">Sidebar</button>
-            <button type="button" class="o_nav_top" title="Top bar">Top bar</button>
-        </li>
+    <t t-name="recipe_book_cpa.RecipeNavToggle">
+        <div t-if="nav.state.inRecipe" class="o_recipe_nav_toggle">
+            <button type="button" class="o_nav_side" t-att-class="{'active': nav.state.mode === 'side'}" title="Sidebar" t-on-click="() => this.apply('side')">Sidebar</button>
+            <button type="button" class="o_nav_top" t-att-class="{'active': nav.state.mode !== 'side'}" title="Top bar" t-on-click="() => this.apply('top')">Top bar</button>
+        </div>
+    </t>
+    <t t-name="recipe_book_cpa.RecipeAppSidebar">
+        <aside t-if="visible" class="o_recipe_app_sidebar">
+            <div class="o_recipe_side_title">Recipe Book</div>
+            <ul>
+                <t t-foreach="sections" t-as="section" t-key="section.key">
+                    <li t-attf-class="o_recipe_side_section o_recipe_side_{{section.tone}}" t-esc="section.label"/>
+                    <t t-foreach="section.items" t-as="item" t-key="item.menu.id">
+                        <li t-attf-class="o_recipe_side_item o_recipe_side_{{item.tier}}" t-att-class="{'active': nav.state.activeMenuId === item.menu.id}">
+                            <a href="#" t-on-click.prevent="() => this.open(item.menu)" t-esc="item.menu.name"/>
+                        </li>
+                    </t>
+                </t>
+            </ul>
+        </aside>
     </t>
     <t t-name="RecipeStatusDashboard">
         <div class="o_recipe_status">
@@ -32,7 +47,7 @@
                     </div>
                     <h4>Food cost by category</h4>
                     <div class="o_recipe_bars">
-                        <div t-foreach="widget.data.management.bars" t-as="bar" class="o_recipe_bar o_recipe_drill" data-drill="category" t-att-data-key="bar.key">
+                        <div t-foreach="widget.data.management.bars" t-as="bar" t-key="bar_index" class="o_recipe_bar o_recipe_drill" data-drill="category" t-att-data-key="bar.key">
                             <span t-esc="bar.name"/>
                             <div><i t-attf-style="width: #{bar.width}%"/></div>
                             <em t-esc="bar.cost"/>
@@ -44,7 +59,7 @@
                             <tr><th>Item</th><th>Price</th><th>Budget</th><th>Actual</th><th>Budget %</th><th>Actual %</th><th>Sold</th></tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="widget.data.management.rows" t-as="row" class="o_recipe_drill" data-drill="recipe" t-att-data-id="row.id">
+                            <tr t-foreach="widget.data.management.rows" t-as="row" t-key="row_index" class="o_recipe_drill" data-drill="recipe" t-att-data-id="row.id">
                                 <td t-esc="row.name"/>
                                 <td t-esc="row.price"/>
                                 <td t-esc="row.budget"/>
@@ -73,7 +88,7 @@
                             <tr><th>Ingredient</th><th>Expected</th><th>Actual use</th><th>Variance</th><th>Status</th></tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="widget.data.chef.rows" t-as="row" class="o_recipe_drill" data-drill="closing_line" t-att-data-id="row.id">
+                            <tr t-foreach="widget.data.chef.rows" t-as="row" t-key="row_index" class="o_recipe_drill" data-drill="closing_line" t-att-data-id="row.id">
                                 <td t-esc="row.product"/>
                                 <td t-esc="row.expected"/>
                                 <td t-esc="row.actual"/>
@@ -100,7 +115,7 @@
                             <tr><th>Ingredient</th><th>Purchase</th><th>Expected use</th><th>Chef close</th><th>On recipe</th></tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="widget.data.store.rows" t-as="row" class="o_recipe_drill" data-drill="closing_line" t-att-data-id="row.id">
+                            <tr t-foreach="widget.data.store.rows" t-as="row" t-key="row_index" class="o_recipe_drill" data-drill="closing_line" t-att-data-id="row.id">
                                 <td t-esc="row.product"/>
                                 <td t-esc="row.purchase"/>
                                 <td t-esc="row.expected"/>

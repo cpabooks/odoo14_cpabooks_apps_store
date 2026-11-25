@@ -38,7 +38,7 @@
         <field name="name">cpabooks.faff.job.tree.profit</field>
         <field name="model">cpabooks.faff.job</field>
         <field name="arch" type="xml">
-            <tree string="Profitability Summary" create="false">
+            <list string="Profitability Summary" create="false">
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="site_name"/>
@@ -57,21 +57,21 @@
                 <field name="margin_percent" avg="Est. %"/>
                 <field name="actual_margin_percent" avg="Act. %"/>
                 <field name="payment_status"/>
-            </tree>
+            </list>
         </field>
     </record>
 
     <record id="action_faff_mis_jobs_analysis" model="ir.actions.act_window">
         <field name="name">Jobs Analysis</field>
         <field name="res_model">cpabooks.faff.job</field>
-        <field name="view_mode">pivot,graph,tree,form</field>
+        <field name="view_mode">pivot,graph,list,form</field>
         <field name="context">{'search_default_group_stage': 1}</field>
     </record>
 
     <record id="action_faff_mis_profit_summary" model="ir.actions.act_window">
         <field name="name">Profitability Summary</field>
         <field name="res_model">cpabooks.faff.job</field>
-        <field name="view_mode">tree,pivot,graph,form</field>
+        <field name="view_mode">list,pivot,graph,form</field>
         <field name="view_id" ref="view_faff_job_tree_profit"/>
         <field name="context">{'pivot_measures': ['estimated_cost','actual_total_cost','selling_amount','invoice_amount','actual_profit','profit_variance']}</field>
     </record>
@@ -79,7 +79,7 @@
     <record id="action_faff_mis_comparison_summary" model="ir.actions.act_window">
         <field name="name">Comparison Summary</field>
         <field name="res_model">cpabooks.faff.job</field>
-        <field name="view_mode">tree,pivot,graph,form</field>
+        <field name="view_mode">list,pivot,graph,form</field>
         <field name="view_id" ref="view_faff_job_tree_profit"/>
         <field name="context">{'pivot_column_groupby': ['stage'], 'pivot_row_groupby': ['job_type_id'], 'pivot_measures': ['estimated_cost','actual_total_cost','cost_variance','selling_amount','invoice_amount','expected_profit','actual_profit','profit_variance']}</field>
     </record>
@@ -89,7 +89,7 @@
         <field name="name">cpabooks.faff.estimate.line.tree.mis</field>
         <field name="model">cpabooks.faff.estimate.line</field>
         <field name="arch" type="xml">
-            <tree create="false" edit="false">
+            <list create="false" edit="false">
                 <field name="job_id"/>
                 <field name="partner_id"/>
                 <field name="product_id"/>
@@ -105,7 +105,7 @@
                 <field name="selling_price"/>
                 <field name="total_selling_price" sum="Selling"/>
                 <field name="margin_percent" avg="Margin %"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -127,7 +127,7 @@
     <record id="action_faff_mis_profit_detail" model="ir.actions.act_window">
         <field name="name">Profitability Detail (BOQ)</field>
         <field name="res_model">cpabooks.faff.estimate.line</field>
-        <field name="view_mode">tree,pivot,graph</field>
+        <field name="view_mode">list,pivot,graph</field>
         <field name="view_id" ref="view_faff_estimate_line_tree_mis"/>
     </record>
 
@@ -136,7 +136,7 @@
         <field name="name">cpabooks.faff.mis.detail.tree</field>
         <field name="model">cpabooks.faff.mis.detail</field>
         <field name="arch" type="xml">
-            <tree create="false" edit="false">
+            <list create="false" edit="false">
                 <field name="job_id"/>
                 <field name="partner_id"/>
                 <field name="job_type_id"/>
@@ -152,7 +152,7 @@
                 <field name="cost_variance" sum="Cost Var."/>
                 <field name="selling_amount" sum="Selling"/>
                 <field name="currency_id" invisible="1"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -192,7 +192,7 @@
                 <field name="partner_id"/>
                 <field name="product_id"/>
                 <field name="name"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter name="group_job" string="Job" context="{'group_by': 'job_id'}"/>
                     <filter name="group_customer" string="Customer" context="{'group_by': 'partner_id'}"/>
                     <filter name="group_type" string="Job Type" context="{'group_by': 'job_type_id'}"/>
@@ -206,7 +206,7 @@
     <record id="action_faff_mis_comparison_detail" model="ir.actions.act_window">
         <field name="name">Comparison Detail</field>
         <field name="res_model">cpabooks.faff.mis.detail</field>
-        <field name="view_mode">tree,pivot,graph</field>
+        <field name="view_mode">list,pivot,graph</field>
     </record>
 
     <!-- ========== Daily Activity ========== -->
@@ -214,7 +214,7 @@
         <field name="name">cpabooks.faff.stage.history.tree.mis</field>
         <field name="model">cpabooks.faff.stage.history</field>
         <field name="arch" type="xml">
-            <tree create="false" edit="false">
+            <list create="false" edit="false">
                 <field name="report_date"/>
                 <field name="change_date"/>
                 <field name="job_id"/>
@@ -226,7 +226,7 @@
                 <field name="user_id"/>
                 <field name="is_override"/>
                 <field name="remarks"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -253,7 +253,7 @@
                 <filter name="today" string="Today" domain="[('report_date','=',context_today().strftime('%Y-%m-%d'))]"/>
                 <filter name="this_week" string="This Week" domain="[('report_date','&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
                 <filter name="overrides" string="Manager Overrides" domain="[('is_override','=',True)]"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter name="group_date" string="Date" context="{'group_by': 'report_date'}"/>
                     <filter name="group_job" string="Job" context="{'group_by': 'job_id'}"/>
                     <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
@@ -267,7 +267,7 @@
     <record id="action_faff_mis_daily" model="ir.actions.act_window">
         <field name="name">Daily Job Activity</field>
         <field name="res_model">cpabooks.faff.stage.history</field>
-        <field name="view_mode">tree,pivot,graph</field>
+        <field name="view_mode">list,pivot,graph</field>
         <field name="view_id" ref="view_faff_stage_history_tree_mis"/>
         <field name="search_view_id" ref="view_faff_stage_history_search_mis"/>
         <field name="context">{'search_default_today': 1}</field>
@@ -310,7 +310,7 @@
     <record id="action_faff_mis_invoices" model="ir.actions.act_window">
         <field name="name">FAFF Invoices</field>
         <field name="res_model">account.move</field>
-        <field name="view_mode">tree,form,pivot,graph</field>
+        <field name="view_mode">list,form,pivot,graph</field>
         <field name="domain">[('faff_job_id','!=',False),('move_type','=','out_invoice')]</field>
         <field name="context">{'default_move_type': 'out_invoice'}</field>
     </record>
@@ -318,71 +318,71 @@
     <record id="action_faff_mis_receivable" model="ir.actions.act_window">
         <field name="name">Outstanding Receivable</field>
         <field name="res_model">account.move</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('faff_job_id','!=',False),('move_type','=','out_invoice'),('state','=','posted'),('amount_residual','&gt;',0)]</field>
     </record>
 
     <record id="action_faff_mis_purchase_orders" model="ir.actions.act_window">
         <field name="name">FAFF Purchase Orders</field>
         <field name="res_model">purchase.order</field>
-        <field name="view_mode">tree,form,pivot,graph</field>
+        <field name="view_mode">list,form,pivot,graph</field>
         <field name="domain">[('faff_job_id','!=',False)]</field>
     </record>
 
     <record id="action_faff_mis_pickings" model="ir.actions.act_window">
         <field name="name">Material Issues / Transfers</field>
         <field name="res_model">stock.picking</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('faff_job_id','!=',False)]</field>
     </record>
 
     <record id="action_faff_mis_sale_orders" model="ir.actions.act_window">
         <field name="name">FAFF Quotations / Orders</field>
         <field name="res_model">sale.order</field>
-        <field name="view_mode">tree,form,pivot,graph</field>
+        <field name="view_mode">list,form,pivot,graph</field>
         <field name="domain">[('faff_job_id','!=',False)]</field>
     </record>
 
     <!-- ========== Project Dashboard bridges (optional module) ========== -->
     <record id="action_faff_bridge_project_dashboard" model="ir.actions.server">
         <field name="name">Project Dashboard</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_financial_dashboard" model="ir.actions.server">
         <field name="name">Financial Dashboard</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_financial_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_pl" model="ir.actions.server">
         <field name="name">Multi-level Profit &amp; Loss</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_multilevel_pl_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_bs" model="ir.actions.server">
         <field name="name">Balance Sheet</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_balance_sheet_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_ap_ar" model="ir.actions.server">
         <field name="name">AP &amp; AR Control</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_ap_ar_control_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_result" model="ir.actions.server">
         <field name="name">Project Result Control</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_result_control_dashboard').action_open()</field>
     </record>
     <record id="action_faff_bridge_activities" model="ir.actions.server">
         <field name="name">Activities Control</field>
-        <field name="model_id" ref="model_faff_cpa_dashboard_bridge"/>
+        <field name="model_id" ref="model_cpabooks_faff_dashboard_bridge"/>
         <field name="state">code</field>
         <field name="code">action = env['cpabooks.faff.dashboard.bridge'].with_context(faff_bridge_xmlid='project_dashboard_odoo.project_action_activities_control_dashboard').action_open()</field>
     </record>

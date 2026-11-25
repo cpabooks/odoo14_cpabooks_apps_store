@@ -4,12 +4,12 @@
         <field name="name">client.letter.template.tree</field>
         <field name="model">client.letter.template</field>
         <field name="arch" type="xml">
-            <tree>
+            <list>
                 <field name="sequence"/>
                 <field name="name"/>
                 <field name="code"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -51,7 +51,7 @@
     <record id="action_client_letter_templates" model="ir.actions.act_window">
         <field name="name">Client Letter Templates</field>
         <field name="res_model">client.letter.template</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
 
     <menuitem id="menu_client_letter_templates"

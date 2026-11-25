@@ -14,13 +14,13 @@ class AccountPayment(models.Model):
             pay_mode = mode or payment.company_id.cpa_payment_cancel_mode or 'cancel'
             if pay_mode == 'keep':
                 pay_mode = 'cancel'
-            if payment.state == 'posted':
+            if payment.state in ('in_process', 'paid'):
                 payment.action_draft()
             if pay_mode == 'draft':
-                if payment.state == 'cancel':
+                if payment.state == 'canceled':
                     payment.action_draft()
                 continue
-            if payment.state != 'cancel':
+            if payment.state != 'canceled':
                 payment.action_cancel()
             if pay_mode == 'delete':
                 payment.with_context(force_delete=True).unlink()

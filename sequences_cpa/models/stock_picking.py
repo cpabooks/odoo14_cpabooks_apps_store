@@ -20,7 +20,7 @@ class StockPickingInheritance(models.Model):
     #     for rec in self:
     #         get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
     #         if get_admin_power_group:
-    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.users.ids:
+    #             if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.user_ids.ids:
     #                 rec.system_admin = True
     #             else:
     #                 rec.system_admin = False
@@ -35,7 +35,7 @@ class StockPickingInheritance(models.Model):
             rec.system_admin = False
             get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
             if get_admin_power_group:
-                if self.env.user.id in get_admin_power_group.users.ids:
+                if self.env.user.id in get_admin_power_group.user_ids.ids:
                     rec.system_admin = True
                 else:
                     rec.system_admin = False
@@ -45,11 +45,18 @@ class StockPickingInheritance(models.Model):
             #     else:
             #         rec.system_admin = False
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
-        print(vals_list)
-        res = super(StockPickingInheritance, self).create(vals_list)
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_StockPickingInheritance(vals)
+        return records
+
+    def _create_single_StockPickingInheritance(self, vals_list):
         seq_vals = dict(vals_list) if isinstance(vals_list, dict) else {}
+        res = super(StockPickingInheritance, self).create(dict(vals_list))
         if not seq_vals.get('scheduled_date'):
             seq_vals['scheduled_date'] = res.scheduled_date or fields.Datetime.now()
         requested_name = seq_vals.get('name')
@@ -57,7 +64,7 @@ class StockPickingInheritance(models.Model):
             res.name = res._cpabooks_next_picking_name(seq_vals.get('scheduled_date'))
         elif res._cpabooks_picking_name_exists(res.name):
             raise ValidationError(_("Reference must be unique per company!"))
-        res.flush(['name'])
+        res.flush_model(['name'])
         return res
 
     def _cpabooks_is_sequence_placeholder(self, value):
@@ -539,7 +546,6 @@ class StockPickingInheritance(models.Model):
             return get_sequence
 
     def write(self, vals_list):
-        print(vals_list)
 
         rec = super(StockPickingInheritance, self).write(vals_list)
         for res in self:

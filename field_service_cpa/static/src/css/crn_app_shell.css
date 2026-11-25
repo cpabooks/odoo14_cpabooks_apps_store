@@ -1,3 +1,28 @@
+/* Odoo 19: one fixed CRN sidebar for the whole app; action area shifted. */
+aside.o_crn_app_sidebar.o_crn_global_sidebar {
+    position: fixed;
+    top: var(--o-navbar-height, 46px);
+    left: 0;
+    bottom: 0;
+    max-height: none;
+    overflow-y: auto;
+    z-index: 20;
+}
+body.o_crn_app_shell .o_action_manager {
+    margin-left: 268px;
+}
+body.o_crn_app_shell .o_crn_sidebar_host {
+    display: none;
+}
+body.o_crn_app_shell .o_menu_sections {
+    display: none !important;
+}
+@media (max-width: 991px) {
+    body.o_crn_app_shell .o_action_manager {
+        margin-left: 220px;
+    }
+}
+
 /* Hide Field Service top submenu — navigation lives in the left sidebar only */
 body.o_crn_app_shell .o_main_navbar .o_menu_sections,
 body.o_crn_app_shell .o_main_navbar .o_menu_sections .o_menu_entry_lvl_1,

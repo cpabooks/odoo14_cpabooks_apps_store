@@ -3,7 +3,7 @@
     <record id="action_job_estimate_from_project" model="ir.actions.act_window">
         <field name="name">Job Estimates</field>
         <field name="res_model">job.estimate</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('project_id', '=', active_id)]</field>
         <field name="context">{'default_project_id': active_id}</field>
     </record>

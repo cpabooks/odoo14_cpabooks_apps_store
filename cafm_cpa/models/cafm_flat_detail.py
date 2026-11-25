@@ -38,8 +38,16 @@ class CafmFlatDetail(models.Model):
         if partner:
             self.contact_mobile = partner.mobile or partner.phone or self.contact_mobile
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmFlatDetail(vals)
+        return records
+
+    def _create_single_CafmFlatDetail(self, vals):
         vals = self._prepare_auto_values(vals)
         return super().create(vals)
 

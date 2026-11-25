@@ -42,7 +42,7 @@ class AccountAccount(models.Model):
                AND data.name = 'sh_pdc_account_setting_inherit'
                AND data.model = 'ir.ui.view'
                AND data.res_id = view.id
-               AND view.arch_db LIKE '%domain=%share%False%'
+               AND view.arch_db::text LIKE '%domain=%share%False%'
             """
         )
         patched_count = self.env.cr.rowcount
@@ -394,7 +394,7 @@ class AccountAccount(models.Model):
                     gvals["ctf_category"] = "current_assets"
                 if gvals:
                     group.with_context(cpa_skip_group_push=True, skip_prefix_constraint=True).write(gvals)
-        self.invalidate_cache()
+        self.invalidate_model()
 
     def write(self, vals):
         # Manual create/edit: never block on IFRS series. Duplicates allowed.
@@ -407,7 +407,7 @@ class AccountAccount(models.Model):
                     "UPDATE account_account SET group_id = %s WHERE id IN %s",
                     (chosen_group, tuple(self.ids)),
                 )
-                self.invalidate_cache(fnames=["group_id"])
+                self.invalidate_model(["group_id"])
             self._cpa_apply_bank_cash_defaults()
             return result
         old_names = {account.id: account.name for account in self}
@@ -427,7 +427,7 @@ class AccountAccount(models.Model):
                 "UPDATE account_account SET group_id = %s WHERE id IN %s",
                 (chosen_group, tuple(self.ids)),
             )
-            self.invalidate_cache(fnames=["group_id"])
+            self.invalidate_model(["group_id"])
         self._cpa_apply_bank_cash_defaults()
         return result
 
@@ -573,7 +573,7 @@ class AccountAccount(models.Model):
                     "UPDATE account_account SET group_id = %s WHERE id = %s",
                     (group_id, account_id),
                 )
-            self.browse(list(keep)).invalidate_cache(fnames=["group_id"])
+            self.browse(list(keep)).invalidate_model(["group_id"])
         return res
 
     def _compute_cpabooks_group_display(self):

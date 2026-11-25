@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 class ProjectInheritance(models.Model):
     _inherit = 'project.project'
 
-    name = fields.Char("Name", index=True, required=True, tracking=True,default=lambda self:self.env['ir.sequence'].next_by_sequence_for('project'))
+    name = fields.Char(default=lambda self: self.env["ir.sequence"].next_by_sequence_for("project"))
 
     # @api.model
     # def create(self, vals_list):

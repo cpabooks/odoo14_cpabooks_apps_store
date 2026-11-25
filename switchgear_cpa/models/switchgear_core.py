@@ -77,8 +77,16 @@ class JobEstimate(models.Model):
     total_job_estimate = fields.Float(compute='_compute_total', store=True)
     sale_quotation_id = fields.Many2one('sale.order', string='Quotation')
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_JobEstimate(vals)
+        return records
+
+    def _create_single_JobEstimate(self, vals):
         if not vals.get('name') or vals.get('name') == 'New':
             vals['name'] = self.env['ir.sequence'].next_by_code('switchgear.job.estimate') or 'EST'
         return super().create(vals)
@@ -124,7 +132,7 @@ class JobEstimate(models.Model):
             line_vals.update({
                 'product_id': product.id,
                 'name': product.display_name,
-                'product_uom': product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
             })
         order = self.env['sale.order'].create({
             'partner_id': self.partner_id.id,
@@ -237,8 +245,16 @@ class QualityAlert(models.Model):
     stage_id = fields.Many2one('quality.alert.stage')
     description = fields.Text()
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_QualityAlert(vals)
+        return records
+
+    def _create_single_QualityAlert(self, vals):
         if not vals.get('name') or vals.get('name') == 'New':
             vals['name'] = self.env['ir.sequence'].next_by_code('switchgear.quality.alert') or 'QA'
         return super().create(vals)
@@ -278,8 +294,16 @@ class QualityCheck(models.Model):
     partner_id = fields.Many2one('res.partner', string='Customer')
     control_date = fields.Date(default=fields.Date.context_today)
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_QualityCheck(vals)
+        return records
+
+    def _create_single_QualityCheck(self, vals):
         if not vals.get('name') or vals.get('name') == 'New':
             vals['name'] = self.env['ir.sequence'].next_by_code('switchgear.quality.check') or 'QC'
         return super().create(vals)
@@ -346,8 +370,16 @@ class MaterialPurchaseRequisition(models.Model):
     ], default='draft', tracking=True)
     requisition_line_ids = fields.One2many('requisition.line', 'requisition_id')
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_MaterialPurchaseRequisition(vals)
+        return records
+
+    def _create_single_MaterialPurchaseRequisition(self, vals):
         if not vals.get('name') or vals.get('name') == 'New':
             vals['name'] = self.env['ir.sequence'].next_by_code('switchgear.purchase.requisition') or 'PR'
         return super().create(vals)

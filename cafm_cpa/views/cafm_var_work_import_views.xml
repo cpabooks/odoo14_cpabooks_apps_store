@@ -19,7 +19,7 @@
                                 <field name="file_data" filename="file_name" string="Select Excel File"/>
                             </group>
                         </group>
-                        <group attrs="{'invisible': [('missing_preview', '=', False)]}">
+                        <group invisible="not missing_preview">
                             <field name="missing_preview" nolabel="1" widget="text"/>
                             <field name="allow_create_missing"/>
                         </group>

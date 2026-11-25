@@ -12,8 +12,7 @@
                     <button name="action_create_crn_from_task"
                             type="object"
                             string="Create CRN"
-                            class="btn-primary"
-                            attrs="{'invisible': ['|', ('is_fsm', '=', True), ('task_seq', '=like', 'CRN%')]}"/>
+                            class="btn-primary" invisible="is_fsm or 'CRN%' in (task_seq or &quot;&quot;)"/>
                 </xpath>
                 <xpath expr="//sheet" position="before">
                     <field name="is_fsm" invisible="1"/>
@@ -48,76 +47,76 @@
                     <field name="is_fsm" invisible="1"/>
                 </xpath>
                 <xpath expr="//div[@class='oe_title pr-0']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
                 <xpath expr="//field[@name='partner_id']/preceding-sibling::field[@name='task_seq']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='is_group']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='is_group'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='crm_id']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='crm_id'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='period']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='period'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount_monthly_value']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount_monthly_value'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount_quarterly_value']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount_quarterly_value'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount_per_year']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount_per_year'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='invoice_value']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='invoice_value'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount_paid']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount_paid'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='amount_due']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='amount_due'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
                 <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': ['|', ('fsm_crn_form', '=', True), ('project_id', '=', False)]}</attribute>
+                    <attribute name="invisible">fsm_crn_form or not project_id</attribute>
                 </xpath>
-                <xpath expr="//field[@name='partner_id']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='partner_id'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='tag_ids']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='tag_ids'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='date_deadline']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='date_deadline'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='user_id']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='user_id'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='priority_id']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='priority_id'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='frequency_id']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='frequency_id'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='remarks']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='remarks'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='last_action']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='last_action'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='date_start']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='date_start'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='date_end']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='date_end'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='aging_days']" position="attributes" optional="True">
-                    <attribute name="attrs">{'invisible': [('is_fsm', '=', True)]}</attribute>
+                <xpath expr="//field[@name='aging_days'][not(ancestor::field)]" position="attributes" optional="True">
+                    <attribute name="invisible">is_fsm</attribute>
                 </xpath>
             </field>
         </record>
@@ -127,7 +126,7 @@
         <record id="action_project_tasks_non_fsm" model="ir.actions.act_window">
             <field name="name">Tasks</field>
             <field name="res_model">project.task</field>
-            <field name="view_mode">tree,form,kanban,calendar,pivot,graph</field>
+            <field name="view_mode">list,form,kanban,calendar,pivot,graph</field>
             <field name="domain">['&amp;', '&amp;', '|', ('project_id', '=', False), ('project_id.is_fsm', '=', False), ('check_fsm', '=', False), '!', ('task_seq', '=like', 'CRN%')]</field>
             <field name="context">{'search_default_my_tasks': 1}</field>
         </record>

@@ -4,11 +4,11 @@
         <field name="name">cpabooks.cafm.priority.tree</field>
         <field name="model">cpabooks.cafm.priority</field>
         <field name="arch" type="xml">
-            <tree editable="bottom" class="o_cafm_tally_tree">
+            <list editable="bottom" class="o_cafm_tally_tree">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -16,10 +16,10 @@
         <field name="name">cpabooks.cafm.master.simple.tree</field>
         <field name="model">cpabooks.cafm.job.type</field>
         <field name="arch" type="xml">
-            <tree editable="bottom" class="o_cafm_tally_tree">
+            <list editable="bottom" class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -27,10 +27,10 @@
         <field name="name">cpabooks.cafm.work.type.tree</field>
         <field name="model">cpabooks.cafm.work.type</field>
         <field name="arch" type="xml">
-            <tree editable="bottom" class="o_cafm_tally_tree">
+            <list editable="bottom" class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -38,10 +38,10 @@
         <field name="name">cpabooks.cafm.problem.reported.tree</field>
         <field name="model">cpabooks.cafm.problem.reported</field>
         <field name="arch" type="xml">
-            <tree editable="bottom" class="o_cafm_tally_tree">
+            <list editable="bottom" class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -49,13 +49,13 @@
         <field name="name">cpabooks.cafm.client.manager.tree</field>
         <field name="model">cpabooks.cafm.client.manager</field>
         <field name="arch" type="xml">
-            <tree class="o_cafm_tally_tree">
+            <list class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="mobile"/>
                 <field name="email"/>
                 <field name="user_id"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -84,12 +84,12 @@
         <field name="name">cpabooks.cafm.technician.tree</field>
         <field name="model">cpabooks.cafm.technician</field>
         <field name="arch" type="xml">
-            <tree class="o_cafm_tally_tree">
+            <list class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="mobile"/>
                 <field name="user_id"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -116,11 +116,11 @@
         <field name="name">cpabooks.cafm.department.tree</field>
         <field name="model">cpabooks.cafm.department</field>
         <field name="arch" type="xml">
-            <tree class="o_cafm_tally_tree">
+            <list class="o_cafm_tally_tree">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -148,42 +148,42 @@
     <record id="action_cafm_cpa_priority" model="ir.actions.act_window">
         <field name="name">Priority</field>
         <field name="res_model">cpabooks.cafm.priority</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_job_type" model="ir.actions.act_window">
         <field name="name">Type of Job</field>
         <field name="res_model">cpabooks.cafm.job.type</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_work_type" model="ir.actions.act_window">
         <field name="name">Type of Work</field>
         <field name="res_model">cpabooks.cafm.work.type</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_problem_reported" model="ir.actions.act_window">
         <field name="name">Problem Reported</field>
         <field name="res_model">cpabooks.cafm.problem.reported</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_client_managers" model="ir.actions.act_window">
         <field name="name">Client Managers</field>
         <field name="res_model">cpabooks.cafm.client.manager</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_technicians" model="ir.actions.act_window">
         <field name="name">Technicians</field>
         <field name="res_model">cpabooks.cafm.technician</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_departments" model="ir.actions.act_window">
         <field name="name">Department Security</field>
         <field name="res_model">cpabooks.cafm.department</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
     <record id="action_cafm_cpa_clients" model="ir.actions.act_window">
         <field name="name">Client</field>
         <field name="res_model">res.partner</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('customer_rank', '>', 0)]</field>
     </record>
 </odoo>

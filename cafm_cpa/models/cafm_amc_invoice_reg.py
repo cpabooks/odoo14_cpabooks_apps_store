@@ -149,8 +149,16 @@ class CafmAmcInvoiceReg(models.Model):
                 vals['l3_level_id'] = project.id
         return vals
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmAmcInvoiceReg(vals)
+        return records
+
+    def _create_single_CafmAmcInvoiceReg(self, vals):
         vals = dict(vals or {})
         vals = self._sync_project_name_to_l3(vals)
         if vals.get('l3_level_id') and not vals.get('partner_id'):
@@ -260,7 +268,7 @@ class CafmAmcInvoiceReg(models.Model):
                             'name': name,
                             'login': login,
                             'email': login,
-                            'groups_id': [(6, 0, [group_user.id])],
+                            'group_ids': [(6, 0, [group_user.id])],
                         })
                     else:
                         user.write({'name': name, 'login': login, 'email': login})

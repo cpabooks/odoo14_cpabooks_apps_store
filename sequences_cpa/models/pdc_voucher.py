@@ -5,8 +5,16 @@ from odoo.exceptions import ValidationError
 class AccountPaymentInheritance(models.Model):
     _inherit = 'pdc.wizard'
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_AccountPaymentInheritance(vals)
+        return records
+
+    def _create_single_AccountPaymentInheritance(self, vals_list):
         res=super(AccountPaymentInheritance, self).create(vals_list)
 
         if res.payment_type=='receive_money':

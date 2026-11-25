@@ -32,11 +32,11 @@ class AccountAnalyticLine(models.Model):
 
     def _get_employee_timesheet_cost(self):
         self.ensure_one()
-        if self.employee_id and 'timesheet_cost' in self.employee_id._fields:
-            return self.employee_id.timesheet_cost or 0.0
+        if self.employee_id and 'hourly_cost' in self.employee_id._fields:
+            return self.employee_id.hourly_cost or 0.0
         return 0.0
 
-    @api.depends('employee_id', 'employee_id.timesheet_cost')
+    @api.depends('employee_id', 'employee_id.hourly_cost')
     def _compute_fsm_employee_timesheet_cost(self):
         for line in self:
             line.fsm_employee_timesheet_cost = line._get_employee_timesheet_cost()

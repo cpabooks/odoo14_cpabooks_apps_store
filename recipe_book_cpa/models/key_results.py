@@ -242,20 +242,18 @@ class RecipeKeyResults(models.Model):
                 }
 
         def fill_com():
-            cost_type = self.env.ref('account.data_account_type_direct_costs', raise_if_not_found=False)
-            if not cost_type:
-                cost_type = self.env['account.account.type'].sudo().search([('name', '=', 'Cost of Revenue')], limit=1)
+            cost_type = 'expense_direct_cost'
             domain = [
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),
-                ('display_type', '=', False),
+                ('display_type', '=', 'product'),
                 ('product_id', '!=', False),
                 ('company_id', 'in', company_ids or [0]),
                 ('move_id.invoice_date', '>=', date_from),
                 ('move_id.invoice_date', '<=', date_to),
             ]
             if cost_type:
-                domain.append(('account_id.user_type_id', '=', cost_type.id))
+                domain.append(('account_id.account_type', '=', cost_type))
             purchases = {}
             for row in self.env['account.move.line'].sudo().read_group(
                 domain, ['price_subtotal:sum', 'quantity:sum'], ['company_id', 'product_id'], lazy=False,
@@ -273,14 +271,14 @@ class RecipeKeyResults(models.Model):
             month_domain = [
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),
-                ('display_type', '=', False),
+                ('display_type', '=', 'product'),
                 ('product_id', '!=', False),
                 ('company_id', 'in', company_ids or [0]),
                 ('move_id.invoice_date', '>=', month_from),
                 ('move_id.invoice_date', '<=', date_to),
             ]
             if cost_type:
-                month_domain.append(('account_id.user_type_id', '=', cost_type.id))
+                month_domain.append(('account_id.account_type', '=', cost_type))
             month_rates = {}
             for row in self.env['account.move.line'].sudo().read_group(
                 month_domain, ['price_subtotal:sum', 'quantity:sum'], ['company_id', 'product_id'], lazy=False,
@@ -649,15 +647,13 @@ class RecipeKeyResults(models.Model):
         if company_id not in self.env.companies.ids:
             company_id = self.env.companies[:1].id
         product_ids = [int(pid) for pid in (product_ids or []) if int(pid or 0)]
-        cost_type = self.env.ref('account.data_account_type_direct_costs', raise_if_not_found=False)
-        if not cost_type:
-            cost_type = self.env['account.account.type'].sudo().search([('name', '=', 'Cost of Revenue')], limit=1)
+        cost_type = 'expense_direct_cost'
 
         def bill_domain(start, end, products):
             domain = [
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),
-                ('display_type', '=', False),
+                ('display_type', '=', 'product'),
                 ('product_id', '!=', False),
                 ('company_id', '=', company_id),
                 ('move_id.invoice_date', '>=', start),
@@ -666,7 +662,7 @@ class RecipeKeyResults(models.Model):
             if products:
                 domain.append(('product_id', 'in', products))
             if cost_type:
-                domain.append(('account_id.user_type_id', '=', cost_type.id))
+                domain.append(('account_id.account_type', '=', cost_type))
             return domain
 
         windows = [(date_from, date_to, product_ids)]
@@ -741,8 +737,8 @@ class RecipeKeyResults(models.Model):
             return {}
         product = product.sudo()
         if company_id:
-            product = product.with_context(force_company=int(company_id))
-        kind = {'consu': 'Consumable', 'service': 'Service', 'product': 'Storable'}.get(product.type, product.type or '')
+            product = product.with_company(int(company_id))
+        kind = 'Storable' if product.is_storable else {'consu': 'Consumable', 'service': 'Service', 'combo': 'Combo'}.get(product.type, product.type or '')
         return {
             'id': product.id,
             'tmpl_id': product.product_tmpl_id.id,

@@ -311,9 +311,10 @@ class CafmInvoiceMonthTag(models.Model):
     key = fields.Char(string='Key', required=True, index=True)
     sort_key = fields.Integer(string='Sort', index=True)
 
-    _sql_constraints = [
-        ('key_uniq', 'unique(key)', 'Invoice month key must be unique.'),
-    ]
+    _key_uniq = models.Constraint(
+        'unique(key)',
+        "Invoice month key must be unique.",
+    )
 
 
 class CafmContractMonthLine(models.Model):
@@ -430,13 +431,10 @@ class CafmContractMonthLine(models.Model):
     )
     remarks = fields.Text(related='contract_id.remarks', string='Remarks', readonly=True)
 
-    _sql_constraints = [
-        (
-            'contract_month_uniq',
-            'unique(contract_id, month_key)',
-            'Contract already linked to this invoice month.',
-        ),
-    ]
+    _contract_month_uniq = models.Constraint(
+        'unique(contract_id, month_key)',
+        "Contract already linked to this invoice month.",
+    )
 
     @api.depends('name', 'month_label')
     def _compute_display_name(self):

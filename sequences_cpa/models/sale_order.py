@@ -26,8 +26,7 @@ class SaleOrderInheritance(models.Model):
 
     # name = fields.Char(string='Order Reference', required=True, copy=False, readonly=True,
     #                    states={'draft': [('readonly', False)]}, index=True, default=lambda self: _('New'))
-    name = fields.Char(string='Order Reference', required=True, copy=False, readonly=True,
-                       states={'draft': [('readonly', False)]}, index=True, default=lambda self: _('Draft'))
+    name = fields.Char(default=lambda self: _('Draft'))
     system_admin = fields.Boolean(compute="_get_system_admin")
 
     def _cpabooks_is_placeholder_sale_name(self, name):
@@ -90,7 +89,7 @@ class SaleOrderInheritance(models.Model):
     #     for rec in self:
     #         # get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Admin Power')])
     #         # if get_admin_power_group:
-    #         #     if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.users.ids:
+    #         #     if self.env.user.has_group('base.group_system') or self.env.user.id in get_admin_power_group.user_ids.ids:
     #         #         rec.system_admin = True
     #         #     else:
     #         #         rec.system_admin = False
@@ -117,7 +116,7 @@ class SaleOrderInheritance(models.Model):
             rec.system_admin = False
             get_admin_power_group = self.env['res.groups'].sudo().search([('name', '=ilike', 'Sequence Editor')])
             if get_admin_power_group:
-                if self.env.user.id in get_admin_power_group.users.ids:
+                if self.env.user.id in get_admin_power_group.user_ids.ids:
                     rec.system_admin = True
                 else:
                     rec.system_admin = False
@@ -132,8 +131,16 @@ class SaleOrderInheritance(models.Model):
         res['invoice_date'] = datetime.now().date()
         return res
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SaleOrderInheritance(vals)
+        return records
+
+    def _create_single_SaleOrderInheritance(self, vals_list):
         revise = False
         if vals_list.get('revise') == True:
             revise = True
@@ -173,7 +180,7 @@ class SaleOrderInheritance(models.Model):
             if not get_sequence:
                 raise ValidationError(_("Sequence is not set for sale quotation"))
             res.name = get_sequence or _('/')
-        res.flush(['name'])
+        res.flush_model(['name'])
         return res
 
     def _get_sequence(self, get_sequence_object, get_sequence, vals_list, get_highest_sale, sale_name):

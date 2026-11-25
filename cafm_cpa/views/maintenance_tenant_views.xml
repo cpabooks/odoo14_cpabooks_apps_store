@@ -5,13 +5,13 @@
             <field name="name">view.maintenance.tenant.tree</field>
             <field name="model">maintenance.tenant</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="name"/>
                     <field name="mobile" widget="phone"/>
                     <field name="email" widget="email"/>
                     <field name="project_id"/>
                     <field name="cafm_unit_id"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -44,7 +44,7 @@
             <field name="name">Tenants / Occupants</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">maintenance.tenant</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
         </record>
 
         <menuitem id="menu_cafm_cpa_tenants"

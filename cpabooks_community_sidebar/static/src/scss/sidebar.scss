@@ -2,7 +2,7 @@
     display: flex;
     position: fixed;
     z-index: 1030;
-    top: 46px;
+    top: var(--o-navbar-height, 46px);
     left: 0;
     bottom: 0;
     width: 232px;
@@ -12,11 +12,12 @@
     box-shadow: 4px 0 18px rgba(15, 23, 42, 0.28);
     font-size: 13px;
 }
-.o_web_client > header {
-    overflow: visible;
-}
-.o_action_manager {
+body.o_ccs_enabled:not(.o_ccs_show_default_menu):not(:is(.o_faff_dark_shell, .o_cafm_dark_shell, .o_crn_app_shell, .o_switchgear_app_shell, .o_cpa_nav_side)) .o_action_manager {
     margin-left: 232px;
+}
+/* An app with its own CPABooks sidebar (FAFF, CAFM, CRN, Switchgear, Recipe) is open */
+body:is(.o_faff_dark_shell, .o_cafm_dark_shell, .o_crn_app_shell, .o_switchgear_app_shell, .o_cpa_nav_side) .o_ccs_sidebar {
+    display: none !important;
 }
 body.o_ccs_show_default_menu .o_ccs_sidebar {
     display: none;
@@ -24,29 +25,22 @@ body.o_ccs_show_default_menu .o_ccs_sidebar {
 body.o_ccs_show_default_menu .o_action_manager {
     margin-left: 0;
 }
-body:not(.o_ccs_show_default_menu) .o_menu_apps .dropdown-menu {
-    display: none !important;
-}
-body:not(.o_ccs_show_default_menu) .o_menu_brand,
-body:not(.o_ccs_show_default_menu) .o_menu_sections {
+body.o_ccs_enabled:not(.o_ccs_show_default_menu):not(:is(.o_faff_dark_shell, .o_cafm_dark_shell, .o_crn_app_shell, .o_switchgear_app_shell, .o_cpa_nav_side)) .o_menu_brand,
+body.o_ccs_enabled:not(.o_ccs_show_default_menu):not(:is(.o_faff_dark_shell, .o_cafm_dark_shell, .o_crn_app_shell, .o_switchgear_app_shell, .o_cpa_nav_side)) .o_menu_sections {
     display: none !important;
 }
 
-.o_main_navbar > a.o_ccs_nav_btn {
-    display: block;
-    float: left;
-    height: 46px;
-    line-height: 46px;
-    padding: 0 12px;
+.o_ccs_sidebar a.o_ccs_nav_btn {
+    padding: 3px 8px;
+    border-radius: 6px;
     color: #fff !important;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
-    background: rgba(0, 0, 0, 0.18);
+    background: rgba(255, 255, 255, 0.12);
     text-decoration: none !important;
 }
-.o_main_navbar > a.o_ccs_nav_btn:hover {
-    background: rgba(0, 0, 0, 0.32);
-    color: #fff !important;
+.o_ccs_sidebar a.o_ccs_nav_btn:hover {
+    background: rgba(255, 255, 255, 0.24);
 }
 
 .o_ccs_head {
@@ -160,6 +154,11 @@ body:not(.o_ccs_show_default_menu) .o_menu_sections {
     transform: rotate(90deg);
 }
 
-.o_main_navbar {
-    z-index: 1040;
+@media (max-width: 767.98px) {
+    .o_ccs_sidebar {
+        display: none;
+    }
+    body.o_ccs_enabled:not(.o_ccs_show_default_menu) .o_action_manager {
+        margin-left: 0;
+    }
 }

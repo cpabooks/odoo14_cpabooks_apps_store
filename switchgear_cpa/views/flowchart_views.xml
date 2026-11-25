@@ -21,7 +21,7 @@
             <kanban create="false">
                 <field name="name"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div class="oe_kanban_card" style="width: 100%; background-color: #d3d5db;">
                             <div class="oe_kanban_content">
                                 <br/>
@@ -141,7 +141,7 @@
     <record id="action_switchgear_stock_incoming" model="ir.actions.act_window">
         <field name="name">GRN (Purchase)</field>
         <field name="res_model">stock.picking</field>
-        <field name="view_mode">tree,kanban,form,calendar</field>
+        <field name="view_mode">list,kanban,form,calendar</field>
         <field name="domain">[('picking_type_code', '=', 'incoming')]</field>
         <field name="context">{'contact_display': 'partner_address'}</field>
     </record>
@@ -149,7 +149,7 @@
     <record id="action_switchgear_stock_outgoing" model="ir.actions.act_window">
         <field name="name">Delivery Order</field>
         <field name="res_model">stock.picking</field>
-        <field name="view_mode">tree,kanban,form,calendar</field>
+        <field name="view_mode">list,kanban,form,calendar</field>
         <field name="domain">[('picking_type_code', '=', 'outgoing')]</field>
         <field name="context">{'contact_display': 'partner_address'}</field>
     </record>

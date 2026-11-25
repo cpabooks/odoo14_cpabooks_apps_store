@@ -19,11 +19,11 @@
                     </group>
                     <separator string="Where it is stuck"/>
                     <field name="line_ids" nolabel="1">
-                        <tree create="0" delete="0" edit="0">
+                        <list create="0" delete="0" edit="0">
                             <field name="name"/>
                             <field name="detail"/>
                             <field name="gap_hint" optional="hide"/>
-                        </tree>
+                        </list>
                     </field>
                 </sheet>
                 <footer>

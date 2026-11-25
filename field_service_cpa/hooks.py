@@ -102,29 +102,43 @@ def _cleanup_orphan_approval_views(cr):
         """
     )
     # Views keep merged arch in arch_db after Approvals was uninstalled; strip those nodes.
-    for pattern, like in (
-        ('<xpath[^>]*approval_request[^>]*>.*?</xpath>', '%approval_request%'),
-        ('<field[^>]*name="approval_request_id"[^>]*/>', '%approval_request_id%'),
-        ('<field[^>]*name="approval_state"[^>]*/>', '%approval_state%'),
-        ('<field[^>]*name="approval_state_label"[^>]*/>', '%approval_state_label%'),
-        ('<button[^>]*name="action_fsm_approval[^>]*/>', '%action_fsm_approval%'),
-    ):
-        cr.execute(
-            """
-            UPDATE ir_ui_view
-               SET arch_db = regexp_replace(arch_db, %s, '', 'gn')
-             WHERE model = 'project.task'
-               AND arch_db LIKE %s
-            """,
-            (pattern, like),
-        )
+    # Odoo 16+: arch_db is jsonb {lang: arch}; clean every language value in Python.
+    import json
+    import re
+    patterns = [
+        r'<xpath[^>]*approval_request[^>]*>.*?</xpath>',
+        r'<field[^>]*name="approval_request_id"[^>]*/>',
+        r'<field[^>]*name="approval_state"[^>]*/>',
+        r'<field[^>]*name="approval_state_label"[^>]*/>',
+        r'<button[^>]*name="action_fsm_approval[^>]*/>',
+    ]
+    cr.execute(
+        """
+        SELECT id, arch_db
+          FROM ir_ui_view
+         WHERE model = 'project.task'
+           AND (arch_db::text LIKE '%%approval_request%%'
+                OR arch_db::text LIKE '%%approval_state%%'
+                OR arch_db::text LIKE '%%action_fsm_approval%%')
+        """
+    )
+    for view_id, arch in cr.fetchall():
+        if not isinstance(arch, dict):
+            continue
+        cleaned = {}
+        for lang, value in arch.items():
+            for pattern in patterns:
+                value = re.sub(pattern, '', value or '', flags=re.S)
+            cleaned[lang] = value
+        if cleaned != arch:
+            cr.execute("UPDATE ir_ui_view SET arch_db = %s WHERE id = %s", (json.dumps(cleaned), view_id))
     cr.execute(
         """
         DELETE FROM ir_ui_view
          WHERE model = 'project.task'
            AND (
-                arch_db LIKE '%approval_state%'
-             OR arch_db LIKE '%approval_request_id%'
+                arch_db::text LIKE '%approval_state%'
+             OR arch_db::text LIKE '%approval_request_id%'
            )
            AND id NOT IN (
                 SELECT res_id
@@ -180,7 +194,8 @@ def _drop_stale_fsm_stage7_layout(cr):
     )
 
 
-def pre_init_hook(cr):
+def pre_init_hook(env):
+    cr = env.cr
     try:
         import odoo.addons.field_service_cpa.models.project_task_quotation_display  # noqa: F401
     except Exception:
@@ -245,10 +260,12 @@ def _run_data_xml_migrations(env):
     env['project.project'].enable_fsm_for_all_projects()
 
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     """Run after module install; heavy jobs are one-time only."""
     from .install_notify import notify_app_install
-    notify_app_install(cr, 'field_service_cpa', 'Field Service')
+    notify_app_install(env, 'field_service_cpa', 'Field Service')
     env = api.Environment(cr, SUPERUSER_ID, {})
 
     if not _migration_done(env, _MIGRATION_KEYS['data_xml']):

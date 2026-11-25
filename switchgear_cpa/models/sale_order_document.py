@@ -21,8 +21,16 @@ class SaleOrderDocumentSentLine(models.Model):
     attachment_name = fields.Char(string='File Name')
     remarks = fields.Char(string='Remarks')
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SaleOrderDocumentSentLine(vals)
+        return records
+
+    def _create_single_SaleOrderDocumentSentLine(self, vals):
         if not vals.get('sr') and vals.get('order_id'):
             lines = self.search([('order_id', '=', vals['order_id'])])
             vals['sr'] = (max(lines.mapped('sr') or [0])) + 1
@@ -48,8 +56,16 @@ class SaleOrderDocumentReceivedLine(models.Model):
     date_received = fields.Date(string='Date Received')
     remarks = fields.Char(string='Remarks')
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_SaleOrderDocumentReceivedLine(vals)
+        return records
+
+    def _create_single_SaleOrderDocumentReceivedLine(self, vals):
         if not vals.get('sr') and vals.get('order_id'):
             lines = self.search([('order_id', '=', vals['order_id'])])
             vals['sr'] = (max(lines.mapped('sr') or [0])) + 1

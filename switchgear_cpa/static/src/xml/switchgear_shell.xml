@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="switchgear_cpa.SwitchgearShellSidebar">
+        <aside t-if="state.active" class="o_switchgear_app_sidebar o_switchgear_global_sidebar">
+            <div class="o_switchgear_app_sidebar_title">Switchgear Work</div>
+            <ul class="list-group list-group-flush o_switchgear_app_sidebar_nav">
+                <t t-foreach="blocks" t-as="block" t-key="block_index">
+                    <li t-if="block.section" t-attf-class="list-group-item o_switchgear_app_sidebar_section {{block.sectionClass or ''}}" t-esc="block.section"/>
+                    <t t-foreach="block.items" t-as="item" t-key="item.key">
+                        <li t-att-class="itemClass(block, item)">
+                            <a href="#" t-att-data-nav-key="item.key" t-on-click.prevent="() => this.onItem(item)" t-esc="item.label"/>
+                        </li>
+                    </t>
+                </t>
+            </ul>
+        </aside>
+    </t>
+    <t t-name="switchgear_cpa.SgTutorialProgressHtml">
+        <div class="o_field_sg_tutorial_progress_html">
+            <div t-if="html" class="o_sg_tut_progress_wrap" t-out="html"/>
+        </div>
+    </t>
+</templates>

@@ -163,9 +163,10 @@ class CafmContractOrder(models.Model):
         readonly=True,
     )
 
-    _sql_constraints = [
-        ('schedule_unique', 'unique(schedule_line_id)', 'A contract order already exists for this invoice stagger.'),
-    ]
+    _schedule_unique = models.Constraint(
+        'unique(schedule_line_id)',
+        "A contract order already exists for this invoice stagger.",
+    )
 
     @api.depends('invoice_date', 'invoice_id', 'state')
     def _compute_invoice_due_bucket(self):
@@ -266,8 +267,16 @@ class CafmContractOrder(models.Model):
             else:
                 rec.invoice_display_ref = rec.name or ''
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmContractOrder(vals)
+        return records
+
+    def _create_single_CafmContractOrder(self, vals):
         if vals.get('name', _('Draft')) in (_('Draft'), _('New'), '/'):
             vals['name'] = self._next_contract_order_number(vals)
         return super().create(vals)

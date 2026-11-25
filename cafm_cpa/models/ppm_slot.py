@@ -33,9 +33,10 @@ class CafmPpmSlot(models.Model):
     )
     note = fields.Char()
 
-    _sql_constraints = [
-        ("ppm_year_month_uniq", "unique(ppm_id, year, month)", "This month is already planned for this PPM line."),
-    ]
+    _ppm_year_month_uniq = models.Constraint(
+        'unique(ppm_id, year, month)',
+        "This month is already planned for this PPM line.",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):

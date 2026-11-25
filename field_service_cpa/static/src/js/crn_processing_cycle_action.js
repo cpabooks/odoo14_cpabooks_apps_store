@@ -1,10 +1,10 @@
-odoo.define('field_service_cpa.crn_processing_cycle', function (require) {
-'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@field_service_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc, loadChartJs, chartV2ToV4 } from "@field_service_cpa/js/legacy_compat";
+import { AppShell } from "@field_service_cpa/js/crn_app_shell";
 
-var AbstractAction = require('web.AbstractAction');
-var core = require('web.core');
-var AppShell = require('field_service_cpa.crn_app_shell');
-
+const $ = window.jQuery;
 var _t = core._t;
 
 var CYCLE_STEPS = [
@@ -19,7 +19,7 @@ var CYCLE_STEPS = [
     {step: 9, label: '9. Approved', xmlid: 'field_service_cpa.action_fsm_task_analysis_monitor', theme: 'closed'},
 ];
 
-var CrnProcessingCycleAction = AbstractAction.extend({
+var CrnProcessingCycleAction = legacyAction({
     contentTemplate: 'CrnProcessingCycle',
     xmlDependencies: ['/field_service_cpa/static/src/xml/crn_processing_cycle.xml'],
 
@@ -117,7 +117,6 @@ var CrnProcessingCycleAction = AbstractAction.extend({
     },
 });
 
-core.action_registry.add('crn_processing_cycle', CrnProcessingCycleAction);
+registerLegacyAction('crn_processing_cycle', CrnProcessingCycleAction);
 
-return CrnProcessingCycleAction;
-});
+export default CrnProcessingCycleAction;

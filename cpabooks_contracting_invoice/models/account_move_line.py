@@ -49,7 +49,7 @@ class AccountMoveLine(models.Model):
     def _compute_contract_amounts(self):
         for line in self:
             amount = 0.0
-            if not line.display_type and not line.exclude_from_invoice_tab:
+            if line.display_type == 'product':
                 price = line.price_unit * (1 - (line.contract_discount or 0.0) / 100.0)
                 if line.tax_ids:
                     res = line.tax_ids._origin.with_context(force_sign=1).compute_all(
@@ -87,7 +87,7 @@ class AccountMoveLine(models.Model):
 
     def _contracting_is_product_line(self):
         self.ensure_one()
-        return not self.display_type and not self.exclude_from_invoice_tab
+        return self.display_type == 'product'
 
     def _contracting_sync_discount(self, construction):
         """Make `discount` follow the Contracting values (or the reverse in Labour Supply).
@@ -122,7 +122,6 @@ class AccountMoveLine(models.Model):
             if not line.move_id.is_construction_invoice or not line._contracting_is_product_line():
                 continue
             line.discount = line._contracting_effective_discount()
-            line.recompute_tax_line = True
             if float_compare(line.contract_previous_pct + line.contract_work_done_pct, 100.0,
                              precision_digits=2) > 0:
                 return {'warning': {

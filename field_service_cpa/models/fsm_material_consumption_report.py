@@ -76,7 +76,7 @@ class FsmMaterialConsumptionReport(models.Model):
                     SELECT
                         picking.issue_project_task_id AS task_id,
                         move.product_id AS product_id,
-                        SUM(COALESCE(move_line.qty_done, 0.0)) AS quantity_issued
+                        SUM(COALESCE(move_line.quantity, 0.0)) AS quantity_issued
                     FROM stock_move move
                     JOIN stock_move_line move_line ON move_line.move_id = move.id
                     JOIN stock_picking picking ON picking.id = move.picking_id

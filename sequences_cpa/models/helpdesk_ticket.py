@@ -7,8 +7,16 @@ class HelpdeskTicketExtend(models.Model):
 
     sequence_no = fields.Char(default='/')
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_HelpdeskTicketExtend(vals)
+        return records
+
+    def _create_single_HelpdeskTicketExtend(self, vals_list):
         print(vals_list)
         res = super(HelpdeskTicketExtend, self).create(vals_list)
         get_sequence = self.env['ir.sequence'].next_by_sequence_for('helpdesk_ticket')

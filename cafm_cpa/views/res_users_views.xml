@@ -9,7 +9,7 @@
             <form string="Users">
                 <sheet>
                     <field name="id" invisible="1"/>
-                    <div class="alert alert-info text-center mb-3" attrs="{'invisible': [('id', '>', 0)]}" role="alert">
+                    <div class="alert alert-info text-center mb-3" role="alert" invisible="id &gt; 0">
                         You are inviting a new user.
                     </div>
                     <field name="image_1920" widget="image" class="oe_avatar" options='{"zoom": true, "preview_image": "image_128"}'/>

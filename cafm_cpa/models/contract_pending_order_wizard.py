@@ -186,7 +186,7 @@ class CafmPendingContOrderWizard(models.TransientModel):
                 'type': 'ir.actions.act_window',
                 'name': _('Pending Contract Orders'),
                 'res_model': 'cpabooks.cafm.contract.order',
-                'view_mode': 'tree,form',
+                'view_mode': 'list,form',
                 'domain': [('id', 'in', created.ids)],
                 'target': 'current',
                 'context': {

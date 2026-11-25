@@ -49,7 +49,8 @@ class MrpProduction(models.Model):
                 ('code', '=', False),
             ], limit=1)
             if seq and not seq.code:
-                seq.code = 'mrp.production'
+                # a CPABooks locked document sequence only allows number changes
+                seq.with_context(cpabooks_sequence_force_write=True).code = 'mrp.production'
         if not seq:
             seq = Sequence.create({
                 'name': 'Manufacturing Orders',
@@ -61,13 +62,21 @@ class MrpProduction(models.Model):
         picking_types.write({'sequence_id': seq.id})
         return seq
 
-    @api.model
-    def create(self, values):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_MrpProduction(vals)
+        return records
+
+    def _create_single_MrpProduction(self, values):
         values = dict(values)
         if not values.get('name', False) or values['name'] == _('New'):
             company_id = values.get('company_id') or self.env.company.id
             self._cpabooks_ensure_mo_picking_sequences(company_id=company_id)
-            picking_type_id = values.get('picking_type_id') or self._get_default_picking_type()
+            picking_type_id = values.get('picking_type_id') or self._get_default_picking_type_id(company_id)
             picking_type = self.env['stock.picking.type'].browse(picking_type_id) if picking_type_id else self.env['stock.picking.type']
             name = False
             if picking_type and picking_type.sequence_id:
@@ -103,7 +112,7 @@ class MrpProduction(models.Model):
             'name': _('Requests for Quotation'),
             'type': 'ir.actions.act_window',
             'res_model': 'purchase.order',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('mo_id', '=', self.id)],
         }
 
@@ -128,7 +137,7 @@ class MrpProduction(models.Model):
             'name': _('Quality Checks'),
             'type': 'ir.actions.act_window',
             'res_model': 'quality.check',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('production_id', '=', self.id)],
             'context': {'default_production_id': self.id},
         }

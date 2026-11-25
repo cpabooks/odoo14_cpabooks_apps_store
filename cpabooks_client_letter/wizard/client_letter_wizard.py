@@ -249,7 +249,7 @@ class ClientLetterWizard(models.TransientModel):
             wizard.partner_email = (partner.email or commercial_partner.email) if partner else False
             wizard.client_name = (commercial_partner.name or partner.name) if partner else source.display_name
             wizard.customer_address = wizard._format_partner_address(partner)
-            wizard.customer_phone = (partner.phone or partner.mobile or commercial_partner.phone or commercial_partner.mobile) if partner else False
+            wizard.customer_phone = (partner.phone or commercial_partner.phone) if partner else False
             wizard.customer_email = (partner.email or commercial_partner.email) if partner else False
             wizard.customer_website = (partner.website or commercial_partner.website) if partner else False
             wizard.attention_to = False
@@ -398,9 +398,12 @@ class ClientLetterWizard(models.TransientModel):
             if field_name in source._fields and source[field_name]:
                 return source[field_name].name
         if source._name == "account.move" and "invoice_line_ids" in source._fields:
-            project = source.invoice_line_ids.mapped("analytic_account_id")
-            if project:
-                return project[0].name
+            account_ids = set()
+            for distribution in source.invoice_line_ids.mapped("analytic_distribution"):
+                for key in (distribution or {}):
+                    account_ids.update(int(i) for i in str(key).split(",") if i.isdigit())
+            if account_ids:
+                return self.env["account.analytic.account"].browse(sorted(account_ids)[0]).name
         return False
 
     def _read_related(self, record, relation_field, fields_list):

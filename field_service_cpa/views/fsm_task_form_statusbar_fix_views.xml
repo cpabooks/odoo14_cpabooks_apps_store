@@ -17,19 +17,16 @@
                     <field name="check_fsm" invisible="1"/>
                     <field name="state"
                            widget="statusbar"
-                           statusbar_visible="registered,site_visited,qty_issued,qty_approved,in_progress,waiting_for_invoice,job_completed,job_completed_invoiced,approved"
-                           attrs="{'invisible': ['|', ('fsm_crn_form', '=', False), ('state', '=', 'job_completed')]}"/>
+                           statusbar_visible="registered,site_visited,qty_issued,qty_approved,in_progress,waiting_for_invoice,job_completed,job_completed_invoiced,approved" invisible="not fsm_crn_form or state == 'job_completed'"/>
                     <field name="state"
                            widget="statusbar"
-                           statusbar_visible="registered,site_visited,qty_issued,qty_approved,in_progress,waiting_for_invoice,job_completed,approved"
-                           attrs="{'invisible': ['|', ('fsm_crn_form', '=', False), ('state', '!=', 'job_completed')]}"/>
+                           statusbar_visible="registered,site_visited,qty_issued,qty_approved,in_progress,waiting_for_invoice,job_completed,approved" invisible="not fsm_crn_form or state != 'job_completed'"/>
                 </xpath>
                 <xpath expr="//header/field[@name='stage_id']" position="replace">
                     <field name="stage_id"
                            widget="statusbar"
                            class="ml-2"
-                           options="{'clickable': '1', 'fold_field': 'fold'}"
-                           attrs="{'invisible': ['|', ('project_id', '=', False), ('fsm_crn_form', '=', True)]}"/>
+                           options="{'clickable': '1', 'fold_field': 'fold'}" invisible="not project_id or fsm_crn_form"/>
                 </xpath>
             </field>
         </record>
@@ -44,8 +41,7 @@
                 <xpath expr="//field[@name='stage_id']/following-sibling::field[@name='state'][1]" position="replace" optional="true">
                     <field name="state"
                            widget="statusbar"
-                           options="{'clickable': '1', 'fold_field': 'fold'}"
-                           attrs="{'invisible': ['|', ('project_id', '=', False), ('fsm_crn_form', '=', True)]}"/>
+                           options="{'clickable': '1', 'fold_field': 'fold'}" invisible="not project_id or fsm_crn_form"/>
                 </xpath>
             </field>
         </record>
@@ -58,11 +54,11 @@
             <field name="arch" type="xml">
                 <xpath expr="//header/field[@name='state'][@widget='statusbar'][contains(@statusbar_visible, 'job_completed_invoiced')]" position="attributes" optional="true">
                     <attribute name="invisible">0</attribute>
-                    <attribute name="attrs">{'invisible': ['|', ('fsm_crn_form', '=', False), ('state', '=', 'job_completed')]}</attribute>
+                    <attribute name="invisible">not fsm_crn_form or state == 'job_completed'</attribute>
                 </xpath>
                 <xpath expr="//header/field[@name='state'][@widget='statusbar'][contains(@statusbar_visible, 'job_completed,approved')][not(contains(@statusbar_visible, 'job_completed_invoiced'))]" position="attributes" optional="true">
                     <attribute name="invisible">0</attribute>
-                    <attribute name="attrs">{'invisible': ['|', ('fsm_crn_form', '=', False), ('state', '!=', 'job_completed')]}</attribute>
+                    <attribute name="invisible">not fsm_crn_form or state != 'job_completed'</attribute>
                 </xpath>
             </field>
         </record>

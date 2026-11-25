@@ -1,5 +1,9 @@
-odoo.define("faff_cpa.shell", function (require) {
-    "use strict";
+/** @odoo-module **/
+import * as faff_cpa_ui_theme from "@faff_cpa/js/faff_ui_theme";
+import { currentAppXmlid, onShellUpdate, openMenuByXmlid } from "@faff_cpa/js/legacy_compat";
+
+const $ = window.jQuery;
+
 
     var FAFF_APP_NAME = "FAFF";
     var SIDEBAR_ID = "o_faff_shell_sidebar";
@@ -355,6 +359,11 @@ odoo.define("faff_cpa.shell", function (require) {
     }
 
     function isFaffAppActive() {
+        // Odoo 19: ask the menu service which app is open.
+        var appXmlid = currentAppXmlid();
+        if (appXmlid) {
+            return appXmlid === FAFF_MODULE + ".menu_faff_root";
+        }
         var brand = document.querySelector(".o_main_navbar .o_menu_brand");
         if (!brand) {
             return false;
@@ -482,12 +491,8 @@ odoo.define("faff_cpa.shell", function (require) {
                 return;
             }
             event.preventDefault();
-            var original = findOriginalMenu(
-                link.getAttribute("data-menu-xmlid"),
-                link.getAttribute("data-menu-label")
-            );
-            if (original) {
-                original.click();
+            // Odoo 19: sub menus are not in the navbar DOM; open through the menu service.
+            if (openMenuByXmlid(link.getAttribute("data-menu-xmlid"))) {
                 setActiveItem(link.getAttribute("data-menu-xmlid"));
                 if (isDrawerMode()) {
                     closeDrawer();
@@ -561,7 +566,7 @@ odoo.define("faff_cpa.shell", function (require) {
         var signature = menuGroupsSignature(groups);
         if (_shellState.active && _shellState.menuSignature === signature) {
             try {
-                require("faff_cpa.ui_theme").syncShellTheme();
+                faff_cpa_ui_theme.syncShellTheme();
             } catch (e) { /* ignore */ }
             return;
         }
@@ -582,11 +587,11 @@ odoo.define("faff_cpa.shell", function (require) {
             _shellState.active = true;
             _shellState.menuSignature = signature;
             try {
-                require("faff_cpa.ui_theme").syncShellTheme();
+                faff_cpa_ui_theme.syncShellTheme();
             } catch (themeErr) {
                 document.body.classList.add("o_faff_ui_default");
             }
-            if (!window.location.hash || window.location.hash === "#") {
+            if (/^\/odoo\/?$/.test(window.location.pathname)) {
                 window.setTimeout(function () {
                     if (hasBackendAction()) {
                         return;
@@ -672,12 +677,10 @@ odoo.define("faff_cpa.shell", function (require) {
         }
     }
 
-    window.addEventListener("hashchange", function () {
+    // Odoo 19 has no hash routing: resync on app switch / action load.
+    onShellUpdate(function () {
         requestSyncSidebar();
     });
 
-    return {
-        requestSyncSidebar: requestSyncSidebar,
-        syncSidebar: syncSidebar,
-    };
-});
+
+export { requestSyncSidebar, syncSidebar };

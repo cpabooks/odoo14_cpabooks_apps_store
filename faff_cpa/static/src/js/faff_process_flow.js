@@ -1,9 +1,10 @@
-odoo.define("faff_cpa.process_flow", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@faff_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc } from "@faff_cpa/js/legacy_compat";
+import * as faffShell from "@faff_cpa/js/faff_shell_sidebar";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-
+const $ = window.jQuery;
     var _t = core._t;
 
     var FLOW_ROWS = [
@@ -198,7 +199,7 @@ odoo.define("faff_cpa.process_flow", function (require) {
         ],
     ];
 
-    var FaffProcessFlowAction = AbstractAction.extend({
+    var FaffProcessFlowAction = legacyAction({
         contentTemplate: "FaffProcessFlow",
         xmlDependencies: ["/faff_cpa/static/src/xml/faff_process_flow.xml"],
         events: {
@@ -210,7 +211,7 @@ odoo.define("faff_cpa.process_flow", function (require) {
             var self = this;
             this.set("title", _t("FAFF Process Flow"));
             try {
-                require("faff_cpa.shell").requestSyncSidebar(true);
+                faffShell.requestSyncSidebar(true);
             } catch (e) {
                 /* ignore */
             }
@@ -268,6 +269,5 @@ odoo.define("faff_cpa.process_flow", function (require) {
         },
     });
 
-    core.action_registry.add("faff_process_flow", FaffProcessFlowAction);
-    return FaffProcessFlowAction;
-});
+    registerLegacyAction("faff_process_flow", FaffProcessFlowAction);
+    export default FaffProcessFlowAction;

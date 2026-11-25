@@ -4,7 +4,7 @@
         <field name="name">cpabooks.faff.material.plan.tree</field>
         <field name="model">cpabooks.faff.material.plan</field>
         <field name="arch" type="xml">
-            <tree>
+            <list>
                 <field name="job_id"/>
                 <field name="product_id"/>
                 <field name="qty_required"/>
@@ -12,7 +12,7 @@
                 <field name="issue_qty"/>
                 <field name="purchase_qty"/>
                 <field name="state"/>
-            </tree>
+            </list>
         </field>
     </record>
     <record id="view_faff_material_form" model="ir.ui.view">
@@ -51,6 +51,6 @@
     <record id="action_faff_material" model="ir.actions.act_window">
         <field name="name">Material Requirements</field>
         <field name="res_model">cpabooks.faff.material.plan</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
 </odoo>

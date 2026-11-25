@@ -93,13 +93,9 @@ class SaleOrder(models.Model):
                     'partner_id': order.partner_id.id,
                     'privacy_visibility': 'portal',
                 })
-                analytic_acc = order.env['account.analytic.account'].sudo().create({
-                    'name': project.name,
-                    'partner_id': project.partner_id.id,
-                })
-                project.analytic_account_id = analytic_acc.id
+                # Odoo 17+: analytic account on project.account_id (needs a plan)
+                project.sudo()._create_analytic_account()
                 order.project_id = project.id
-                order.analytic_account_id = project.analytic_account_id.id
             order.state = 'sale'
         return True
 
@@ -118,7 +114,7 @@ class SaleOrder(models.Model):
             job_line = {
                 'product_id': line.product_id.id,
                 'name': line.name,
-                'product_uom': line.product_uom.id,
+                'product_uom': line.product_uom_id.id,
                 'product_uom_qty': qty,
                 'quotation_line_id': line.id,
             }
@@ -208,7 +204,7 @@ class SaleOrder(models.Model):
             else:
                 action['views'] = form_view_tuple
             action['res_id'] = job_order.id
-        action['context'] = dict(self._context, default_quotation_no=self.id, create=False)
+        action['context'] = dict(self.env.context, default_quotation_no=self.id, create=False)
         return action
 
     def action_create_bom(self):
@@ -228,5 +224,5 @@ class SaleOrder(models.Model):
                         'product_id': line.product_id.id,
                         'product_qty': line.product_uom_qty,
                         'bom_id': bom_id.id,
-                        'product_uom_id': line.product_uom.id,
+                        'product_uom_id': line.product_uom_id.id,
                     })

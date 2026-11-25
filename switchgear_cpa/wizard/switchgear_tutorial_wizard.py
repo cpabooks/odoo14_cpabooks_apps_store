@@ -151,8 +151,8 @@ class SwitchgearTutorialWizard(models.TransientModel):
         res = super().default_get(fields_list)
         res['step_number'] = int(self.env.context.get('default_step_number') or res.get('step_number') or 1)
         Product = self.env['product.product'].sudo()
-        finished = Product.search([('type', '=', 'product')], limit=1, order='id')
-        material = Product.search([('type', 'in', ('product', 'consu')), ('id', '!=', finished.id)], limit=1)
+        finished = Product.search([('is_storable', '=', True)], limit=1, order='id')
+        material = Product.search([('type', '=', 'consu'), ('id', '!=', finished.id)], limit=1)
         if not material:
             material = finished
         if finished and 'finished_product_id' in fields_list:
@@ -209,24 +209,19 @@ class SwitchgearTutorialWizard(models.TransientModel):
 
     def _income_account(self):
         return self.env['account.account'].sudo().search([
-            ('company_id', '=', self.company_id.id),
-            ('deprecated', '=', False),
-            ('user_type_id.type', '=', 'other'),
-            ('user_type_id.internal_group', '=', 'income'),
+            ('company_ids', 'in', self.company_id.id),
+            ('account_type', '=', 'income'),
         ], limit=1) or self.env['account.account'].sudo().search([
-            ('company_id', '=', self.company_id.id),
-            ('deprecated', '=', False),
-            ('user_type_id.type', '=', 'other'),
+            ('company_ids', 'in', self.company_id.id),
+            ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'asset_cash', 'liability_credit_card', 'off_balance')),
         ], limit=1)
 
     def _expense_account(self):
         return self.env['account.account'].sudo().search([
-            ('company_id', '=', self.company_id.id),
-            ('deprecated', '=', False),
-            ('user_type_id.type', '=', 'expense'),
+            ('company_ids', 'in', self.company_id.id),
+            ('account_type', 'in', ('expense', 'expense_direct_cost')),
         ], limit=1) or self.env['account.account'].sudo().search([
-            ('company_id', '=', self.company_id.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', self.company_id.id),
         ], limit=1)
 
     def _apply_step(self):
@@ -334,7 +329,7 @@ class SwitchgearTutorialWizard(models.TransientModel):
                 'product_id': product.id,
                 'name': product.display_name,
                 'product_uom_qty': 1.0,
-                'product_uom': product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
                 'price_unit': price,
             })],
         })
@@ -576,7 +571,7 @@ class SwitchgearTutorialWizard(models.TransientModel):
                 'product_id': product.id,
                 'name': product.display_name,
                 'product_qty': self.po_qty or 1.0,
-                'product_uom': product.uom_po_id.id or product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
                 'price_unit': self.po_price or product.standard_price or 0.0,
                 'date_planned': fields.Datetime.now(),
             })],
@@ -599,8 +594,9 @@ class SwitchgearTutorialWizard(models.TransientModel):
         picking = pickings[:1]
         if not picking:
             return _('No incoming transfer on PO — skipped GRN.')
-        for move in picking.move_ids_without_package:
-            move.quantity_done = move.product_uom_qty
+        for move in picking.move_ids:
+            move.quantity = move.product_uom_qty
+            move.picked = True
         try:
             picking.button_validate()
         except Exception:
@@ -623,8 +619,9 @@ class SwitchgearTutorialWizard(models.TransientModel):
         picking = pickings[:1]
         if not picking:
             return _('No delivery transfer on SO yet — skipped (confirm SO creates it).')
-        for move in picking.move_ids_without_package:
-            move.quantity_done = move.product_uom_qty
+        for move in picking.move_ids:
+            move.quantity = move.product_uom_qty
+            move.picked = True
         try:
             picking.button_validate()
         except Exception:
@@ -771,12 +768,12 @@ class SwitchgearTutorialWizard(models.TransientModel):
             })
         elif n == 2:
             if not self.finished_product_id:
-                prod = self.env['product.product'].search([('type', '=', 'product')], limit=1)
+                prod = self.env['product.product'].search([('is_storable', '=', True)], limit=1)
                 if prod:
                     vals['finished_product_id'] = prod.id
             if not self.material_product_id:
                 mat = self.env['product.product'].search([
-                    ('type', 'in', ('product', 'consu')),
+                    ('type', '=', 'consu'),
                 ], limit=1)
                 if mat:
                     vals['material_product_id'] = mat.id

@@ -5,7 +5,7 @@ from . import ir_sequences
 from . import sale_order
 from . import purchase_order
 from . import stock_picking
-from . import stock_inventory
+# stock.inventory was removed in Odoo 15; SAJ numbering is not available on v19.
 from . import account_full_reconcile
 from . import account_payment
 # from . import crm

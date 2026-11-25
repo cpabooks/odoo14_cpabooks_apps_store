@@ -14,8 +14,16 @@ class MaintenanceTenant(models.Model):
     project_id = fields.Many2one('project.project', string='Project')
     cafm_unit_id = fields.Many2one('cpabooks.cafm.unit', string='Villa / Flat', domain="[('project_id', '=', project_id)]")
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_MaintenanceTenant(vals)
+        return records
+
+    def _create_single_MaintenanceTenant(self, vals):
         if not vals.get('partner_id'):
             partner = self.env['res.partner']
             if vals.get('email'):

@@ -27,23 +27,21 @@
                                 <field name="step_hint" readonly="1" nolabel="1"/>
                             </p>
 
-                            <div class="alert alert-success" role="status"
-                                 attrs="{'invisible': [('last_message', '=', False)]}">
+                            <div class="alert alert-success" role="status" invisible="not last_message">
                                 <field name="last_message" readonly="1" nolabel="1"/>
                             </div>
 
                             <!-- Step 1: Enquiry -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 1)]}">
+                            <group string="Fill this step" invisible="step_number != 1">
                                 <field name="partner_id" options="{'no_create_edit': True}"
                                        context="{'default_customer_rank': 1}"/>
-                                <field name="partner_name"
-                                       attrs="{'invisible': [('partner_id', '!=', False)]}"/>
+                                <field name="partner_name" invisible="partner_id"/>
                                 <field name="enquiry_name"/>
                                 <field name="expected_revenue"/>
                             </group>
 
                             <!-- Step 2: Estimation -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 2)]}">
+                            <group string="Fill this step" invisible="step_number != 2">
                                 <field name="partner_id" readonly="1"/>
                                 <field name="finished_product_id"/>
                                 <field name="material_product_id"/>
@@ -53,7 +51,7 @@
                             </group>
 
                             <!-- Step 3: Quotation -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 3)]}">
+                            <group string="Fill this step" invisible="step_number != 3">
                                 <field name="partner_id" readonly="1"/>
                                 <field name="finished_product_id" readonly="1"/>
                                 <field name="sale_price"/>
@@ -61,47 +59,47 @@
                             </group>
 
                             <!-- Step 4: Design -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 4)]}">
+                            <group string="Fill this step" invisible="step_number != 4">
                                 <field name="design_name"/>
                                 <field name="sale_id" readonly="1"/>
                             </group>
 
                             <!-- Step 5: BOM -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 5)]}">
+                            <group string="Fill this step" invisible="step_number != 5">
                                 <field name="finished_product_id"/>
                                 <field name="material_product_id"/>
                                 <field name="component_qty"/>
                             </group>
 
                             <!-- Step 6: MO -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 6)]}">
+                            <group string="Fill this step" invisible="step_number != 6">
                                 <field name="bom_id" readonly="1"/>
                                 <field name="finished_product_id" readonly="1"/>
                                 <field name="mo_qty"/>
                             </group>
 
                             <!-- Step 7: PR -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 7)]}">
+                            <group string="Fill this step" invisible="step_number != 7">
                                 <field name="mo_id" readonly="1"/>
                                 <field name="material_product_id" readonly="1"/>
                                 <field name="pr_qty"/>
                             </group>
 
                             <!-- Step 8: QC -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 8)]}">
+                            <group string="Fill this step" invisible="step_number != 8">
                                 <field name="mo_id" readonly="1"/>
                                 <field name="finished_product_id" readonly="1"/>
                                 <p class="text-muted">Click Next to create the Quality Check for this MO.</p>
                             </group>
 
                             <!-- Step 9: Stock -->
-                            <group string="Review stock" attrs="{'invisible': [('step_number', '!=', 9)]}">
+                            <group string="Review stock" invisible="step_number != 9">
                                 <field name="material_product_id" readonly="1"/>
                                 <field name="stock_info" nolabel="1" colspan="2"/>
                             </group>
 
                             <!-- Step 10: PO -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 10)]}">
+                            <group string="Fill this step" invisible="step_number != 10">
                                 <field name="vendor_id" context="{'default_supplier_rank': 1}"/>
                                 <field name="material_product_id"/>
                                 <field name="po_qty"/>
@@ -109,37 +107,37 @@
                             </group>
 
                             <!-- Step 11: GRN -->
-                            <group string="Receive goods" attrs="{'invisible': [('step_number', '!=', 11)]}">
+                            <group string="Receive goods" invisible="step_number != 11">
                                 <field name="po_id" readonly="1"/>
                                 <p class="text-muted">Click Next to validate the incoming receipt (GRN) from the PO.</p>
                             </group>
 
                             <!-- Step 12: Delivery -->
-                            <group string="Deliver to customer" attrs="{'invisible': [('step_number', '!=', 12)]}">
+                            <group string="Deliver to customer" invisible="step_number != 12">
                                 <field name="sale_id" readonly="1"/>
                                 <p class="text-muted">Click Next to validate the Delivery Order from the Sales Order.</p>
                             </group>
 
                             <!-- Step 13: Invoice -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 13)]}">
+                            <group string="Fill this step" invisible="step_number != 13">
                                 <field name="partner_id" readonly="1"/>
                                 <field name="invoice_amount"/>
                             </group>
 
                             <!-- Step 14: Customer payment -->
-                            <group string="Receive payment" attrs="{'invisible': [('step_number', '!=', 14)]}">
+                            <group string="Receive payment" invisible="step_number != 14">
                                 <field name="invoice_id" readonly="1"/>
                                 <p class="text-muted">Click Next to post a Customer Payment for the invoice.</p>
                             </group>
 
                             <!-- Step 15: Vendor bill -->
-                            <group string="Fill this step" attrs="{'invisible': [('step_number', '!=', 15)]}">
+                            <group string="Fill this step" invisible="step_number != 15">
                                 <field name="vendor_id" readonly="1"/>
                                 <field name="bill_amount"/>
                             </group>
 
                             <!-- Step 16: Vendor payment -->
-                            <group string="Pay vendor" attrs="{'invisible': [('step_number', '!=', 16)]}">
+                            <group string="Pay vendor" invisible="step_number != 16">
                                 <field name="bill_id" readonly="1"/>
                                 <p class="text-muted">Click Next / Finish to post Vendor Payment — last step.</p>
                             </group>
@@ -170,16 +168,13 @@
                 </sheet>
                 <footer>
                     <button name="action_back" type="object" string="Back"
-                            class="btn-secondary"
-                            attrs="{'invisible': [('is_first', '=', True)]}"/>
+                            class="btn-secondary" invisible="is_first"/>
                     <button name="action_fill_sample" type="object"
                             string="Fill sample values" class="btn-link"/>
                     <button name="action_next" type="object" string="Next — save &amp; continue"
-                            class="btn-primary"
-                            attrs="{'invisible': [('is_last', '=', True)]}"/>
+                            class="btn-primary" invisible="is_last"/>
                     <button name="action_next" type="object" string="Finish — save last step"
-                            class="btn-success"
-                            attrs="{'invisible': [('is_last', '=', False)]}"/>
+                            class="btn-success" invisible="not is_last"/>
                     <button name="action_open_created" type="object"
                             string="Open created record" class="btn-secondary"/>
                     <button name="action_restart" type="object" string="Restart from 1"

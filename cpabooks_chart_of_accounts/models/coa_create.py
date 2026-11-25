@@ -124,8 +124,8 @@ class COACreate(models.Model):
     #                 select id as acc_id,company_id as company from account_account where id in {} group by id,company_id
     #                 )
     #                  as acc_tabl where company={} group by acc_id""".format(not_deleted_ids,self.company_id.id)
-    #     self._cr.execute(query=q1)
-    #     result=self._cr.fetchall()
+    #     self.env.cr.execute(query=q1)
+    #     result=self.env.cr.fetchall()
     #
     #     if result:
     #         not_deleted_ids = tuple([data[0] if data[0]!=None else 0 for data in result])
@@ -134,8 +134,8 @@ class COACreate(models.Model):
     #         not_deleted_ids = '(0)'
     #
     #     q2="""select id from account_account where id not in {} and company_id={}""".format(not_deleted_ids,self.company_id.id)
-    #     self._cr.execute(query=q2)
-    #     result=self._cr.fetchall()
+    #     self.env.cr.execute(query=q2)
+    #     result=self.env.cr.fetchall()
     #
     #     if result:
     #         deleted_ids = tuple([data[0] for data in result])
@@ -163,7 +163,7 @@ class COACreate(models.Model):
     #     #             select id as acc_id,company_id as company from account_account where id in {} group by id,company_id
     #     #             )
     #     #              as acc_tabl where company={} group by acc_id) and company_id={}""".format(not_deleted_ids,self.company_id.id, self.company_id.id)
-    #     self._cr.execute(query=query)
+    #     self.env.cr.execute(query=query)
     #     message_id = self.env['success.message.wizard'].create({'message': 'Your action is complete.'})
     #
     #     self.update_existing_coas()
@@ -290,12 +290,12 @@ class COACreate(models.Model):
 
         if get_gain_account:
             query = "UPDATE res_company SET income_currency_exchange_account_id={} where id={}".format(get_gain_account.id, self.company_id.id)
-            self._cr.execute(query)
+            self.env.cr.execute(query)
         else:
             raise ValidationError(_("Create Gain account in chart of account for your company"))
         if get_loss_account:
             query = "UPDATE res_company SET expense_currency_exchange_account_id={} where id={}".format(get_loss_account.id, self.company_id.id)
-            self._cr.execute(query)
+            self.env.cr.execute(query)
         else:
             raise ValidationError(_("Create Loss account in chart of account for your company"))
         # ************************************gain loss account set******************************
@@ -356,8 +356,8 @@ class TestMessageWizard(models.TransientModel):
                     'type': 'ir.actions.act_window',
                     'name': _('Chart of Accounts'),
                     'res_model': 'account.account',
-                    'view_mode': 'tree,kanban,form',
-                    'views': [(False, 'tree'), (False, 'kanban'), (False, 'form')],
+                    'view_mode': 'list,kanban,form',
+                    'views': [(False, 'list'), (False, 'kanban'), (False, 'form')],
                 }
             action['domain'] = [('company_id', '=', company.id)]
             action['target'] = 'main'

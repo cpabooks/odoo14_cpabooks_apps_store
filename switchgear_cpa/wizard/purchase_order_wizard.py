@@ -28,7 +28,7 @@ class createPR(models.TransientModel):
     @api.model
     def default_get(self, default_fields):
         res = super(createPR, self).default_get(default_fields)
-        record = self.env['mrp.production'].browse(self._context.get('active_ids', []))
+        record = self.env['mrp.production'].browse(self.env.context.get('active_ids', []))
         update = []
         get_existing_po=self.env['purchase.order'].sudo().search([('mo_id','=',record.id),('state','!=','cancel')])
         product_ids = []
@@ -54,16 +54,16 @@ class createPR(models.TransientModel):
         return res
 
     def action_create_sale_order(self):
-        record = self.env['purchase.order'].browse(self._context.get('active_ids', []))
+        record = self.env['purchase.order'].browse(self.env.context.get('active_ids', []))
         self.ensure_one()
-        res = self.env['sale.order'].browse(self._context.get('id', []))
+        res = self.env['sale.order'].browse(self.env.context.get('id', []))
         value = []
         for data in self.new_order_line_ids:
             value.append([0, 0, {
                 'product_id': data.product_id.id,
                 'name': data.name,
-                'product_qty': data.product_qty,
-                'product_uom':data.product_uom.id,
+                'product_uom_qty': data.product_qty,
+                'product_uom_id': data.product_uom.id,
                 'price_unit': data.price_unit,
 
             }])
@@ -75,7 +75,6 @@ class createPR(models.TransientModel):
                     'fpo_ref': record.remote_origin,
 
                     })
-        print(res)
         date_time = pytz.timezone('Asia/Dhaka')
         local_time = datetime.now(date_time)
         dt_string = local_time.strftime("%d-%m-%Y %H:%M:%S")
@@ -90,26 +89,25 @@ class createPR(models.TransientModel):
         return
 
     def action_create_pr(self):
-        record = self.env['mrp.production'].browse(self._context.get('active_ids', []))
+        record = self.env['mrp.production'].browse(self.env.context.get('active_ids', []))
         self.ensure_one()
-        res = self.env['purchase.order'].browse(self._context.get('id', []))
+        res = self.env['purchase.order'].browse(self.env.context.get('id', []))
         value = []
         for data in self.new_order_line_ids:
             value.append([0, 0, {
                 'product_id': data.product_id.id,
                 'name': data.name,
                 'product_qty': data.product_qty,
-                'product_uom': data.product_uom.id,
+                'product_uom_id': data.product_uom.id,
                 'price_unit': data.price_unit,
                 'date_planned':datetime.now().date(),
-                'display_type':''
+                'display_type': False
             }])
         res.create({'partner_id': self.partner_id.id,
                     'order_line': value,
                     'mo_id':record.id,
 
                     })
-        print(res)
         date_time = pytz.timezone('Asia/Dhaka')
         local_time = datetime.now(date_time)
         dt_string = local_time.strftime("%d-%m-%Y %H:%M:%S")
@@ -159,7 +157,7 @@ class getproduction(models.TransientModel):
     def _compute_quantities(self):
         for rec in self:
             products = rec.product_id
-            res = products._compute_quantities_dict(self._context.get('lot_id'), self._context.get('owner_id'), self._context.get('package_id'), self._context.get('from_date'), self._context.get('to_date'))
+            res = products._compute_quantities_dict(self.env.context.get('lot_id'), self.env.context.get('owner_id'), self.env.context.get('package_id'), self.env.context.get('from_date'), self.env.context.get('to_date'))
             for product in products:
                 rec.qty_on_hand = res[product.id]['qty_available']
 

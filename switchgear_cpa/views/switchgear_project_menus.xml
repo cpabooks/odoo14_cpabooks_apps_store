@@ -4,7 +4,7 @@
     <record id="action_switchgear_project_list" model="ir.actions.act_window">
         <field name="name">Project List</field>
         <field name="res_model">project.project</field>
-        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_mode">list,kanban,form</field>
         <field name="view_id" ref="project.view_project"/>
         <field name="search_view_id" ref="project.view_project_project_filter"/>
         <field name="context">{}</field>
@@ -30,7 +30,7 @@
     <record id="action_switchgear_tasks_by_client" model="ir.actions.act_window">
         <field name="name">Tasks by Customer</field>
         <field name="res_model">project.task</field>
-        <field name="view_mode">tree,kanban,form,calendar,pivot,graph</field>
+        <field name="view_mode">list,kanban,form,calendar,pivot,graph</field>
         <field name="view_id" ref="project.view_task_tree2"/>
         <field name="search_view_id" ref="project.view_task_search_form"/>
         <field name="context">{'search_default_group_by_partner': 1}</field>

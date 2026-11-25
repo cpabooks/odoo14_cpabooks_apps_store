@@ -707,9 +707,9 @@ class FaffJobWizard(models.TransientModel):
                         "product_id": product.id,
                         "name": line.name or product.display_name,
                         "product_uom_qty": line.product_uom_qty or 1.0,
-                        "product_uom": (line.product_uom_id or product.uom_id).id,
+                        "product_uom_id": (line.product_uom_id or product.uom_id).id,
                         "price_unit": line.selling_price or 0.0,
-                        "tax_id": [(6, 0, line.tax_ids.ids)],
+                        "tax_ids": [(6, 0, line.tax_ids.ids)],
                     },
                 )
             )
@@ -722,7 +722,7 @@ class FaffJobWizard(models.TransientModel):
                         "product_id": fallback.id,
                         "name": job.name or fallback.display_name,
                         "product_uom_qty": 1.0,
-                        "product_uom": fallback.uom_id.id,
+                        "product_uom_id": fallback.uom_id.id,
                         "price_unit": est.selling_amount or 0.0,
                     },
                 )

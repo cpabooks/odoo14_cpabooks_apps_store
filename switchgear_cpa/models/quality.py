@@ -118,9 +118,10 @@ class QualityCheck(models.Model):
             pass
 
     def _validate_delivery_picking(self, picking):
-        for move in picking.move_lines:
-            if not move.quantity_done:
-                move.quantity_done = move.product_uom_qty or move.reserved_availability
+        for move in picking.move_ids:
+            if not move.picked:
+                move.quantity = move.quantity or move.product_uom_qty
+                move.picked = True
         try:
             picking.button_validate()
         except Exception:

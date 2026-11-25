@@ -9,7 +9,7 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Recipe" name="cpabooks_recipe_page">
                     <field name="recipe_id" invisible="1"/>
-                    <group attrs="{'invisible': [('recipe_id', '=', False)]}">
+                    <group invisible="not recipe_id">
                         <group>
                             <field name="recipe_id" readonly="1" options="{'no_create': True}"/>
                             <field name="recipe_category"/>
@@ -20,9 +20,9 @@
                             <field name="recipe_cost_pct"/>
                         </group>
                     </group>
-                    <field name="recipe_line_ids" nolabel="1" attrs="{'invisible': [('recipe_id', '=', False)]}"
-                           context="{'default_recipe_id': recipe_id}">
-                        <tree editable="bottom">
+                    <field name="recipe_line_ids" nolabel="1"
+                           context="{'default_recipe_id': recipe_id}" invisible="not recipe_id">
+                        <list editable="bottom">
                             <field name="sequence" widget="handle"/>
                             <field name="product_id"/>
                             <field name="budget_qty"/>
@@ -34,10 +34,10 @@
                             <field name="unit_cost"/>
                             <field name="line_cost"/>
                             <field name="link_note"/>
-                        </tree>
+                        </list>
                     </field>
                     <button name="action_add_recipe" type="object" string="Add recipe"
-                            class="btn-primary" attrs="{'invisible': [('recipe_id', '!=', False)]}"/>
+                            class="btn-primary" invisible="recipe_id"/>
                 </page>
             </xpath>
         </field>

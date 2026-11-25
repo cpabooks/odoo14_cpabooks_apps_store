@@ -59,16 +59,16 @@ class FaffMisDetail(models.Model):
                     COALESCE(mp.purchase_qty, 0.0) AS qty_purchased,
                     COALESCE(mp.material_cost, 0.0) AS actual_material_cost,
                     el.total_cost - COALESCE(mp.material_cost, 0.0) AS cost_variance
-                FROM faff_cpa_estimate_line el
-                JOIN faff_cpa_estimate est ON est.id = el.estimate_id
-                JOIN faff_cpa_job job ON job.id = est.job_id
+                FROM cpabooks_faff_estimate_line el
+                JOIN cpabooks_faff_estimate est ON est.id = el.estimate_id
+                JOIN cpabooks_faff_job job ON job.id = est.job_id
                 LEFT JOIN LATERAL (
                     SELECT
                         SUM(p.qty_required) AS qty_required,
                         SUM(p.issue_qty) AS issue_qty,
                         SUM(p.purchase_qty) AS purchase_qty,
                         SUM(p.material_cost) AS material_cost
-                    FROM faff_cpa_material_plan p
+                    FROM cpabooks_faff_material_plan p
                     WHERE p.job_id = job.id
                       AND (
                             (el.product_id IS NOT NULL AND p.product_id = el.product_id)

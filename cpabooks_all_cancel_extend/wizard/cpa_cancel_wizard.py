@@ -93,9 +93,9 @@ class CpaCancelWizard(models.TransientModel):
             move = sheet.account_move_id
             if move:
                 lines = move.line_ids.filtered(
-                    lambda l: l.account_id.internal_type in ('receivable', 'payable'))
-                payments = (lines.mapped('matched_debit_ids.debit_move_id.move_id.payment_id')
-                            | lines.mapped('matched_credit_ids.credit_move_id.move_id.payment_id'))
+                    lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable'))
+                payments = (lines.mapped('matched_debit_ids.debit_move_id.move_id.origin_payment_id')
+                            | lines.mapped('matched_credit_ids.credit_move_id.move_id.origin_payment_id'))
                 if move.state == 'posted':
                     move.button_draft()
                 if payments:
@@ -144,7 +144,7 @@ class CpaCancelWizard(models.TransientModel):
                 'target': 'new',
                 'binding_model_id': model.id,
                 'binding_view_types': 'list,form',
-                'groups_id': [(6, 0, group.ids)] if group else [],
+                'group_ids': [(6, 0, group.ids)] if group else [],
             })
             Data.create({
                 'module': 'cpabooks_all_cancel_extend',

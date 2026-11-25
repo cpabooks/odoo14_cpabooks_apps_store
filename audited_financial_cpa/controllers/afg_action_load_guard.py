@@ -99,7 +99,7 @@ class AfgActionLoadGuard(WebAction):
                     return remapped
         return False
 
-    @http.route("/web/action/load", type="json", auth="user")
+    @http.route("/web/action/load", type="jsonrpc", auth="user")
     def load(self, action_id, additional_context=None):
         try:
             value = super().load(action_id, additional_context=additional_context)

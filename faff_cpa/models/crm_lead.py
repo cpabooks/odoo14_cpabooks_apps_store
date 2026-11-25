@@ -25,7 +25,7 @@ class CrmLead(models.Model):
                     {
                         "name": self.partner_name,
                         "email": self.email_from,
-                        "phone": self.phone or self.mobile,
+                        "phone": self.phone,
                     }
                 )
                 self.partner_id = partner
@@ -34,7 +34,7 @@ class CrmLead(models.Model):
                     "crm_lead_id": self.id,
                     "partner_id": partner.id if partner else self.env.user.partner_id.id,
                     "contact_id": self.partner_id.id if self.partner_id else False,
-                    "mobile": self.mobile or self.phone,
+                    "mobile": self.phone,
                     "email": self.email_from,
                     "site_name": self.name,
                     "salesperson_id": self.user_id.id or self.env.user.id,

@@ -1,7 +1,7 @@
 {
     "name": "Client Letter Generator",
     "summary": "Client letters, emails and WhatsApp messages from CRM, quotations, invoices and projects",
-    "version": "14.0.1.1.2",
+    "version": "19.0.1.1.2",
     "category": "Sales/CRM",
     "author": "CPA Books",
     "website": "https://www.cpabooks.co",

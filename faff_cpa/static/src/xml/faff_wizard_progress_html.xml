@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="faff_cpa.FaffWizardProgressHtml">
+        <div class="o_field_faff_wiz_progress_html">
+            <div t-if="html" class="o_faff_wiz_progress_wrap" t-out="html"/>
+        </div>
+    </t>
+</templates>

@@ -36,7 +36,7 @@ class MaterialReturnLine(models.Model):
     @api.depends(
         'task_id',
         'return_move_id',
-        'return_move_id.quantity_done',
+        'return_move_id.quantity',
         'return_move_id.state',
     )
     def _compute_quantity_done(self):
@@ -48,21 +48,21 @@ class MaterialReturnLine(models.Model):
             if rec.return_move_id:
                 move = rec.return_move_id
                 if move.state != 'cancel':
-                    rec.quantity_done = move.quantity_done
+                    rec.quantity_done = move.quantity
                     if 'amount' in move._fields:
                         rec.amount_done = move.amount
                     else:
-                        rec.amount_done = move.quantity_done * (rec.product_id.list_price or 0.0)
+                        rec.amount_done = move.quantity * (rec.product_id.list_price or 0.0)
             elif rec.task_id and has_issue_task_field:
                 pickings = picking_model.search([
                     ('issue_project_task_id', '=', rec.task_id.id),
                     ('is_material_return', '=', True),
                     ('state', '=', 'done'),
                 ])
-                moves = pickings.move_ids_without_package.filtered(
+                moves = pickings.move_ids.filtered(
                     lambda mv: mv.product_id.id == rec.product_id.id and mv.state != 'cancel'
                 )
-                rec.quantity_done = sum(moves.mapped('quantity_done'))
+                rec.quantity_done = sum(moves.mapped('quantity'))
                 if moves and 'amount' in moves._fields:
                     rec.amount_done = sum(moves.mapped('amount'))
                 else:

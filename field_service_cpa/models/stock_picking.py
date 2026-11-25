@@ -47,14 +47,14 @@ class StockPicking(models.Model):
         for picking in self:
             picking.use_fsm_issue_operations_ui = bool(picking.issue_project_task_id)
 
-    @api.depends('move_lines.origin_returned_move_id')
+    @api.depends('move_ids.origin_returned_move_id')
     def _compute_is_material_return(self):
         for picking in self:
-            picking.is_material_return = any(picking.move_lines.mapped('origin_returned_move_id'))
+            picking.is_material_return = any(picking.move_ids.mapped('origin_returned_move_id'))
 
     @api.model
     def action_recompute_material_return_flags(self):
-        pickings = self.sudo().search([('move_lines.origin_returned_move_id', '!=', False)])
+        pickings = self.sudo().search([('move_ids.origin_returned_move_id', '!=', False)])
         pickings._compute_is_material_return()
         return True
 
@@ -115,7 +115,7 @@ class StockPicking(models.Model):
             dest_location = self.picking_type_id.default_location_dest_id
         if not source_location and not dest_location:
             return
-        for move in self.move_ids_without_package:
+        for move in self.move_ids:
             if source_location and not move.location_id:
                 move.location_id = source_location
             if dest_location and not move.location_dest_id:
@@ -141,8 +141,8 @@ class StockPicking(models.Model):
                 ('issue_project_task_id', '=', task.id),
                 ('state', '=', 'done'),
             ], order='id')
-            done_moves = done_pickings.move_ids_without_package.filtered(
-                lambda rec: rec.state != 'cancel' and rec.product_id and rec.quantity_done > 0
+            done_moves = done_pickings.move_ids.filtered(
+                lambda rec: rec.state != 'cancel' and rec.product_id and rec.quantity > 0
             )
             if not done_moves:
                 continue
@@ -163,12 +163,12 @@ class StockPicking(models.Model):
             for move in done_moves.sorted(key=lambda rec: (rec.picking_id.id, rec.id)):
                 line = line_by_move.get(move.id)
                 sync_vals = {
-                    'description': move.name or move.product_id.display_name,
-                    'quantity': move.quantity_done,
+                    'description': move.description_picking or move.product_id.display_name,
+                    'quantity': move.quantity,
                     'issue_move_id': move.id,
                 }
                 if 'test_quantity_issued' in material_line_model._fields:
-                    sync_vals['test_quantity_issued'] = move.quantity_done
+                    sync_vals['test_quantity_issued'] = move.quantity
                 if line:
                     line.write(sync_vals)
                 else:
@@ -235,12 +235,12 @@ class StockPicking(models.Model):
                     'Use Return or create a new delivery order.'
                 ))
             if picking.state == 'cancel':
-                picking.move_lines.write({'state': 'draft'})
+                picking.move_ids.write({'state': 'draft'})
             else:
-                picking.move_lines.filtered(
+                picking.move_ids.filtered(
                     lambda move: move.state not in ('cancel', 'draft')
                 )._do_unreserve()
-                picking.move_lines.filtered(
+                picking.move_ids.filtered(
                     lambda move: move.state not in ('cancel',)
                 ).write({'state': 'draft'})
             picking.write({'state': 'draft', 'is_locked': False})
@@ -266,25 +266,15 @@ class StockPicking(models.Model):
 
     def _set_issue_note_done_quantities(self):
         for picking in self.filtered(lambda rec: rec.issue_project_task_id and rec.state not in ('done', 'cancel')):
-            for move in picking.move_ids_without_package.filtered(
+            for move in picking.move_ids.filtered(
                     lambda rec: rec.state not in ('done', 'cancel') and rec.product_id):
+                # Odoo 17+: move.quantity holds the reserved/done qty, picked marks it done
                 rounding = move.product_uom.rounding
-                if not float_is_zero(move.quantity_done, precision_rounding=rounding):
+                if move.picked and not float_is_zero(move.quantity, precision_rounding=rounding):
                     continue
-
-                reserved_lines = move.move_line_ids.filtered(
-                    lambda line: (
-                        line.state not in ('done', 'cancel')
-                        and not float_is_zero(line.product_uom_qty, precision_rounding=line.product_uom_id.rounding)
-                    )
-                )
-                if reserved_lines:
-                    for line in reserved_lines:
-                        if float_is_zero(line.qty_done, precision_rounding=line.product_uom_id.rounding):
-                            line.qty_done = line.product_uom_qty
-                    continue
-
-                move._set_quantity_done(move.product_uom_qty)
+                if float_is_zero(move.quantity, precision_rounding=rounding):
+                    move.quantity = move.product_uom_qty
+                move.picked = True
 
     def action_confirm(self):
         result = super().action_confirm()

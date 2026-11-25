@@ -6,13 +6,13 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_task_tree2"/>
             <field name="arch" type="xml">
-                <xpath expr="//tree" position="inside">
+                <xpath expr="//list" position="inside">
                     <field name="fsm_stage_group" string="Stage" optional="hide"/>
                     <field name="age_days" optional="hide"/>
                     <field name="importance" optional="hide"/>
                 </xpath>
 
-                <xpath expr="//tree" position="attributes">
+                <xpath expr="//list" position="attributes">
                     <attribute name="decoration-danger">
                         fsm_stage_group in ('registered', 'qty_issued') and age_days &gt;= 7
                     </attribute>
@@ -100,7 +100,7 @@
         <record id="action_fsm_project_task_to_quotation_issue" model="ir.actions.act_window">
             <field name="name">To Quotation Issue</field>
             <field name="res_model">project.task</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="search_view_id" ref="project.view_task_search_form"/>
             <field name="domain">['|', '|', ('project_id.is_fsm', '=', True), ('check_fsm', '=', True), ('task_seq', '=like', 'CRN%'), ('next_action', '=', 'issue'), ('fsm_stage_group', '=', 'site_visited')]</field>
             <field name="context">{
@@ -123,7 +123,7 @@
         <record id="action_fsm_project_task_to_invoice" model="ir.actions.act_window">
             <field name="name">To Invoice</field>
             <field name="res_model">project.task</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="search_view_id" ref="project.view_task_search_form"/>
             <field name="domain">['|', '|', ('project_id.is_fsm', '=', True), ('check_fsm', '=', True), ('task_seq', '=like', 'CRN%'), ('fsm_stage_group', '=', 'waiting_for_invoice')]</field>
             <field name="context">{

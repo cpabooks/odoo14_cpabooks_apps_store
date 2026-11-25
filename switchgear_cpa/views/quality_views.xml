@@ -9,16 +9,14 @@
                 <button name="action_deliver_product" type="object"
                         string="Deliver Product"
                         class="btn-primary"
-                        attrs="{'invisible': [('can_deliver', '=', False)]}"
-                        confirm="Validate the customer delivery order for this product?"/>
+                       
+                        confirm="Validate the customer delivery order for this product?" invisible="not can_deliver"/>
                 <button name="action_open_delivery" type="object"
-                        string="Open Delivery"
-                        attrs="{'invisible': ['|', ('delivery_picking_id', '=', False), ('can_deliver', '=', True)]}"/>
+                        string="Open Delivery" invisible="not delivery_picking_id or can_deliver"/>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_open_delivery" type="object"
-                        class="oe_stat_button" icon="fa-truck"
-                        attrs="{'invisible': [('delivery_picking_id', '=', False)]}">
+                        class="oe_stat_button" icon="fa-truck" invisible="not delivery_picking_id">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Delivery</span>
                     </div>
@@ -37,7 +35,7 @@
     <record id="action_qc_from_project" model="ir.actions.act_window">
         <field name="name">Quality Checks</field>
         <field name="res_model">quality.check</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('project_id', '=', active_id)]</field>
         <field name="context">{'default_project_id': active_id}</field>
     </record>
@@ -46,7 +44,7 @@
     <record id="action_qc_from_picking" model="ir.actions.act_window">
         <field name="name">Quality Checks</field>
         <field name="res_model">quality.check</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="domain">[('picking_id', '=', active_id)]</field>
         <field name="context">{'search_default_picking_id': active_id, 'default_picking_id': active_id}</field>
     </record>

@@ -6,7 +6,7 @@
             <field name="name">cpabooks.cafm.contract.tree</field>
             <field name="model">cpabooks.cafm.contract</field>
             <field name="arch" type="xml">
-                <tree decoration-danger="contract_status == 'expired'"
+                <list decoration-danger="contract_status == 'expired'"
                       decoration-warning="contract_status == 'pending'"
                       decoration-muted="contract_status == 'cancelled'">
                     <field name="name" string="Contract"/>
@@ -20,7 +20,7 @@
                     <field name="invoicing_value" string="Next Invoice Amount" sum="Next Inv. Amt"/>
                     <field name="total_contract_value" string="Cont. Amount" sum="Cont. Amount"/>
                     <field name="contract_status" string="Status"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -29,7 +29,7 @@
             <field name="name">cpabooks.cafm.contract.month.line.tree</field>
             <field name="model">cpabooks.cafm.contract.month.line</field>
             <field name="arch" type="xml">
-                <tree js_class="cafm_amc_register_list"
+                <list js_class="cafm_amc_register_list"
                       class="o_cafm_amc_register_tree o_cafm_amc_amount_list"
                       create="false" edit="false" delete="1"
                       decoration-danger="contract_status == 'expired'"
@@ -80,7 +80,7 @@
                     <field name="number_of_flats" optional="hide"/>
                     <field name="remarks" optional="hide"/>
                     <field name="company_id" optional="hide" groups="base.group_multi_company"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -95,7 +95,7 @@
                     <field name="month_label"/>
                     <field name="contract_id"/>
                     <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
-                    <group expand="1" string="Group By">
+                    <group>
                         <filter name="group_client" string="Client" context="{'group_by': 'client_id'}"/>
                         <filter name="group_customer_group" string="Client Group" context="{'group_by': 'customer_group_id'}"/>
                         <filter name="group_project" string="Project" context="{'group_by': 'project_id'}"/>
@@ -110,18 +110,18 @@
             <field name="arch" type="xml">
                 <form string="AMC Contract">
                     <header>
-                        <button name="action_confirm" type="object" string="Confirm / Activate" class="btn-primary" attrs="{'invisible': [('contract_status', '=', 'active')]}"/>
-                        <button name="action_set_pending" type="object" string="Set Pending" attrs="{'invisible': [('contract_status', 'in', ['pending', 'cancelled'])]}"/>
-                        <button name="action_set_draft" type="object" string="Set to Draft" attrs="{'invisible': [('contract_status', '=', 'draft')]}"/>
-                        <button name="action_cancel" type="object" string="Cancel" attrs="{'invisible': [('contract_status', '=', 'cancelled')]}"/>
+                        <button name="action_confirm" type="object" string="Confirm / Activate" class="btn-primary" invisible="contract_status == 'active'"/>
+                        <button name="action_set_pending" type="object" string="Set Pending" invisible="contract_status in ('pending', 'cancelled')"/>
+                        <button name="action_set_draft" type="object" string="Set to Draft" invisible="contract_status == 'draft'"/>
+                        <button name="action_cancel" type="object" string="Cancel" invisible="contract_status == 'cancelled'"/>
                         <field name="contract_status" widget="statusbar" statusbar_visible="draft,active,pending,expired,cancelled"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
-                            <button name="action_open_project" type="object" class="oe_stat_button" icon="fa-building" attrs="{'invisible': [('project_id', '=', False)]}">
+                            <button name="action_open_project" type="object" class="oe_stat_button" icon="fa-building" invisible="not project_id">
                                 <span>Project</span>
                             </button>
-                            <button name="action_open_unit" type="object" class="oe_stat_button" icon="fa-home" attrs="{'invisible': [('unit_id', '=', False)]}">
+                            <button name="action_open_unit" type="object" class="oe_stat_button" icon="fa-home" invisible="not unit_id">
                                 <span>Villa / Flat</span>
                             </button>
                             <button name="action_view_contract_orders" type="object" class="oe_stat_button" icon="fa-file-text-o">
@@ -215,7 +215,7 @@
                                     <button name="action_clear_contract_orders" type="object" string="Clear Cont. Order" class="btn-secondary" confirm="This will delete uninvoiced contract orders. Continue?"/>
                                 </group>
                                 <field name="contract_order_ids">
-                                    <tree>
+                                    <list>
                                         <field name="name"/>
                                         <field name="partner_id"/>
                                         <field name="period_label"/>
@@ -225,8 +225,8 @@
                                         <field name="amount" sum="Total"/>
                                         <field name="invoice_id"/>
                                         <field name="state"/>
-                                        <button name="action_create_invoice" type="object" string="Create Invoice" attrs="{'invisible': [('invoice_id', '!=', False)]}"/>
-                                    </tree>
+                                        <button name="action_create_invoice" type="object" string="Create Invoice" invisible="invoice_id"/>
+                                    </list>
                                 </field>
                             </page>
                             <page string="Villa / Flat">
@@ -234,8 +234,8 @@
                                     <button name="action_generate_flat_villa_lines" type="object" string="Generate Villa / Flat" class="btn-primary"/>
                                     <button name="action_clear_flat_villa_lines" type="object" string="Clear Villa / Flat" class="btn-secondary" confirm="This will delete all Villa / Flat lines. Continue?"/>
                                 </group>
-                                <field name="flat_detail_ids" context="{'default_contract_id': active_id, 'default_contract_type': unit_contract_type}">
-                                    <tree editable="bottom" delete="1" create="1">
+                                <field name="flat_detail_ids" context="{'default_contract_id': id, 'default_contract_type': unit_contract_type}">
+                                    <list editable="bottom" delete="1" create="1">
                                         <field name="sequence" string="Sr. No."/>
                                         <field name="contract_type"/>
                                         <field name="flat_code"/>
@@ -250,18 +250,18 @@
                                                   }"/>
                                         <field name="contact_mobile"/>
                                         <button name="action_generate_flat_details" type="object" string="Add"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                             <page string="Contract Copy / Documents">
                                 <field name="document_line_ids">
-                                    <tree editable="bottom" create="1" delete="1">
+                                    <list editable="bottom" create="1" delete="1">
                                         <field name="sequence" string="Serial"/>
                                         <field name="name"/>
                                         <field name="attachment" filename="attachment_filename"/>
                                         <field name="attachment_filename" invisible="1"/>
                                         <field name="note"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                             <page string="Notes">
@@ -278,11 +278,7 @@
                             </page>
                         </notebook>
                     </sheet>
-                    <div class="oe_chatter">
-                        <field name="message_follower_ids"/>
-                        <field name="activity_ids"/>
-                        <field name="message_ids"/>
-                    </div>
+                    <chatter/>
                 </form>
             </field>
         </record>
@@ -324,7 +320,7 @@
                     <filter name="filter_expiring_this_month" string="Expiring This Month" date="contract_expiry" default_period="this_month"/>
                     <filter name="filter_renewal_due" string="Renewal Due" domain="[('renewal_date', '&lt;=', context_today())]"/>
                     <filter name="filter_my_company" string="My Company" domain="[('company_id', 'in', allowed_company_ids)]"/>
-                    <group expand="1" string="Group By">
+                    <group>
                         <filter name="group_next_invoice" string="Next Invoice" context="{'group_by': 'next_invoice_label'}"/>
                         <filter name="group_next_invoice_period" string="Next Invoice (Period)" context="{'group_by': 'next_invoice_period'}"/>
                         <filter name="group_next_invoice_raw" string="Next Invoice (raw)" context="{'group_by': 'next_invoice_month'}"/>
@@ -381,7 +377,7 @@
         <record id="action_cafm_cpa_amc" model="ir.actions.act_window">
             <field name="name">AMC Invoice Register</field>
             <field name="res_model">cpabooks.cafm.contract.month.line</field>
-            <field name="view_mode">tree</field>
+            <field name="view_mode">list</field>
             <field name="view_id" ref="view_cafm_cpa_amc_tree"/>
             <field name="search_view_id" ref="view_cafm_cpa_amc_month_line_search"/>
             <field name="domain">[('active', '=', True)]</field>
@@ -392,7 +388,7 @@
 
         <record id="action_cafm_cpa_amc_view_tree" model="ir.actions.act_window.view">
             <field name="sequence" eval="1"/>
-            <field name="view_mode">tree</field>
+            <field name="view_mode">list</field>
             <field name="view_id" ref="view_cafm_cpa_amc_tree"/>
             <field name="act_window_id" ref="action_cafm_cpa_amc"/>
         </record>
@@ -433,14 +429,14 @@ action = env['cpabooks.cafm.contract'].action_open_next_invoice_print_wizard(
         <record id="action_cafm_cpa_amc_report" model="ir.actions.act_window">
             <field name="name">AMC Reports</field>
             <field name="res_model">cpabooks.cafm.contract</field>
-            <field name="view_mode">pivot,graph,tree,form</field>
+            <field name="view_mode">pivot,graph,list,form</field>
             <field name="search_view_id" ref="view_cafm_cpa_contract_search"/>
         </record>
 
         <record id="action_cafm_cpa_amc_export" model="ir.actions.act_window">
             <field name="name">Export AMC Contracts</field>
             <field name="res_model">cpabooks.cafm.contract</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="search_view_id" ref="view_cafm_cpa_contract_search"/>
             <field name="context">{'import_enabled': True}</field>
         </record>

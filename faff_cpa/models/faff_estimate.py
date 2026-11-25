@@ -45,8 +45,16 @@ class FaffEstimate(models.Model):
     expected_profit = fields.Monetary(compute="_compute_totals", store=True)
     margin_percent = fields.Float(string="Margin %", compute="_compute_totals", store=True)
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_FaffEstimate(vals)
+        return records
+
+    def _create_single_FaffEstimate(self, vals):
         if vals.get("name", "New") == "New":
             vals["name"] = (
                 self.env["ir.sequence"].next_by_code("cpabooks.faff.estimate")

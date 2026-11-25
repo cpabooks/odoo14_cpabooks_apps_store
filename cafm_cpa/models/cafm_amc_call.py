@@ -154,8 +154,16 @@ class MaintenanceRequestAmcCall(models.Model):
         year_suffix = datetime.now().strftime('%y')
         return '%sG%sA' % (year_suffix, seq)
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_MaintenanceRequestAmcCall(vals)
+        return records
+
+    def _create_single_MaintenanceRequestAmcCall(self, vals):
         if vals.get('cafm_unit_id') and not vals.get('cafm_project_id'):
             unit = self.env['cpabooks.cafm.unit'].browse(vals['cafm_unit_id'])
             vals['cafm_project_id'] = unit.project_id.id
@@ -176,7 +184,7 @@ class MaintenanceRequestAmcCall(models.Model):
             'type': 'ir.actions.act_window',
             'name': _('VAR Work'),
             'res_model': 'cpabooks.cafm.var.work',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('call_id', '=', self.id)],
             'context': {'default_call_id': self.id},
         }
@@ -187,7 +195,7 @@ class MaintenanceRequestAmcCall(models.Model):
             'type': 'ir.actions.act_window',
             'name': _('Stock Issues'),
             'res_model': 'cpabooks.cafm.stock.issue',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('call_id', '=', self.id)],
             'context': {'default_call_id': self.id},
         }

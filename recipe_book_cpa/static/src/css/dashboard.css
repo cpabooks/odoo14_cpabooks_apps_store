@@ -196,6 +196,7 @@
 .o_pill_variance { background: #e11d48; }
 
 .o_recipe_nav_toggle {
+    height: 100%;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -226,21 +227,18 @@ body.o_cpa_nav_side {
     overflow-x: hidden;
 }
 
-body.o_cpa_nav_side .o_web_client {
+/* Odoo 19: .o_web_client is the body itself; shift navbar + action area */
+body.o_cpa_nav_side .o_navbar,
+body.o_cpa_nav_side .o_action_manager {
     margin-left: 268px !important;
-    width: calc(100vw - 268px) !important;
+    width: auto !important;
     max-width: calc(100vw - 268px) !important;
-    padding-left: 0 !important;
-    box-sizing: border-box !important;
-    overflow: hidden;
+    min-width: 0 !important;
 }
 
-body.o_cpa_nav_side .o_web_client > header,
-body.o_cpa_nav_side .o_web_client > .o_action_manager {
-    margin-left: 0 !important;
-    width: auto !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
+/* Recipe Book sidebar replaces the CPABooks community app sidebar while open */
+body.o_cpa_nav_side .o_ccs_sidebar {
+    display: none !important;
 }
 
 body.o_cpa_nav_side .o_action_manager > .o_recipe_status,

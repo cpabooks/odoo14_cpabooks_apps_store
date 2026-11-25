@@ -1,29 +1,29 @@
-.o_control_panel .o_cpa_contracting_invoice_kind_toggle {
-    margin-left: 8px;
+.o_cpa_contracting_invoice_kind_toggle {
+    margin-bottom: 8px;
     display: inline-flex;
     flex-wrap: nowrap;
     vertical-align: middle;
     flex-shrink: 0;
 }
-.o_control_panel .o_cpa_contracting_invoice_kind_toggle .btn {
+.o_cpa_contracting_invoice_kind_toggle .btn {
     font-size: 12px;
     line-height: 1.2;
     padding: 4px 10px;
     white-space: nowrap;
     border: 1px solid #1f4e79 !important;
 }
-.o_control_panel .o_cpa_contracting_invoice_kind_toggle .btn.o_cpa_kind_selected {
+.o_cpa_contracting_invoice_kind_toggle .btn.o_cpa_kind_selected {
     background-color: #1f4e79 !important;
     background-image: none !important;
     border-color: #1f4e79 !important;
     color: #ffffff !important;
 }
-.o_control_panel .o_cpa_contracting_invoice_kind_toggle .btn:not(.o_cpa_kind_selected) {
+.o_cpa_contracting_invoice_kind_toggle .btn:not(.o_cpa_kind_selected) {
     background-color: #ffffff !important;
     background-image: none !important;
     color: #1f4e79 !important;
 }
-.o_control_panel .o_cpa_contracting_invoice_kind_toggle .btn:disabled {
+.o_cpa_contracting_invoice_kind_toggle .btn:disabled {
     opacity: 0.65;
     cursor: not-allowed;
 }

@@ -135,7 +135,7 @@ class CafmPpmSetupWizard(models.TransientModel):
             "type": "ir.actions.act_window",
             "name": _("PPM Schedule"),
             "res_model": "cpabooks.cafm.ppm",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("id", "in", ppms.ids)],
             "target": "current",
         }
@@ -173,7 +173,7 @@ class CafmPpmGenerateWizard(models.TransientModel):
             "type": "ir.actions.act_window",
             "name": _("PPM Slots"),
             "res_model": "cpabooks.cafm.ppm.slot",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("year", "in", years), ("ppm_id", "in", ppms.ids)],
             "target": "current",
         }

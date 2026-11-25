@@ -33,10 +33,10 @@ class CafmInvoiceTrackStatus(models.Model):
     is_pending = fields.Boolean(compute='_compute_flags')
     is_all_done = fields.Boolean(compute='_compute_flags')
 
-    _sql_constraints = [
-        ('cafm_track_status_kind_name_uniq', 'unique(kind, name)',
-         'This status name already exists for this column.'),
-    ]
+    _cafm_track_status_kind_name_uniq = models.Constraint(
+        'unique(kind, name)',
+        "This status name already exists for this column.",
+    )
 
     @api.depends('name', 'kind')
     def _compute_flags(self):

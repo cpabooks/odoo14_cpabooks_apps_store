@@ -8,52 +8,47 @@
             <!-- Header buttons -->
             <xpath expr="//header" position="inside">
                 <button name="action_print_contracting_invoice" type="object"
-                        string="Print Contracting Invoice"
-                        attrs="{'invisible': ['|', ('is_construction_invoice', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund'))]}"/>
+                        string="Print Contracting Invoice" invisible="not is_construction_invoice or move_type not in ('out_invoice', 'out_refund')"/>
                 <button name="action_contracting_next_claim" type="object"
                         string="Next Progress Claim"
-                        attrs="{'invisible': ['|', '|', ('is_construction_invoice', '=', False), ('state', '!=', 'posted'), ('move_type', '!=', 'out_invoice')]}"
-                        help="Copy this invoice for the next claim. Work Done % moves into Previous %."/>
+                       
+                        help="Copy this invoice for the next claim. Work Done % moves into Previous %." invisible="not is_construction_invoice or state != 'posted' or move_type != 'out_invoice'"/>
             </xpath>
 
-            <!-- Switch (also driven by the control panel toggle) -->
-            <xpath expr="//group[@name='sale_info_group']" position="inside">
-                <field name="is_construction_invoice"
-                       attrs="{'invisible': [('move_type', 'not in', ('out_invoice', 'out_refund'))], 'readonly': [('state', '!=', 'draft')]}"/>
+            <!-- Labour Supply / Construction switch above the invoice title -->
+            <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <div invisible="move_type not in ('out_invoice', 'out_refund')">
+                    <field name="is_construction_invoice" widget="contracting_invoice_kind"
+                           nolabel="1" readonly="state != 'draft'"/>
+                </div>
             </xpath>
 
             <!-- Invoice lines: list -->
-            <xpath expr="//field[@name='invoice_line_ids']/tree/field[@name='discount']" position="attributes">
-                <attribute name="attrs">{'column_invisible': [('parent.is_construction_invoice', '=', True)]}</attribute>
+            <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='discount']" position="attributes">
+                <attribute name="column_invisible">parent.is_construction_invoice</attribute>
             </xpath>
-            <xpath expr="//field[@name='invoice_line_ids']/tree/field[@name='discount']" position="after">
-                <field name="contract_discount" optional="hide"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_amount" optional="show"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_previous_pct" optional="show"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_work_done_pct"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_guaranteed" optional="hide"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
+            <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='discount']" position="after">
+                <field name="contract_discount" optional="hide" column_invisible="not parent.is_construction_invoice"/>
+                <field name="contract_amount" optional="show" column_invisible="not parent.is_construction_invoice"/>
+                <field name="contract_previous_pct" optional="show" column_invisible="not parent.is_construction_invoice"/>
+                <field name="contract_work_done_pct" column_invisible="not parent.is_construction_invoice"/>
+                <field name="contract_guaranteed" optional="hide" column_invisible="not parent.is_construction_invoice"/>
             </xpath>
-            <xpath expr="//field[@name='invoice_line_ids']/tree/field[@name='tax_ids']" position="after">
-                <field name="contract_tax_amount" optional="show"
-                       attrs="{'column_invisible': [('parent.is_construction_invoice', '=', False)]}"/>
+            <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='tax_ids']" position="after">
+                <field name="contract_tax_amount" optional="show" column_invisible="not parent.is_construction_invoice"/>
             </xpath>
 
             <!-- Invoice lines: form (mobile / line popup) -->
             <xpath expr="//field[@name='invoice_line_ids']/form//field[@name='price_unit']" position="after">
-                <field name="contract_discount" attrs="{'invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_previous_pct" attrs="{'invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_work_done_pct" attrs="{'invisible': [('parent.is_construction_invoice', '=', False)]}"/>
-                <field name="contract_guaranteed" attrs="{'invisible': [('parent.is_construction_invoice', '=', False)]}"/>
+                <field name="contract_discount" invisible="not parent.is_construction_invoice"/>
+                <field name="contract_previous_pct" invisible="not parent.is_construction_invoice"/>
+                <field name="contract_work_done_pct" invisible="not parent.is_construction_invoice"/>
+                <field name="contract_guaranteed" invisible="not parent.is_construction_invoice"/>
             </xpath>
 
             <!-- Journal items: Odoo saves invoice lines through line_ids, so the
                  contracting values must be present there as well. -->
-            <xpath expr="//field[@name='line_ids']/tree/field[@name='account_id']" position="after">
+            <xpath expr="//field[@name='line_ids']/list/field[@name='account_id']" position="after">
                 <field name="contract_discount" invisible="1"/>
                 <field name="contract_previous_pct" invisible="1"/>
                 <field name="contract_work_done_pct" invisible="1"/>

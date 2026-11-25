@@ -6,22 +6,21 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="arch" type="xml">
-                <xpath expr="//sheet" position="inside">
-                    <page string="Material Return"
-                          attrs="{'invisible': [('fsm_crn_form', '=', False)]}">
+                <xpath expr="//sheet/notebook" position="inside">
+                    <page string="Material Return" invisible="not fsm_crn_form">
                         <button name="action_view_material_returns"
                                 type="object"
                                 string="Open Material Returns"
                                 class="oe_highlight"/>
                         <group>
                             <field name="material_return_move_ids" nolabel="1" readonly="1">
-                                <tree string="Material Returns" create="0" edit="0" delete="0">
+                                <list string="Material Returns" create="0" edit="0" delete="0">
                                     <field name="product_id"/>
-                                    <field name="name" string="Description"/>
+                                    <field name="description_picking" string="Description"/>
                                     <field name="product_uom_qty" string="Quantity"/>
-                                    <field name="quantity_done" string="Done Quantity"/>
+                                    <field name="quantity" string="Done Quantity"/>
                                     <field name="amount" string="Amount Done"/>
-                                </tree>
+                                </list>
                             </field>
                         </group>
                     </page>
@@ -33,10 +32,10 @@
             <field name="name">Material Return</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">stock.picking</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="view_ids"
                    eval="[(5, 0, 0),
-                          (0, 0, {'view_mode': 'tree', 'view_id': ref('cpabooks_project_issue_note.issue_tree')}),
+                          (0, 0, {'view_mode': 'list', 'view_id': ref('cpabooks_project_issue_note.issue_tree')}),
                           (0, 0, {'view_mode': 'form', 'view_id': ref('cpabooks_project_issue_note.issue_form')})]"/>
             <field name="domain">[('issue_project_task_id', '!=', False), ('is_material_return', '=', True)]</field>
             <field name="context">{'show_task_seq': True, 'show_crn_number': True}</field>

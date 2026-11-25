@@ -126,7 +126,7 @@ class FaffSampleLoader(models.TransientModel):
                         "product_id": line.product_id.id,
                         "name": line.name,
                         "product_uom_qty": line.product_uom_qty,
-                        "product_uom": line.product_uom_id.id or line.product_id.uom_id.id,
+                        "product_uom_id": line.product_uom_id.id or line.product_id.uom_id.id,
                         "price_unit": line.selling_price,
                     },
                 )
@@ -209,8 +209,8 @@ class FaffSampleLoader(models.TransientModel):
                                 "product_id": plans[0].product_id.id,
                                 "name": plans[0].name,
                                 "product_qty": plans[0].purchase_qty or 1.0,
-                                "product_uom": plans[0].product_uom_id.id
-                                or plans[0].product_id.uom_po_id.id,
+                                "product_uom_id": plans[0].product_uom_id.id
+                                or plans[0].product_id.uom_id.id,
                                 "price_unit": plans[0].product_id.standard_price,
                                 "date_planned": fields.Datetime.now(),
                             },
@@ -457,7 +457,7 @@ class FaffSampleLoader(models.TransientModel):
         pickings = pickings.exists()
         if not pickings:
             return
-        moves = pickings.mapped("move_lines") | pickings.mapped("move_ids_without_package")
+        moves = pickings.mapped("move_ids")
         for picking in pickings:
             try:
                 if picking.state not in ("done", "cancel"):
@@ -487,7 +487,7 @@ class FaffSampleLoader(models.TransientModel):
                         pays = move._get_reconciled_payments()
                         for pay in pays:
                             try:
-                                if pay.state in ("posted", "reconciled"):
+                                if pay.state in ("in_process", "paid"):
                                     if hasattr(pay, "action_draft"):
                                         pay.action_draft()
                                     elif hasattr(pay, "cancel"):

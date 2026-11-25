@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="cpabooks_contracting_invoice.InvoiceKindToggle">
+        <div class="btn-group o_cpa_contracting_invoice_kind_toggle" role="group">
+            <button type="button" class="btn btn-sm o_cpa_kind_labour"
+                    t-att-class="{'o_cpa_kind_selected': !isConstruction}"
+                    t-att-disabled="props.readonly"
+                    t-on-click="() => this.setKind(false)">Labour Supply Invoice</button>
+            <button type="button" class="btn btn-sm o_cpa_kind_construction"
+                    t-att-class="{'o_cpa_kind_selected': isConstruction}"
+                    t-att-disabled="props.readonly"
+                    t-on-click="() => this.setKind(true)">Construction Invoice</button>
+        </div>
+    </t>
+</templates>

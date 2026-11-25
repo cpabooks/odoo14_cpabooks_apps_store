@@ -21,7 +21,7 @@ do the work, invoice and close.
     # Check https://github.com/odoo/odoo/blob/14.0/odoo/addons/base/data/ir_module_category_data.xml
     # for the full list
     'category': 'Services/Field Service',
-    'version': '14.0.1.0.6',
+    'version': '19.0.1.0.6',
 
     # Official Odoo addons only — apps-store installs must not require
     # addons-community / CPABooks custom modules.
@@ -46,7 +46,6 @@ do the work, invoice and close.
         'data/invoice_type_data.xml',
         'data/project_project_data.xml',
         'data/project_task_data.xml',
-        'views/crn_service_assets.xml',
         'views/crn_service_menus.xml',
         'views/report_project_task.xml',
         'views/complaint_detail_views.xml',
@@ -82,10 +81,25 @@ do the work, invoice and close.
     ],
     'pre_init_hook': 'pre_init_hook',
     'post_init_hook': 'post_init_hook',
-    'qweb': [
-        'static/src/xml/crn_service_dashboard.xml',
-        'static/src/xml/crn_processing_cycle.xml',
-    ],
+    'assets': {
+        'web.assets_backend': [
+            ('include', 'web._assets_jquery'),
+            'field_service_cpa/static/src/css/crn_app_shell.css',
+            'field_service_cpa/static/src/css/crn_service_dashboard.css',
+            'field_service_cpa/static/src/css/crn_processing_cycle.css',
+            'field_service_cpa/static/src/css/fsm_dashboard.css',
+            'field_service_cpa/static/src/css/fsm_task_form.css',
+            'field_service_cpa/static/src/js/legacy_compat.js',
+            'field_service_cpa/static/src/js/crn_app_shell.js',
+            'field_service_cpa/static/src/js/crn_service_dashboard_action.js',
+            'field_service_cpa/static/src/js/crn_processing_cycle_action.js',
+            'field_service_cpa/static/src/js/fsm_dashboard.js',
+            'field_service_cpa/static/src/xml/crn_shell.xml',
+            'field_service_cpa/static/src/xml/crn_service_dashboard.xml',
+            'field_service_cpa/static/src/xml/crn_processing_cycle.xml',
+            'field_service_cpa/static/src/xml/fsm_dashboard.xml',
+        ],
+    },
     # only loaded in demonstration mode
     'demo': [],
 }

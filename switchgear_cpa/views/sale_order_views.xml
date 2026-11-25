@@ -18,25 +18,25 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Document" name="document_sent">
                     <field name="document_sent_ids" nolabel="1">
-                        <tree string="Documents Sent" editable="bottom">
+                        <list string="Documents Sent" editable="bottom">
                             <field name="sr"/>
                             <field name="document_name"/>
                             <field name="attachment" filename="attachment_name"/>
                             <field name="attachment_name" invisible="1"/>
                             <field name="remarks"/>
-                        </tree>
+                        </list>
                     </field>
                 </page>
                 <page string="Document Received" name="document_received">
                     <field name="document_received_ids" nolabel="1">
-                        <tree string="Documents Received" editable="bottom">
+                        <list string="Documents Received" editable="bottom">
                             <field name="sr"/>
                             <field name="document_name"/>
                             <field name="date_received"/>
                             <field name="attachment" filename="attachment_name"/>
                             <field name="attachment_name" invisible="1"/>
                             <field name="remarks"/>
-                        </tree>
+                        </list>
                     </field>
                 </page>
             </xpath>

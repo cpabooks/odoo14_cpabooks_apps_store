@@ -101,12 +101,12 @@ class FaffMaterialPlan(models.Model):
                 "partner_id": job.partner_id.id,
                 "origin": job.name,
                 "faff_job_id": job.id,
-                "move_ids_without_package": [
+                "move_ids": [
                     (
                         0,
                         0,
                         {
-                            "name": self.name or self.product_id.display_name,
+                            "description_picking": self.name or self.product_id.display_name,
                             "product_id": self.product_id.id,
                             "product_uom_qty": self.issue_qty,
                             "product_uom": self.product_uom_id.id
@@ -152,8 +152,8 @@ class FaffMaterialPlan(models.Model):
                             "product_id": self.product_id.id,
                             "name": self.name or self.product_id.display_name,
                             "product_qty": self.purchase_qty,
-                            "product_uom": self.product_uom_id.id
-                            or self.product_id.uom_po_id.id,
+                            "product_uom_id": self.product_uom_id.id
+                            or self.product_id.uom_id.id,
                             "price_unit": self.product_id.standard_price,
                             "date_planned": fields.Datetime.now(),
                         },

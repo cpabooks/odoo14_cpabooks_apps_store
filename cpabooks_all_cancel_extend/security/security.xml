@@ -2,8 +2,7 @@
 <odoo>
     <record id="group_cpa_cancel_posted" model="res.groups">
         <field name="name">Cancel Posted Documents</field>
-        <field name="category_id" ref="base.module_category_usability"/>
         <field name="comment">Cancel, reset to draft or delete posted invoices, payments, orders, done pickings and expense reports.</field>
-        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
     </record>
 </odoo>

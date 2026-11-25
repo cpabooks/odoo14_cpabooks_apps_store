@@ -121,7 +121,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 'mrp.production', 'stock.picking', 'project.project',
             ):
                 if model_name in self.env:
-                    self.env[model_name].flush()
+                    self.env[model_name].env.flush_all()
 
         self._ensure_dashboard_kpi_minimums(company, min_count=6)
         self._backfill_demo_project_financials(company)
@@ -177,8 +177,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
     @api.model
     def _company_has_usable_accounts(self, company):
         return self.env['account.account'].sudo().search_count([
-            ('company_id', '=', company.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', company.id),
         ]) >= 2
 
     @api.model
@@ -228,7 +227,8 @@ class SwitchgearDemoLoader(models.AbstractModel):
             tmpl = self.env['product.template'].sudo().create({
                 'name': name,
                 'default_code': ref,
-                'type': 'service' if ptype == 'service' else 'product',
+                'type': 'service' if ptype == 'service' else 'consu',
+                'is_storable': ptype != 'service',
                 'list_price': list_price,
                 'standard_price': standard_price,
                 'sale_ok': True,
@@ -321,18 +321,21 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 existing_opp, partner, company, index, profile,
             )
 
+        # Odoo 16+: an analytic account needs a plan
+        plan = self.env['account.analytic.plan'].sudo().search([], limit=1) or \
+            self.env['account.analytic.plan'].sudo().create({'name': 'Projects'})
         analytic = self.env['account.analytic.account'].sudo().create({
             'name': '%s Analytic' % label,
             'company_id': company.id,
             'partner_id': partner.id,
+            'plan_id': plan.id,
         })
         project_vals = {
             'name': '%s Project' % label,
             'partner_id': partner.id,
             'company_id': company.id,
         }
-        if 'analytic_account_id' in self.env['project.project']._fields:
-            project_vals['analytic_account_id'] = analytic.id
+        project_vals['account_id'] = analytic.id
         project = self.env['project.project'].sudo().create(project_vals)
 
         demo_user = self._demo_user_for_company(company)
@@ -395,7 +398,6 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 )
         if sale_order:
             sale_order.sudo().write({
-                'analytic_account_id': analytic.id,
                 'project_id': project.id,
             })
             if hasattr(sale_order, 'job_quotation'):
@@ -677,9 +679,8 @@ class SwitchgearDemoLoader(models.AbstractModel):
         Account = self.env['account.account'].sudo().with_company(company)
         fallback_type = 'income' if move_type in ('out_invoice', 'out_refund') else 'expense'
         account = Account.search([
-            ('company_id', '=', company.id),
-            ('deprecated', '=', False),
-            ('user_type_id.type', '=', fallback_type),
+            ('company_ids', 'in', company.id),
+            ('account_type', '=', fallback_type),
         ], limit=1)
         if not account and product:
             if move_type in ('out_invoice', 'out_refund'):
@@ -701,8 +702,8 @@ class SwitchgearDemoLoader(models.AbstractModel):
             vals['account_id'] = account.id
         if product:
             vals['product_id'] = product.id
-        if analytic and 'analytic_account_id' in self.env['account.move.line']._fields:
-            vals['analytic_account_id'] = analytic.id
+        if analytic:
+            vals['analytic_distribution'] = {str(analytic.id): 100}
         return vals
 
     @api.model
@@ -784,14 +785,13 @@ class SwitchgearDemoLoader(models.AbstractModel):
         vals = {
             'partner_id': partner.id,
             'company_id': company.id,
-            'analytic_account_id': analytic.id,
             'project_id': project.id,
             'job_estimate_id': estimate.id,
             'order_line': [(0, 0, {
                 'product_id': product.id,
                 'name': product.display_name,
                 'product_uom_qty': 1.0,
-                'product_uom': product.uom_id.id,
+                'product_uom_id': product.uom_id.id,
                 'price_unit': estimate.total_job_estimate or product.list_price,
             })],
         }
@@ -883,7 +883,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
                             'product_id': product.id,
                             'name': 'Demo quotation filler %s' % (seq + 1),
                             'product_uom_qty': 1.0,
-                            'product_uom': product.uom_id.id,
+                            'product_uom_id': product.uom_id.id,
                             'price_unit': product.list_price,
                         })],
                     })
@@ -957,9 +957,8 @@ class SwitchgearDemoLoader(models.AbstractModel):
             ('state', '=', 'draft'),
         ])
         expense_account = self.env['account.account'].sudo().search([
-            ('company_id', '=', company.id),
-            ('deprecated', '=', False),
-            ('user_type_id.type', '=', 'expense'),
+            ('company_ids', 'in', company.id),
+            ('account_type', 'in', ('expense', 'expense_direct_cost')),
         ], limit=1)
         for seq in range(max(gap, 0)):
             if not expense_account:
@@ -989,7 +988,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
             'project_id': project.id,
             'company_id': company.id,
         }
-        if amount:
+        if amount and 'amount' in Task._fields:
             vals['amount'] = amount
         if 'period' in Task._fields:
             vals['period'] = 'year'
@@ -1105,7 +1104,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
             self._create_demo_project_task(project, label, project.company_id, amount=amount)
             changed = True
 
-        analytic = project.analytic_account_id
+        analytic = project.account_id
         moves = Move.browse()
         if sale_order:
             moves |= sale_order.invoice_ids.filtered(lambda m: m.move_type == 'out_invoice')
@@ -1153,8 +1152,8 @@ class SwitchgearDemoLoader(models.AbstractModel):
             move.write({'project_id': project.id})
             changed = True
             if analytic:
-                for line in move.invoice_line_ids.filtered(lambda l: not l.analytic_account_id):
-                    line.analytic_account_id = analytic.id
+                for line in move.invoice_line_ids.filtered(lambda l: not l.analytic_distribution):
+                    line.analytic_distribution = {str(analytic.id): 100}
 
         if stack_index and not Move.search_count([
             ('project_id', '=', project.id),
@@ -1318,7 +1317,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
         line_vals = self._demo_move_line_vals(
             product, company, 'out_invoice',
             'Demo draft invoice %s' % index, 1, 500.0 + (index * 25),
-            analytic=analytic or (project.analytic_account_id if project else False),
+            analytic=analytic or (project.account_id if project else False),
         )
         vals = {
             'move_type': 'out_invoice',
@@ -1350,7 +1349,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
         line_vals = self._demo_move_line_vals(
             product, company, 'in_invoice',
             'Demo vendor bill %s' % index, 1, 100.0 + index,
-            analytic=analytic or (project.analytic_account_id if project else False),
+            analytic=analytic or (project.account_id if project else False),
         )
         vals = {
             'move_type': 'in_invoice',
@@ -1433,8 +1432,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
         if not journal:
             return False
         accounts = self.env['account.account'].sudo().search([
-            ('company_id', '=', company.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', company.id),
         ], limit=2)
         if len(accounts) < 2:
             return False
@@ -1564,7 +1562,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 'product_id': product.id,
                 'name': product.display_name,
                 'product_qty': need,
-                'product_uom': move.product_uom.id,
+                'product_uom_id': move.product_uom.id,
                 'price_unit': product.standard_price or 1.0,
                 'date_planned': fields.Datetime.now(),
             }))
@@ -1591,7 +1589,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 'product_id': sol.product_id.id,
                 'name': sol.name,
                 'product_uom_qty': sol.product_uom_qty,
-                'product_uom': sol.product_uom.id,
+                'product_uom': sol.product_uom_id.id,
                 'quotation_line_id': sol.id,
             }
             if 'price_unit' in JobLine._fields:
@@ -1647,7 +1645,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
         if task and 'timesheet_ids' in task._fields:
             try:
                 task.sudo().write({
-                    'planned_hours': unit_amount + 2,
+                    'allocated_hours': unit_amount + 2,
                     'timesheet_ids': [(0, 0, line_vals)],
                 })
                 count += 1
@@ -1715,6 +1713,9 @@ class SwitchgearDemoLoader(models.AbstractModel):
     def _ensure_bom_final_products(self, bom):
         """CPA BoMs need final_product_ids for MO state and mark-done."""
         bom = bom.sudo()
+        if 'final_product_ids' not in bom._fields:
+            # field comes from an optional CPABooks MRP module
+            return bom
         if bom.final_product_ids:
             return bom
         seen = set()
@@ -1732,6 +1733,9 @@ class SwitchgearDemoLoader(models.AbstractModel):
     @api.model
     def _ensure_mo_final_products(self, mo):
         mo = mo.sudo()
+        if 'final_product_ids' not in mo._fields:
+            # mrp.final.product comes from an optional CPABooks MRP module
+            return mo
         if mo.final_product_ids:
             return mo
         if not mo.bom_id:
@@ -1803,7 +1807,7 @@ class SwitchgearDemoLoader(models.AbstractModel):
         Quant = self.env['stock.quant'].sudo()
         for move in mo.move_raw_ids:
             product = move.product_id
-            if product.type not in ('product', 'consu'):
+            if product.type != 'consu':
                 continue
             needed = move.product_uom_qty or 0.0
             if needed <= 0:
@@ -1869,8 +1873,9 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 if hasattr(mo, '_set_qty_producing'):
                     mo._set_qty_producing()
             for move in mo.move_raw_ids.filtered(lambda m: m.state not in ('done', 'cancel')):
-                if not move.quantity_done:
-                    move.quantity_done = move.product_uom_qty
+                if not move.picked:
+                    move.quantity = move.product_uom_qty
+                    move.picked = True
             return self._finish_demo_mo_mark_done(mo)
         except Exception as exc:
             _logger.info('Switchgear demo: MO %s completion skipped: %s', mo.id, exc)
@@ -1886,8 +1891,9 @@ class SwitchgearDemoLoader(models.AbstractModel):
                 if picking.state == 'draft':
                     picking.action_confirm()
                 if picking.state in ('confirmed', 'assigned'):
-                    for move in picking.move_lines:
-                        move.quantity_done = move.product_uom_qty
+                    for move in picking.move_ids:
+                        move.quantity = move.product_uom_qty
+                        move.picked = True
                     picking.button_validate()
             except Exception as exc:
                 _logger.info('Switchgear demo: delivery validate skipped: %s', exc)
@@ -1938,12 +1944,12 @@ class SwitchgearDemoLoader(models.AbstractModel):
         try:
             payment.action_post()
             lines = invoice.line_ids.filtered(
-                lambda line: line.account_id.user_type_id.type in ('receivable', 'payable')
+                lambda line: line.account_id.account_type in ('asset_receivable', 'liability_payable')
                 and not line.reconciled,
             )
             if lines and payment.move_id:
                 payment_lines = payment.move_id.line_ids.filtered(
-                    lambda line: line.account_id.user_type_id.type in ('receivable', 'payable')
+                    lambda line: line.account_id.account_type in ('asset_receivable', 'liability_payable')
                     and not line.reconciled,
                 )
                 if payment_lines:

@@ -144,7 +144,7 @@ class AccountGroup(models.Model):
 
     def _cpa_rebuild_group_parents(self, company):
         cr = self.env.cr
-        self.env["account.group"].flush()
+        self.env["account.group"].env.flush_all()
         cr.execute(
             """
             UPDATE account_group agroup SET parent_id = (
@@ -202,7 +202,7 @@ class AccountGroup(models.Model):
             """,
             (company.id,),
         )
-        self.env["account.group"].invalidate_cache(fnames=["parent_id", "parent_path"])
+        self.env["account.group"].invalidate_model(["parent_id", "parent_path"])
         return True
 
     @api.constrains('code_prefix_start', 'code_prefix_end')
@@ -448,7 +448,7 @@ class AccountGroup(models.Model):
         self.env.cr.execute("UPDATE account_account SET group_id = NULL")
         self.env.cr.execute("UPDATE account_group SET parent_id = NULL")
         Group.search([]).unlink()
-        self.env['account.account'].invalidate_cache(fnames=['group_id'])
+        self.env['account.account'].invalidate_model(['group_id'])
         created = self._cpa_ensure_groups_on_all_companies()
         moved = self._cpa_assign_ledgers_from_setup()
         self._cpa_apply_group_portrait_links()

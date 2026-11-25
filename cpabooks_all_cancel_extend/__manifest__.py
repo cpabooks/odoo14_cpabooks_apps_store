@@ -23,7 +23,7 @@ Only users in the group "Cancel Posted Documents" can use these actions.
     'website': 'https://www.cpabooks.co',
     'support': 'info@cpabooks.org',
     'category': 'Accounting/Accounting',
-    'version': '14.0.2.0.0',
+    'version': '19.0.2.0.0',
     'license': 'LGPL-3',
     'price': 25.00,
     'currency': 'USD',

@@ -147,7 +147,7 @@ class AccountAccount(models.Model):
                 label = label or Version._afg_pl_unique_ledger_key(a) or a.code or str(a.id)
                 res.append((a.id, label))
             return res
-        return super().name_get()
+        return [(rec.id, rec.display_name) for rec in super()]
 
     def _afg_map_company_domain(self):
         # Switcher cids only. Never fall back to user.company_ids (all companies).
@@ -198,9 +198,10 @@ class AccountAccount(models.Model):
         return recs
 
     @api.model
-    def name_search(self, name="", args=None, operator="ilike", limit=100):
+    def name_search(self, name="", domain=None, operator="ilike", limit=100):
+        args = domain
         if not self.env.context.get("afg_unique_ledgers"):
-            return super().name_search(name=name, args=args, operator=operator, limit=limit)
+            return super().name_search(name=name, domain=args, operator=operator, limit=limit)
         args = list(args or [])
         if name:
             args = ["|", ("name", operator, name), ("code", operator, name)] + args
@@ -210,7 +211,7 @@ class AccountAccount(models.Model):
         recs = recs._afg_dedupe_unique_ledgers()
         if limit:
             recs = recs[: int(limit)]
-        return recs.name_get()
+        return [(rec.id, rec.display_name) for rec in recs]
 
     def action_remove_from_ctf(self):
         self.write({"ctf_category": False})

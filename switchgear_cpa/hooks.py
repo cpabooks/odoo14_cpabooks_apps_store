@@ -73,7 +73,8 @@ def _cleanup_demo_setup(env):
             )
 
 
-def pre_init_hook(cr):
+def pre_init_hook(env):
+    cr = env.cr
     """Drop orphan MRP system_admin views before switchgear MO inherits validate."""
     try:
         from odoo.addons.cpabooks_addons_issues.hooks import (
@@ -99,7 +100,7 @@ def pre_init_hook(cr):
              WHERE model = 'mrp.production'
                AND COALESCE(active, TRUE) IS TRUE
                AND (
-                    COALESCE(arch_db, '') ILIKE %s
+                    COALESCE(arch_db::text, '') ILIKE %s
                  OR name = 'mo.order.extend'
                )
             """,
@@ -125,7 +126,7 @@ def _ensure_switchgear_menu_visibility(env):
         raise_if_not_found=False,
     )
     if menu and user_group:
-        menu.sudo().write({'groups_id': [(6, 0, [user_group.id])]})
+        menu.sudo().write({'group_ids': [(6, 0, [user_group.id])]})
     if user_group and flowchart and flowchart not in user_group.implied_ids:
         user_group.sudo().write({'implied_ids': [(4, flowchart.id)]})
         _logger.info(
@@ -140,10 +141,12 @@ def _ensure_switchgear_web_ui_mode(env):
     _logger.info('switchgear_cpa: set app_web_ui_mode=switchgear')
 
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     """Remove broken menus and legacy demo setup records."""
     from .install_notify import notify_app_install
-    notify_app_install(cr, 'switchgear_cpa', 'Switchgear Manufacturing')
+    notify_app_install(env, 'switchgear_cpa', 'Switchgear Manufacturing')
     env = api.Environment(cr, SUPERUSER_ID, {})
     try:
         from odoo.addons.cpabooks_admin_power.user_menu_rules import (
@@ -154,7 +157,7 @@ def post_init_hook(cr, registry):
         _logger.debug(
             'switchgear_cpa: cpabooks_admin_power not loaded for group migration',
         )
-    cr.execute("DELETE FROM ir_ui_menu WHERE name IS NULL OR name = ''")
+    cr.execute("DELETE FROM ir_ui_menu WHERE name IS NULL OR name::text IN ('{}', '\"\"')")
     if cr.rowcount:
         _logger.info(
             'switchgear_cpa: removed %s broken menu row(s)',

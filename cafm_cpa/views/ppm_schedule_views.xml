@@ -5,7 +5,7 @@
             <field name="name">cpabooks.cafm.ppm.tree</field>
             <field name="model">cpabooks.cafm.ppm</field>
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="name"/>
                     <field name="project_id"/>
                     <field name="unit_id"/>
@@ -14,7 +14,7 @@
                     <field name="annual_visits"/>
                     <field name="next_due_date"/>
                     <field name="state"/>
-                </tree>
+                </list>
             </field>
         </record>
 
@@ -25,7 +25,7 @@
                 <form string="PPM Activity">
                     <header>
                         <button name="action_open_project" type="object" string="Open Project" class="btn-secondary"/>
-                        <button name="action_open_unit" type="object" string="Open Villa / Flat" class="btn-secondary" attrs="{'invisible': [('unit_id', '=', False)]}"/>
+                        <button name="action_open_unit" type="object" string="Open Villa / Flat" class="btn-secondary" invisible="not unit_id"/>
                         <button name="action_view_requests" type="object" string="Open Service Calls" class="btn-secondary"/>
                     </header>
                     <sheet>
@@ -52,13 +52,13 @@
                         </group>
                         <group>
                             <field name="request_ids">
-                                <tree>
+                                <list>
                                     <field name="ticket_no"/>
                                     <field name="name"/>
                                     <field name="cafm_unit_id"/>
                                     <field name="request_date"/>
                                     <field name="stage_id"/>
-                                </tree>
+                                </list>
                             </field>
                         </group>
                     </sheet>
@@ -69,7 +69,7 @@
         <record id="action_cafm_cpa_ppm" model="ir.actions.act_window">
             <field name="name">PPM Schedule</field>
             <field name="res_model">cpabooks.cafm.ppm</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
         </record>
 
     </data>

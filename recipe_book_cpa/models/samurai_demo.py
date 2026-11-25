@@ -158,7 +158,7 @@ class RecipeBookDemo(models.Model):
                     'type': 'ir.actions.act_window',
                     'name': _('Sample Recipes') if demo else _('Menu Book'),
                     'res_model': 'cpabooks.recipe',
-                    'view_mode': 'kanban,tree,form',
+                    'view_mode': 'kanban,list,form',
                     'domain': [('is_demo', '=', True)] if demo else [],
                     'target': 'current',
                 },
@@ -401,8 +401,8 @@ class RecipeBookDemo(models.Model):
             JOIN product_template pt ON pt.id = pp.product_tmpl_id
             WHERE po.state IN ('purchase', 'done')
               AND pt.purchase_ok
-              AND pt.name NOT ILIKE '%%steel%%'
-              AND pt.name NOT ILIKE '%%wool%%'
+              AND pt.name::text NOT ILIKE '%%steel%%'
+              AND pt.name::text NOT ILIKE '%%wool%%'
             GROUP BY pol.product_id
             ORDER BY COUNT(*) DESC
             LIMIT 80
@@ -442,11 +442,11 @@ class RecipeBookDemo(models.Model):
                 product = self.env['product.product'].sudo().create({
                     'name': row['label'],
                     'default_code': code,
-                    'type': 'product',
+                    'type': 'consu',
+                    'is_storable': True,
                     'purchase_ok': True,
                     'sale_ok': False,
                     'uom_id': uom.id,
-                    'uom_po_id': uom.id,
                     'standard_price': row['price'],
                     'company_id': self.env.company.id,
                 })
@@ -507,11 +507,11 @@ class RecipeBookDemo(models.Model):
         return self.env['product.product'].sudo().create({
             'name': spec['name'],
             'default_code': code,
-            'type': 'product',
+            'type': 'consu',
+            'is_storable': True,
             'purchase_ok': False,
             'sale_ok': False,
             'uom_id': uom.id,
-            'uom_po_id': uom.id,
             'company_id': self.env.company.id,
         })
 
@@ -533,7 +533,6 @@ class RecipeBookDemo(models.Model):
             'purchase_ok': False,
             'list_price': spec['menu_price'] or 0.0,
             'uom_id': uom.id,
-            'uom_po_id': uom.id,
             'company_id': self.env.company.id,
         })
 

@@ -19,7 +19,7 @@ class RecipeDemoWizard(models.TransientModel):
             'type': 'ir.actions.act_window',
             'name': _('Sample Recipes') if demo else _('Menu Book'),
             'res_model': 'cpabooks.recipe',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('is_demo', '=', demo)],
             'target': 'current',
         }

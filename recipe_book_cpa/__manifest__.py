@@ -3,7 +3,7 @@
     'name': 'Recipe and Food Costing',
     'summary': 'Restaurant recipe book, food costing, ingredient consumption and closing stock',
     'description': """
-Recipe Book for restaurants on Odoo 14.
+Recipe Book for restaurants on Odoo 19.
 
 * Link each menu item to a sales product and store ingredients per portion.
 * Compare budget food cost with the current recipe cost and margin.
@@ -11,7 +11,7 @@ Recipe Book for restaurants on Odoo 14.
 * Enter chef closing stock and see variance against theoretical use.
 * Load sample recipes, then clone them into live recipes.
     """,
-    'version': '14.0.1.0.46',
+    'version': '19.0.1.0.46',
     'category': 'Operations/Restaurant',
     'author': 'CPA Books',
     'website': 'https://www.cpabooks.co',
@@ -38,10 +38,20 @@ Recipe Book for restaurants on Odoo 14.
         'wizard/demo_wizard_views.xml',
         'views/menu.xml',
     ],
-    'qweb': [
-        'static/src/xml/dashboard.xml',
-        'static/src/xml/key_results.xml',
-    ],
+    'assets': {
+        'web.assets_backend': [
+            ('include', 'web._assets_jquery'),
+            'recipe_book_cpa/static/src/css/recipe_list.css',
+            'recipe_book_cpa/static/src/css/dashboard.css',
+            'recipe_book_cpa/static/src/css/key_results.css',
+            'recipe_book_cpa/static/src/js/legacy_compat.js',
+            'recipe_book_cpa/static/src/js/nav_toggle.js',
+            'recipe_book_cpa/static/src/js/dashboard.js',
+            'recipe_book_cpa/static/src/js/key_results.js',
+            'recipe_book_cpa/static/src/xml/dashboard.xml',
+            'recipe_book_cpa/static/src/xml/key_results.xml',
+        ],
+    },
     'images': ['static/description/banner_store.jpg'],
     'installable': True,
     'application': True,

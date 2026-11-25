@@ -12,17 +12,15 @@
             <field name="budget_cost"/>
             <field name="category"/>
             <templates>
-                <t t-name="kanban-box">
-                    <div class="oe_kanban_global_click o_recipe_menu_card">
-                        <div class="o_recipe_menu_photo">
-                            <img t-if="record.image_1920.raw_value" t-att-src="kanban_image('cpabooks.recipe','image_1920',record.id.raw_value)" t-att-alt="record.name.value"/>
-                        </div>
-                        <div class="o_recipe_menu_body">
-                            <strong><field name="name"/></strong>
-                            <div class="o_recipe_menu_price">
-                                <t t-if="record.menu_price.raw_value"><field name="menu_price"/> AED</t>
-                                <t t-else=""><field name="budget_cost"/></t>
-                            </div>
+                <t t-name="card" class="o_recipe_menu_card p-0">
+                    <div class="o_recipe_menu_photo">
+                        <img t-if="record.image_1920.raw_value" t-att-src="kanban_image('cpabooks.recipe','image_1920',record.id.raw_value)" t-att-alt="record.name.value"/>
+                    </div>
+                    <div class="o_recipe_menu_body">
+                        <strong><field name="name"/></strong>
+                        <div class="o_recipe_menu_price">
+                            <t t-if="record.menu_price.raw_value"><field name="menu_price"/> AED</t>
+                            <t t-else=""><field name="budget_cost"/></t>
                         </div>
                     </div>
                 </t>

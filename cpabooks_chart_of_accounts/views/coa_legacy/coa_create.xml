@@ -65,11 +65,11 @@
 <!--            <field name="name">coa.create.tree</field>-->
 <!--            <field name="model">coa.create</field>-->
 <!--            <field name="arch" type="xml">-->
-<!--                <tree string="COA Create" multi_edit="1">-->
+<!--                <list string="COA Create" multi_edit="1">-->
 
 <!--                    <field name="csv_file"/>-->
 
-<!--                </tree>-->
+<!--                </list>-->
 <!--            </field>-->
 <!--        </record>-->
 

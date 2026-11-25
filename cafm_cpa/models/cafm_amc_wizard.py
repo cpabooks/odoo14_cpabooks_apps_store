@@ -209,7 +209,7 @@ class CafmAmcLifecycleWizard(models.TransientModel):
                 "type": "ir.actions.act_window",
                 "name": _("Vendor Bills"),
                 "res_model": "account.move",
-                "view_mode": "tree,form",
+                "view_mode": "list,form",
                 "domain": [("move_type", "=", "in_invoice")],
                 "context": {"default_move_type": "in_invoice"},
                 "target": "current",

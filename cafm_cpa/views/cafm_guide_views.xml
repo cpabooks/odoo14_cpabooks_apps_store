@@ -54,7 +54,7 @@
                     <sheet>
                         <div class="oe_title">
                             <h1>AMC / VAR Wizard</h1>
-                            <p attrs="{'invisible': [('path_type', '!=', False)]}">
+                            <p invisible="path_type">
                                 Choose AMC or VAR — each step has Create and Open.
                             </p>
                         </div>
@@ -65,33 +65,28 @@
                             <field name="step_key" invisible="1"/>
                         </group>
 
-                        <div class="o_cafm_wizard_3d_row" attrs="{'invisible': [('path_type', '!=', False)]}">
+                        <div class="o_cafm_wizard_3d_row" invisible="path_type">
                             <button name="action_choose_amc" type="object" string="AMC"
                                     class="o_cafm_btn_3d o_cafm_btn_3d_amc"/>
                             <button name="action_choose_var" type="object" string="VAR (no AMC)"
                                     class="o_cafm_btn_3d o_cafm_btn_3d_var"/>
                         </div>
 
-                        <group attrs="{'invisible': [('path_type', '=', False)]}">
+                        <group invisible="not path_type">
                             <field name="progress_label" readonly="1" string="Progress"/>
                             <field name="step_title" readonly="1" string="Current step"/>
                             <field name="step_help" readonly="1" nolabel="1" colspan="2"/>
                         </group>
 
-                        <group string="Context (optional)"
-                               attrs="{'invisible': [('path_type', '=', False)]}">
+                        <group string="Context (optional)" invisible="not path_type">
                             <field name="partner_id"/>
                             <field name="project_id"/>
-                            <field name="contract_id"
-                                      attrs="{'invisible': [('path_type', '!=', 'amc')]}"/>
-                            <field name="sale_order_id"
-                                      attrs="{'invisible': [('path_type', '!=', 'var')]}"/>
-                            <field name="priority_id"
-                                      attrs="{'invisible': ['|', ('path_type', '!=', 'amc'), ('step_key', '!=', 'sla')]}"/>
+                            <field name="contract_id" invisible="path_type != 'amc'"/>
+                            <field name="sale_order_id" invisible="path_type != 'var'"/>
+                            <field name="priority_id" invisible="path_type != 'amc' or step_key != 'sla'"/>
                         </group>
 
-                        <div class="o_cafm_wizard_actions"
-                             attrs="{'invisible': [('path_type', '=', False)]}">
+                        <div class="o_cafm_wizard_actions" invisible="not path_type">
                             <button name="action_create_step" type="object"
                                     string="Create" class="btn-primary oe_highlight"/>
                             <button name="action_open_step" type="object"
@@ -99,10 +94,8 @@
                         </div>
                     </sheet>
                     <footer>
-                        <button name="action_back" type="object" string="Back"
-                                attrs="{'invisible': [('path_type', '=', False)]}"/>
-                        <button name="action_next" type="object" string="Next" class="oe_highlight"
-                                attrs="{'invisible': [('path_type', '=', False)]}"/>
+                        <button name="action_back" type="object" string="Back" invisible="not path_type"/>
+                        <button name="action_next" type="object" string="Next" class="oe_highlight" invisible="not path_type"/>
                         <button string="Close" special="cancel" class="btn-secondary"/>
                     </footer>
                 </form>

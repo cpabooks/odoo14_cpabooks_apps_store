@@ -42,7 +42,8 @@ def _ensure_afg_account_ctf_column(cr):
     )
 
 
-def pre_init_hook(cr):
+def pre_init_hook(env):
+    cr = env.cr
     """Drop stale M2M tables so reinstall can recreate FK constraints cleanly."""
     _ensure_afg_account_ctf_column(cr)
     _mark_project_dashboard_odoo_for_upgrade(cr)
@@ -107,7 +108,9 @@ def _ensure_afg_line_merged_leaf_column(cr):
     )
 
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     import logging
 
     from odoo import api, SUPERUSER_ID
@@ -115,7 +118,7 @@ def post_init_hook(cr, registry):
     from .install_notify import notify_app_install
 
     _logger = logging.getLogger(__name__)
-    notify_app_install(cr, 'audited_financial_cpa', 'Audited Financial Statements')
+    notify_app_install(env, 'audited_financial_cpa', 'Audited Financial Statements')
     _ensure_afg_version_print_columns(cr)
     _ensure_afg_line_merged_leaf_column(cr)
     env = api.Environment(cr, SUPERUSER_ID, {})

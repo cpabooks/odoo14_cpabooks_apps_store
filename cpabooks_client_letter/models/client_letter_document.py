@@ -47,8 +47,16 @@ class ClientLetterDocument(models.Model):
     def _selection_source_models(self):
         return self.env["client.letter.wizard"]._selection_source_models()
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_ClientLetterDocument(vals)
+        return records
+
+    def _create_single_ClientLetterDocument(self, vals):
         if not vals.get("name") or vals.get("name") == "New":
             vals["name"] = self.env["ir.sequence"].next_by_code("client.letter.document") or "Msg-001"
         return super().create(vals)

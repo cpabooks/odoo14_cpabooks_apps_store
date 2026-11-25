@@ -1,8 +1,22 @@
-odoo.define('switchgear_cpa.switchgear_app_shell', function (require) {
-'use strict';
+/** @odoo-module **/
+/**
+ * Switchgear app shell (Odoo 19).
+ *
+ * Odoo 14 wrapped every action's .o_content in a layout with a left sidebar.
+ * Moving OWL-rendered DOM is unsafe in Odoo 19, so the sidebar is now one
+ * fixed OWL component (registry main_components) and the action area is
+ * shifted with CSS (body.o_switchgear_app_shell). The public AppShell API is
+ * kept for the Switchgear client actions; mountSidebar / wrapActionContent
+ * are no-ops because the sidebar is global.
+ */
+import { Component, useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
+import { useBus, useService } from "@web/core/utils/hooks";
+import { _ } from "@switchgear_cpa/js/legacy_compat";
 
-var ActionManager = require('web.ActionManager');
-var core = require('web.core');
+const $ = window.jQuery;
+const ROOT_MENU_XMLID = "switchgear_cpa.menu_flowchart_kanban_root";
 
 var SHELL_CLASS = 'o_switchgear_app_shell';
 var MAIN_MENU_CLASS = 'o_switchgear_show_main_menu';
@@ -33,7 +47,7 @@ var NAV_ITEMS = [
         {key: 'stock_transfers', label: 'Transfers', xmlid: 'stock.action_picking_tree_all'},
         {key: 'grn', label: 'Receipts (GRN)', xmlid: 'switchgear_cpa.action_switchgear_stock_incoming'},
         {key: 'delivery', label: 'Delivery Orders', xmlid: 'switchgear_cpa.action_switchgear_stock_outgoing'},
-        {key: 'stock_adjustments', label: 'Inventory Adjustments', xmlid: 'stock.action_inventory_form'},
+        {key: 'stock_adjustments', label: 'Inventory Adjustments', xmlid: 'stock.action_view_inventory_tree'},
         {key: 'stock_replenish', label: 'Reordering Rules', xmlid: 'stock.action_orderpoint'},
         {key: 'stock_products', label: 'Products', xmlid: 'stock.product_template_action_product'},
         {key: 'inv_valuation_live', label: 'Inventory Valuation — Live', xmlid: 'stock.action_view_quants'},
@@ -138,50 +152,6 @@ function filterNavItems(options) {
         }
         return _.extend({}, block, {items: items});
     }).filter(Boolean);
-}
-
-function renderSidebarHtml(activeKey, options) {
-    var html = '<aside class="o_switchgear_app_sidebar">' +
-        '<div class="o_switchgear_app_sidebar_title">Switchgear Work</div>' +
-        '<ul class="list-group list-group-flush o_switchgear_app_sidebar_nav">';
-    _.each(filterNavItems(options), function (block) {
-        if (block.section) {
-            var sectionCls = block.sectionClass ? (' ' + block.sectionClass) : '';
-            html += '<li class="list-group-item o_switchgear_app_sidebar_section' + sectionCls + '">' +
-                _.escape(block.section) + '</li>';
-        }
-        var isMainSection = block.sectionClass === 'o_switchgear_section_home';
-        _.each(block.items, function (item) {
-            var cls = item.key === activeKey ? ' active' : '';
-            var tierCls = isMainSection ? ' o_switchgear_app_sidebar_item_main' : ' o_switchgear_app_sidebar_item_sub';
-            html += '<li class="list-group-item' + tierCls + cls + '">' +
-                '<a href="#" data-nav-key="' + item.key + '">' + _.escape(item.label) + '</a></li>';
-        });
-    });
-    html += '</ul></aside>';
-    return html;
-}
-
-function bindSidebarNav($sidebar, doActionFn) {
-    $sidebar.find('.o_switchgear_app_sidebar_nav a').off('click').on('click', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        var navKey = $(ev.currentTarget).data('navKey');
-        if (!navKey || !doActionFn) {
-            return;
-        }
-        var selectedItem = null;
-        _.each(NAV_ITEMS, function (block) {
-            _.each(block.items, function (item) {
-                if (!selectedItem && item.key === navKey) {
-                    selectedItem = item;
-                }
-            });
-        });
-        if (selectedItem) {
-            return runNavItem(selectedItem, doActionFn);
-        }
-    });
 }
 
 function findNavItemByKey(navKey) {
@@ -338,249 +308,131 @@ function isSwitchgearAction(action) {
     return false;
 }
 
-function stackHasSwitchgear(actionManager) {
-    return _.some(actionManager.controllerStack || [], function (controller) {
-        return controller && controller.action && isSwitchgearAction(controller.action);
-    });
+
+function openAppsMenu() {
+    const toggle = document.querySelector(
+        ".o_navbar_apps_menu button, .o_navbar_apps_menu .dropdown-toggle, .o_main_navbar .o_menu_toggle"
+    );
+    if (toggle) {
+        toggle.click();
+    }
+    return Promise.resolve();
 }
 
-function isSwitchgearPrimaryMenu() {
-    try {
-        var brand = ($('.o_main_navbar .o_menu_brand').text() || '').trim().toLowerCase();
-        if (brand.indexOf('switchgear') !== -1) {
-            return true;
-        }
-        var sections = ($('.o_main_navbar .o_menu_sections').text() || '');
-        if (sections.indexOf('Tutorial Wizard') !== -1 ||
-                sections.indexOf('CPA Switchgear') !== -1) {
-            return true;
-        }
-    } catch (e) {
-        // ignore
-    }
-    return false;
-}
-
-function shouldUseSwitchgearShell(actionManager, action) {
-    if (action && action.res_model === 'res.config.settings') {
-        return false;
-    }
-    // Follow Switchgear app/actions even when Settings UI mode is default_odoo
-    // (login often leaves app_web_ui_mode unset / default_odoo).
-    return isSwitchgearAction(action) ||
-        stackHasSwitchgear(actionManager) ||
-        isSwitchgearPrimaryMenu();
-}
-
-function runNavItem(item, doActionFn) {
-    if (!item) {
-        return $.when();
-    }
-    if (item.special === 'open_app_menu') {
-        return AppShell.openMainMenu();
-    }
-    if (item.xmlid && doActionFn) {
-        return doActionFn(item);
-    }
-    return $.when();
-}
-
-var AppShell = {
+export const AppShell = {
     SHELL_CLASS: SHELL_CLASS,
     MAIN_MENU_CLASS: MAIN_MENU_CLASS,
     NAV_ITEMS: NAV_ITEMS,
 
-    activate: function () {
-        $('body').addClass(SHELL_CLASS);
-        // Top app submenu + Icon View stay off — left sidebar is the only nav.
-        $('body').removeClass(MAIN_MENU_CLASS);
-        $('.o_main_navbar .o_menu_sections').hide();
-        $('.o_cpabooks_icon_view_btn').hide();
+    activate() {
+        document.body.classList.add(SHELL_CLASS);
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    showMainMenuBar: function () {
-        // Kept for callers; Switchgear uses left sidebar only (no top tabs).
-        $('body').removeClass(MAIN_MENU_CLASS);
-        $('.o_main_navbar .o_menu_sections').hide();
-        $('.o_cpabooks_icon_view_btn').hide();
+    showMainMenuBar() {
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    hideMainMenuBar: function () {
-        $('body').removeClass(MAIN_MENU_CLASS);
-        $('.o_main_navbar .o_menu_sections').hide();
-        $('.o_cpabooks_icon_view_btn').hide();
+    hideMainMenuBar() {
+        document.body.classList.remove(MAIN_MENU_CLASS);
     },
-
-    openMainMenu: function () {
-        var $toggle = $('nav.o_main_navbar > a.o_menu_toggle, .o_main_navbar .o_menu_toggle').first();
-        if ($toggle.length) {
-            $toggle.trigger('click');
-        }
-        return $.when();
+    openMainMenu: openAppsMenu,
+    deactivate() {
+        document.body.classList.remove(SHELL_CLASS, MAIN_MENU_CLASS);
     },
-
-    deactivate: function () {
-        $('body').removeClass(SHELL_CLASS).removeClass(MAIN_MENU_CLASS);
-        $('.o_main_navbar .o_menu_sections').show();
-        $('.o_cpabooks_icon_view_btn').show();
-        $('.o_switchgear_app_layout').each(function () {
-            var $layout = $(this);
-            var $content = $layout.closest('.o_content');
-            if ($content.length) {
-                $layout.find('.o_switchgear_app_content').children().appendTo($content);
-                $layout.remove();
-            }
-        });
-    },
-
     isSwitchgearAction: isSwitchgearAction,
     activeKeyFromAction: activeKeyFromAction,
     findNavItemByKey: findNavItemByKey,
-
-    setSidebarActive: function ($root, activeKey) {
-        if (!$root || !$root.length) {
-            return;
-        }
-        $root.find('.o_switchgear_app_sidebar_nav .list-group-item').removeClass('active');
-        $root.find('.o_switchgear_app_sidebar_nav a[data-nav-key="' + activeKey + '"]')
-            .closest('.list-group-item').addClass('active');
+    setSidebarActive() {},
+    // The sidebar is the global SwitchgearShellSidebar component in Odoo 19.
+    mountSidebar() {
+        return $();
     },
-
-    mountSidebar: function ($host, activeKey, doActionFn, options) {
-        if (!$host || !$host.length) {
-            return $();
-        }
-        options = options || {};
-        var $existing = $host.children('.o_switchgear_app_sidebar').first();
-        if ($existing.length) {
-            // Keep DOM stable during form/list entry — only refresh active state + binds.
-            this.setSidebarActive($host, activeKey);
-            bindSidebarNav($existing, doActionFn);
-            return $existing;
-        }
-        $host.prepend($(renderSidebarHtml(activeKey, options)));
-        var $sidebar = $host.children('.o_switchgear_app_sidebar').first();
-        bindSidebarNav($sidebar, doActionFn);
-        return $sidebar;
+    wrapActionContent($content) {
+        return $content || $();
     },
-
-    wrapActionContent: function ($content, activeKey, doActionFn, options) {
-        if (!$content || !$content.length) {
-            return $();
-        }
-        options = options || {};
-        var $layout = $content.children('.o_switchgear_app_layout').first();
-        if (!$layout.length) {
-            // Avoid wrapping twice if children already include a layout (race / re-entry).
-            var $nested = $content.find('> .o_switchgear_app_layout').first();
-            if ($nested.length) {
-                $layout = $nested;
-            }
-        }
-        if (!$layout.length) {
-            $layout = $('<div class="o_switchgear_app_layout"/>');
-            var $sidebarHost = $('<div class="o_switchgear_sidebar_host"/>');
-            var $main = $('<div class="o_switchgear_app_content"/>');
-            $main.append($content.contents());
-            $layout.append($sidebarHost).append($main);
-            $content.append($layout);
-        }
-        this.mountSidebar($layout.children('.o_switchgear_sidebar_host').first(), activeKey, doActionFn, options);
-        // Mark form/list screens so CSS can drop double padding that shifts layout.
-        var $mainPane = $layout.find('.o_switchgear_app_content').first();
-        var hasNativeView = $mainPane.children(
-            '.o_view_controller, .o_form_view, .o_list_view, .o_kanban_view, .o_control_panel'
-        ).length > 0 || $mainPane.find('> .o_content > .o_view_controller').length > 0;
-        // Odoo 14 often nests controller under .o_content inside action content.
-        if (!$mainPane.children('.o_form_view, .o_list_view, .o_kanban_view, .o_view_controller').length) {
-            hasNativeView = $mainPane.find('.o_form_view, .o_list_view, .o_kanban_view').length > 0;
-        }
-        $mainPane.toggleClass('o_switchgear_app_content_native', !!hasNativeView);
-        return $mainPane;
+    getSidebarOptions() {
+        return Promise.resolve({ isSystemAdmin: user.isSystem });
     },
-
-    getSidebarOptions: function () {
-        var session = require('web.session');
-        return session.user_has_group('base.group_system').then(function (isSystemAdmin) {
-            return {isSystemAdmin: !!isSystemAdmin};
-        }).guardedCatch(function () {
-            return {isSystemAdmin: false};
-        });
+    isDefaultOdooMode() {
+        return false;
     },
-
-    isDefaultOdooMode: function () {
-        var session = require('web.session');
-        return session.app_web_ui_mode === 'default_odoo';
-    },
-
-    isSwitchgearSidebarMode: function () {
-        // Legacy name: shell follows Switchgear app/actions, not only ICP mode.
+    isSwitchgearSidebarMode() {
         return true;
     },
-
-    isNativeBackendScreen: function (action) {
-        return action && action.res_model === 'res.config.settings';
-    },
-
-    shouldUseShell: shouldUseSwitchgearShell,
-
-    syncActionManager: function (actionManager, action) {
-        if (!actionManager) {
-            return;
-        }
-        var self = this;
-        if (!shouldUseSwitchgearShell(actionManager, action)) {
-            this.deactivate();
-            return;
-        }
-        this.activate();
-        this.hideMainMenuBar();
-        // Client actions (dashboard / processing cycle) mount their own layout.
-        if (action && (action.tag === 'switchgear_dashboard' || action.tag === 'switchgear_flowchart' ||
-                action.tag === 'switchgear_processing_cycle')) {
-            return;
-        }
-        var activeKey = activeKeyFromAction(action);
-        var $action = $('.o_action_manager .o_action').filter(':visible').last();
-        var $content = $action.children('.o_content').first();
-        if (!$content.length) {
-            $content = $action.find('.o_content').first();
-        }
-        if (!$content.length) {
-            return;
-        }
-        var doActionFn = function (item) {
-            if (item.special === 'open_app_menu') {
-                return AppShell.openMainMenu();
-            }
-            if (item.xmlid) {
-                return actionManager.do_action(item.xmlid);
-            }
-            return $.when();
-        };
-        this.getSidebarOptions().then(function (options) {
-            self.wrapActionContent($content, activeKey, doActionFn, options);
-            self.setSidebarActive($content, activeKey);
-        });
+    isNativeBackendScreen(action) {
+        return action && action.res_model === "res.config.settings";
     },
 };
 
-ActionManager.include({
-    _handleAction: function (action, options) {
-        var self = this;
-        return this._super(action, options).then(function () {
-            AppShell.syncActionManager(self, action);
-        });
-    },
+export class SwitchgearShellSidebar extends Component {
+    static template = "switchgear_cpa.SwitchgearShellSidebar";
+    static props = {};
+
+    setup() {
+        this.menu = useService("menu");
+        this.actionService = useService("action");
+        this.state = useState({ active: false, activeKey: "dashboard" });
+        const sync = () => this.sync();
+        useBus(this.env.bus, "ACTION_MANAGER:UI-UPDATED", sync);
+        useBus(this.env.bus, "MENUS:APP-CHANGED", sync);
+        sync();
+    }
+
+    get blocks() {
+        return filterNavItems({ isSystemAdmin: user.isSystem });
+    }
+
+    currentAction() {
+        const controller = this.actionService.currentController;
+        return controller && controller.action;
+    }
+
+    sync() {
+        const app = this.menu.getCurrentApp();
+        const action = this.currentAction();
+        let active;
+        if (action && action.res_model === "res.config.settings") {
+            active = false;
+        } else if (app) {
+            active = app.xmlid === ROOT_MENU_XMLID;
+        } else {
+            active = Boolean(action && (action.tag || "").startsWith("switchgear_"));
+        }
+        this.state.active = active;
+        this.state.activeKey = activeKeyFromAction(action);
+        if (active) {
+            AppShell.activate();
+        } else {
+            AppShell.deactivate();
+        }
+    }
+
+    itemClass(block, item) {
+        const main = block.sectionClass === "o_switchgear_section_home";
+        return {
+            "list-group-item": true,
+            o_switchgear_app_sidebar_item_main: main,
+            o_switchgear_app_sidebar_item_sub: !main,
+            active: item.key === this.state.activeKey,
+        };
+    }
+
+    async onItem(item) {
+        if (item.special === "open_app_menu") {
+            return openAppsMenu();
+        }
+        if (item.xmlid) {
+            this.state.activeKey = item.key;
+            try {
+                await this.actionService.doAction(item.xmlid, { clearBreadcrumbs: true });
+            } catch (e) {
+                console.warn("Switchgear sidebar: cannot open", item.xmlid, e);
+            }
+        }
+    }
+}
+
+registry.category("main_components").add("switchgear_cpa.shell_sidebar", {
+    Component: SwitchgearShellSidebar,
 });
 
-// Leaving Switchgear: remove shell classes so Settings tabs do not stick on the apps home screen.
-core.bus.on('show_home_menu', null, function () {
-    AppShell.deactivate();
-});
-core.bus.on('will_show_home_menu', null, function () {
-    AppShell.deactivate();
-});
-
-return AppShell;
-});
+export default AppShell;

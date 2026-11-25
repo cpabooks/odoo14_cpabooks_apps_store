@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Fire Alarm and Fire Fighting',
-    'version': '14.0.1.0.25',
+    'version': '19.0.1.0.25',
     'author': 'CPA Books',
     'summary': 'Fire alarm and fire fighting jobs from inspection and quotation to invoice',
     'sequence': -95,
@@ -27,6 +27,8 @@ Execute → Test → Handover → Invoice → Payment.
         'account',
         'mail',
         'hr',
+        # task "progress" column (project.task.progress comes from hr_timesheet)
+        'hr_timesheet',
         'sequences_cpa',
     ],
     'data': [
@@ -35,7 +37,6 @@ Execute → Test → Handover → Invoice → Payment.
         'data/sequence.xml',
         'data/job_type_data.xml',
         'data/default_task_data.xml',
-        'views/faff_backend_assets.xml',
         'views/faff_config_views.xml',
         'views/faff_job_views.xml',
         'views/faff_visit_views.xml',
@@ -55,10 +56,25 @@ Execute → Test → Handover → Invoice → Payment.
         'report/faff_mis_templates.xml',
     ],
     'demo': [],
-    'qweb': [
-        'static/src/xml/faff_dashboard.xml',
-        'static/src/xml/faff_process_flow.xml',
-    ],
+    'assets': {
+        'web.assets_backend': [
+            ('include', 'web._assets_jquery'),
+            'faff_cpa/static/src/css/faff_backend_shell.css',
+            'faff_cpa/static/src/css/faff_ui_theme_default.css',
+            'faff_cpa/static/src/css/faff_dashboard.css',
+            'faff_cpa/static/src/css/faff_process_wizard.css',
+            'faff_cpa/static/src/css/faff_process_flow.css',
+            'faff_cpa/static/src/js/legacy_compat.js',
+            'faff_cpa/static/src/js/faff_ui_theme.js',
+            'faff_cpa/static/src/js/faff_shell_sidebar.js',
+            'faff_cpa/static/src/js/faff_dashboard.js',
+            'faff_cpa/static/src/js/faff_process_flow.js',
+            'faff_cpa/static/src/js/faff_wizard_progress_html.js',
+            'faff_cpa/static/src/xml/faff_dashboard.xml',
+            'faff_cpa/static/src/xml/faff_process_flow.xml',
+            'faff_cpa/static/src/xml/faff_wizard_progress_html.xml',
+        ],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,

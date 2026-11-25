@@ -17,11 +17,11 @@ class AccountMove(models.Model):
     def _cpa_reconciled_payments(self):
         """Payments reconciled with these moves (not the moves' own payment)."""
         lines = self.line_ids.filtered(
-            lambda l: l.account_id.internal_type in ('receivable', 'payable'))
+            lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable'))
         counterparts = (lines.mapped('matched_debit_ids.debit_move_id')
                         | lines.mapped('matched_credit_ids.credit_move_id'))
-        payments = counterparts.mapped('move_id.payment_id')
-        return (payments - self.mapped('payment_id')).exists()
+        payments = counterparts.mapped('move_id.origin_payment_id')
+        return (payments - self.mapped('origin_payment_id')).exists()
 
     def cpa_cancel_moves(self, mode=None, payment_mode=None):
         """Cancel posted moves.
@@ -47,8 +47,8 @@ class AccountMove(models.Model):
             if move.state != 'cancel':
                 move.button_cancel()
             if move_mode == 'delete':
-                if move.payment_id:
-                    move.payment_id.with_context(force_delete=True).unlink()
+                if move.origin_payment_id:
+                    move.origin_payment_id.with_context(force_delete=True).unlink()
                 else:
                     move.with_context(force_delete=True).unlink()
         return True

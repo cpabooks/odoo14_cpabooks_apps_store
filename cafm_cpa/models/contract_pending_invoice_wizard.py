@@ -185,7 +185,7 @@ class CafmPendingInvoiceWizard(models.TransientModel):
                 'type': 'ir.actions.act_window',
                 'name': _('Pending Invoices'),
                 'res_model': 'account.move',
-                'view_mode': 'tree,form',
+                'view_mode': 'list,form',
                 'domain': [('id', 'in', created_moves.ids)],
                 'target': 'current',
                 'context': {'default_move_type': 'out_invoice'},

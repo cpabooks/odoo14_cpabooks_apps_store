@@ -150,11 +150,13 @@ def _cleanup_stale_account_account_fields(cr):
                 _logger.info('CPABooks CoA: removed stale field entry account.account.%s', field_name)
 
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     from odoo import api, SUPERUSER_ID
     from .install_notify import notify_app_install
 
-    notify_app_install(cr, 'cpabooks_chart_of_accounts', 'Chart of Accounts Management')
+    notify_app_install(env, 'cpabooks_chart_of_accounts', 'Chart of Accounts Management')
     _ensure_account_account_cpabooks_columns(cr)
     _drop_account_code_unique_per_company(cr)
     _ensure_res_company_coa_code_digits(cr)

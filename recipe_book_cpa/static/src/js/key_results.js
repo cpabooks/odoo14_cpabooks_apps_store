@@ -1,11 +1,9 @@
-odoo.define('recipe_book_cpa.key_results', function (require) {
-    'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@recipe_book_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
 
-    var AbstractAction = require('web.AbstractAction');
-    var core = require('web.core');
-    var Dialog = require('web.Dialog');
-
-    var KeyResults = AbstractAction.extend({
+const $ = window.jQuery;
+    var KeyResults = legacyAction({
         template: 'RecipeKeyResults',
         hasControlPanel: false,
         init: function (parent, action) {
@@ -417,7 +415,7 @@ odoo.define('recipe_book_cpa.key_results', function (require) {
             var html = '<div class="kr_purchase_box"><p class="kr_purchase_window">' + _.escape(result.window || '') + '</p>' + note +
                 '<table class="kr_table kr_purchases"><thead><tr><th>Date</th><th>Bill</th><th>Vendor</th><th>Item</th><th class="kr_num">Qty</th><th class="kr_num">Amount</th></tr></thead><tbody>' +
                 rows + footer + '</tbody></table></div>';
-            new Dialog(this, {
+            new LegacyDialog(this, {
                 title: result.title || 'Purchases',
                 size: 'large',
                 $content: $(html),
@@ -572,6 +570,5 @@ odoo.define('recipe_book_cpa.key_results', function (require) {
         },
     });
 
-    core.action_registry.add('cpabooks_recipe_key_results', KeyResults);
-    return KeyResults;
-});
+    registerLegacyAction('cpabooks_recipe_key_results', KeyResults);
+    export default KeyResults;

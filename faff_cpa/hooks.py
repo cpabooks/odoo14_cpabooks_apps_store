@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     from .install_notify import notify_app_install
-    notify_app_install(cr, 'faff_cpa', 'Fire Alarm and Fire Fighting')
+    notify_app_install(env, 'faff_cpa', 'Fire Alarm and Fire Fighting')

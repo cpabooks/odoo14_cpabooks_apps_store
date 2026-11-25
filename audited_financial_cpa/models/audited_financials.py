@@ -381,13 +381,10 @@ class AuditedFinancialGroup(models.Model):
     )
     note = fields.Text()
 
-    _sql_constraints = [
-        (
-            "audited_financial_group_code_company_uniq",
-            "unique(code, company_id)",
-            "AFG code must be unique per company (or once for shared templates).",
-        ),
-    ]
+    _audited_financial_group_code_company_uniq = models.Constraint(
+        'unique(code, company_id)',
+        "AFG code must be unique per company (or once for shared templates).",
+    )
 
     @api.model
     def _afg_line_ids_company_domain(self):
@@ -424,7 +421,8 @@ class AuditedFinancialGroup(models.Model):
         return result
 
     @api.model
-    def name_search(self, name="", args=None, operator="ilike", limit=100):
+    def name_search(self, name="", domain=None, operator="ilike", limit=100):
+        args = domain
         args = list(args or [])
         domain = list(args)
         if name:
@@ -864,13 +862,10 @@ class AuditedFinancialGroupLine(models.Model):
         self.unlink()
         return True
 
-    _sql_constraints = [
-        (
-            "audited_group_account_uniq",
-            "unique(group_id, account_id)",
-            "Each account can only appear once per AFG group.",
-        ),
-    ]
+    _audited_group_account_uniq = models.Constraint(
+        'unique(group_id, account_id)',
+        "Each account can only appear once per AFG group.",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -2031,9 +2026,9 @@ class AuditedFinancialVersion(models.Model):
         Line = self.env["audited.financial.line"]
         GLine = self.env["audited.financial.group.line"]
         if hasattr(Version, "flush"):
-            Version.flush()
-            Line.flush()
-            GLine.flush()
+            Version.env.flush_all()
+            Line.env.flush_all()
+            GLine.env.flush_all()
         self.env.clear()
         return True
 
@@ -3670,7 +3665,7 @@ class AuditedFinancialVersion(models.Model):
             }
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_cache()
+            ver.invalidate_model()
             result.update({
                 "year_prior": ver.year_prior,
                 "year_current": ver.year_current,
@@ -3730,7 +3725,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_cache()
+            ver.invalidate_model()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4342,7 +4337,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_cache()
+            ver.invalidate_model()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4392,7 +4387,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_cache()
+            ver.invalidate_model()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4476,9 +4471,9 @@ class AuditedFinancialVersion(models.Model):
             "type": "ir.actions.act_window",
             "name": title,
             "res_model": "account.move.line",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "views": [
-                (self.env.ref("audited_financial_cpa.view_afg_account_move_line_tree").id, "tree"),
+                (self.env.ref("audited_financial_cpa.view_afg_account_move_line_tree").id, "list"),
                 (False, "form"),
             ],
             "domain": domain,
@@ -4563,7 +4558,7 @@ class AuditedFinancialVersion(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Reassign ungrouped ledgers"),
             "res_model": "audited.financial.group.line",
-            "view_mode": "tree",
+            "view_mode": "list",
             "views": views,
             "domain": [("id", "in", recs.ids)],
             "target": "new",
@@ -6666,7 +6661,7 @@ class AuditedFinancialVersion(models.Model):
                     "company_ids": [(6, 0, scope_cids)],
                     "report_column_company_ids": [(6, 0, scope_cids)],
                 })
-                ver.invalidate_cache()
+                ver.invalidate_model()
             except Exception:
                 # Concurrent dashboard loads can DELETE the same M2M rows
                 # (could not serialize access). Skip sync this request.

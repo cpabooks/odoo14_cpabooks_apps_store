@@ -61,9 +61,10 @@ class Account(models.Model):
     })
 
 # Neutralize core unique(code, company_id) so duplicate ledger codes are allowed.
-    _sql_constraints = [
-        ('code_company_uniq', 'CHECK(True)', 'The code of the account must be unique per company !'),
-    ]
+    _code_company_uniq = models.Constraint(
+        'CHECK(True)',
+        "The code of the account must be unique per company !",
+    )
 
     @api.model
     def _is_valid_coa_seed_row(self, row):
@@ -149,8 +150,16 @@ class Account(models.Model):
             }
         }
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_Account(vals)
+        return records
+
+    def _create_single_Account(self, vals_list):
         res = super(Account, self).create(vals_list)
         if (
             isinstance(vals_list, dict)
@@ -552,8 +561,8 @@ class Account(models.Model):
                     """,
                     (tuple(shadows.ids),),
                 )
-        self.env['account.account'].invalidate_cache(fnames=['group_id'])
-        self.env['account.group'].invalidate_cache(fnames=['code_prefix_start', 'code_prefix_end'])
+        self.env['account.account'].invalidate_model(['group_id'])
+        self.env['account.group'].invalidate_model(['code_prefix_start', 'code_prefix_end'])
 
     def _find_group_from_account(self, account, prefix_map):
         company = account.company_id
@@ -1260,7 +1269,7 @@ class Account(models.Model):
             """ + domain_sql,
             params or None,
         )
-        self.invalidate_cache(fnames=['root_id'])
+        self.invalidate_model(['root_id'])
         return True
 
     @api.model
@@ -1883,7 +1892,7 @@ class Account(models.Model):
             'type': 'ir.actions.act_window',
             'name': 'Assets',
             'res_model': 'account.asset',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'views': views or False,
             'target': 'current',
             'context': self.env.context,

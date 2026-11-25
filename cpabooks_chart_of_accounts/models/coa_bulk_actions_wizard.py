@@ -94,8 +94,8 @@ class CoaBulkActionsWizard(models.TransientModel):
     def _auto_init(self):
         res = super()._auto_init()
         from odoo.tools.sql import column_exists, create_column
-        if not column_exists(self._cr, self._table, 'limit_to_merge_ledgers'):
-            create_column(self._cr, self._table, 'limit_to_merge_ledgers', 'boolean')
+        if not column_exists(self.env.cr, self._table, 'limit_to_merge_ledgers'):
+            create_column(self.env.cr, self._table, 'limit_to_merge_ledgers', 'boolean')
         return res
 
     operation_mode = fields.Selection(
@@ -185,8 +185,16 @@ class CoaBulkActionsWizard(models.TransientModel):
             values['show_only_unused'] = self.env.context['default_show_only_unused']
         return values
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CoaBulkActionsWizard(vals)
+        return records
+
+    def _create_single_CoaBulkActionsWizard(self, vals):
         if vals.get('operation_mode') == 'delete_unused':
             vals.setdefault('show_only_unused', True)
         wizard = super().create(vals)
@@ -302,7 +310,7 @@ class CoaBulkActionsWizard(models.TransientModel):
     def _get_selected_lines(self):
         self.ensure_one()
         if self.line_ids:
-            self.line_ids.flush(['selected'])
+            self.line_ids.flush_model(['selected'])
         lines = self.line_ids.filtered('selected')
         if not lines:
             lines = self.env['coa.bulk.actions.wizard.line'].search([
@@ -558,7 +566,7 @@ class CoaBulkActionsWizard(models.TransientModel):
             (target.id, source_ids),
         )
         updated = self.env.cr.rowcount
-        self.env['account.move.line'].invalidate_cache()
+        self.env['account.move.line'].invalidate_model()
         return updated
 
     def _cpabooks_reassign_bank_statement_lines(self, target, sources):
@@ -754,9 +762,9 @@ class CoaBulkActionsWizard(models.TransientModel):
         self._cpabooks_reassign_audited_financial_group_lines(target, sources)
         self._cpabooks_reassign_audited_financial_lines(target, sources)
         self._cpabooks_reassign_stored_many2one_refs(target, sources)
-        env['ir.property'].flush()
+        env['ir.property'].env.flush_all()
         if 'audited.financial.group.line' in env:
-            env['audited.financial.group.line'].flush()
+            env['audited.financial.group.line'].env.flush_all()
 
         deleted = []
         deprecated = []
@@ -890,8 +898,16 @@ class CoaBulkDeleteWizard(models.TransientModel):
                 wizard.account_ids, wizard.company_id,
             )
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CoaBulkDeleteWizard(vals)
+        return records
+
+    def _create_single_CoaBulkDeleteWizard(self, vals):
         wizard = super().create(vals)
         if wizard.account_ids and not vals.get('target_account_id'):
             suggestion = self.env['coa.bulk.actions.wizard']._suggest_move_target_account(
@@ -1176,7 +1192,7 @@ class AccountAccount(models.Model):
                         peers.with_context(afg_skip_same_name_sync=True).write(payload)
                         updated += len(peers)
         if "afg" in kinds and "afg_group_id" in Account._fields:
-            Account.invalidate_cache(fnames=["afg_group_id"])
+            Account.invalidate_model(["afg_group_id"])
         return updated
 
     def _cpa_selected_template_keys(self):
@@ -1293,7 +1309,7 @@ class AccountAccount(models.Model):
                     (group_id, account_id),
                 )
                 updated += 1
-        Account.invalidate_cache(fnames=["group_id", "cpabooks_group_code", "cpabooks_group_name"])
+        Account.invalidate_model(["group_id", "cpabooks_group_code", "cpabooks_group_name"])
         return updated
 
     def cpa_coa_menu_reset_groups(self):

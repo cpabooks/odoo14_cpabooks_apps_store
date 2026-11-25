@@ -1,46 +1,35 @@
-odoo.define("faff_cpa.wizard_progress_html", function (require) {
-    "use strict";
+/** @odoo-module **/
+/**
+ * Read-only HTML progress block of the FAFF job wizard. The server sends the
+ * HTML (sometimes entity-encoded); it is decoded and rendered as markup.
+ */
+import { Component, markup } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
-    var AbstractField = require("web.AbstractField");
-    var fieldRegistry = require("web.field_registry");
+function decodeEntities(value) {
+    if (!value) {
+        return "";
+    }
+    const text = String(value);
+    if (text.indexOf("&lt;") === -1 && text.indexOf("&#") === -1) {
+        return text;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    return textarea.value;
+}
 
-    var FaffWizardProgressHtml = AbstractField.extend({
-        className: "o_field_faff_wiz_progress_html",
-        supportedFieldTypes: ["html", "char", "text"],
+export class FaffWizardProgressHtml extends Component {
+    static template = "faff_cpa.FaffWizardProgressHtml";
+    static props = { ...standardFieldProps };
 
-        _decodeEntities: function (value) {
-            if (!value) {
-                return "";
-            }
-            var text = String(value);
-            if (text.indexOf("&lt;") === -1 && text.indexOf("&#") === -1) {
-                return text;
-            }
-            var textarea = document.createElement("textarea");
-            textarea.innerHTML = text;
-            return textarea.value;
-        },
+    get html() {
+        return markup(decodeEntities(this.props.record.data[this.props.name] || ""));
+    }
+}
 
-        _renderReadonly: function () {
-            this.$el.empty();
-            var html = this._decodeEntities(this.value || "");
-            if (html) {
-                $('<div class="o_faff_wiz_progress_wrap"/>').html(html).appendTo(this.$el);
-            }
-        },
-
-        _renderEdit: function () {
-            this._renderReadonly();
-        },
-
-        reset: function (record, event) {
-            this._super.apply(this, arguments);
-            if (!event || event.target !== this) {
-                this._render();
-            }
-        },
-    });
-
-    fieldRegistry.add("faff_wizard_progress_html", FaffWizardProgressHtml);
-    return FaffWizardProgressHtml;
+registry.category("fields").add("faff_wizard_progress_html", {
+    component: FaffWizardProgressHtml,
+    supportedTypes: ["html", "char", "text"],
 });

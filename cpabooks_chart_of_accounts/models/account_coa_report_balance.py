@@ -95,7 +95,7 @@ class AccountCoaReport(models.AbstractModel):
                 columns.append(self._cpabooks_tb_net_cell(value, blank_if_zero=True))
 
             name = account.name_get()[0][1]
-            if len(name) > 40 and not self._context.get('print_mode'):
+            if len(name) > 40 and not self.env.context.get('print_mode'):
                 name = name[:40] + '...'
 
             lines.append({

@@ -8,15 +8,15 @@
                 <group>
                     <field name="year"/>
                     <field name="scope" widget="radio"/>
-                    <field name="partner_id" attrs="{'invisible': [('scope','!=','customer')]}"/>
-                    <field name="project_id" attrs="{'invisible': [('scope','!=','project')]}"/>
+                    <field name="partner_id" invisible="scope != 'customer'"/>
+                    <field name="project_id" invisible="scope != 'project'"/>
                     <field name="location_filter"/>
                 </group>
                 <group string="Planning (frequency or manual months)">
                     <field name="planning_mode"/>
-                    <field name="frequency" attrs="{'invisible': [('planning_mode','!=','frequency')]}"/>
+                    <field name="frequency" invisible="planning_mode != 'frequency'"/>
                 </group>
-                <group string="Manual months" attrs="{'invisible': [('planning_mode','!=','manual')]}">
+                <group string="Manual months" invisible="planning_mode != 'manual'">
                     <group>
                         <field name="manual_jan"/><field name="manual_feb"/><field name="manual_mar"/><field name="manual_apr"/>
                     </group>

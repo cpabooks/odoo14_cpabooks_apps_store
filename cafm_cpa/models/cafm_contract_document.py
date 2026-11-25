@@ -15,8 +15,16 @@ class CafmContractDocument(models.Model):
     attachment_filename = fields.Char(string='Filename')
     note = fields.Text()
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmContractDocument(vals)
+        return records
+
+    def _create_single_CafmContractDocument(self, vals):
         if not vals.get('sequence') and vals.get('contract_id'):
             last_line = self.search([('contract_id', '=', vals['contract_id'])], order='sequence desc, id desc', limit=1)
             vals['sequence'] = (last_line.sequence or 0) + 1

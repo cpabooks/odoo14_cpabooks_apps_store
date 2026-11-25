@@ -87,8 +87,8 @@ class AccountMove(models.Model):
         last_start = last_end.replace(day=1)
         action = self.env.ref('cafm_cpa.action_cafm_cpa_amc_invoices').read()[0]
         tree_id = self.env.ref('cafm_cpa.view_cafm_amc_customer_invoice_tree').id
-        action['view_mode'] = 'tree,form'
-        action['views'] = [(tree_id, 'tree'), (False, 'form')]
+        action['view_mode'] = 'list,form'
+        action['views'] = [(tree_id, 'list'), (False, 'form')]
         action['view_id'] = tree_id
         action['target'] = 'current'
         action['context'] = {

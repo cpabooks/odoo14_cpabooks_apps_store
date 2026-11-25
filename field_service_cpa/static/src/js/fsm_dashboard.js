@@ -1,10 +1,11 @@
-odoo.define("field_service_cpa.FsmServiceDashboard", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@field_service_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc, loadChartJs, chartV2ToV4 } from "@field_service_cpa/js/legacy_compat";
+import { AppShell } from "@field_service_cpa/js/crn_app_shell";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-
-    var FsmServiceDashboard = AbstractAction.extend({
+const $ = window.jQuery;
+    var FsmServiceDashboard = legacyAction({
         contentTemplate: "FsmServiceDashboard",
         xmlDependencies: ["/field_service_cpa/static/src/xml/fsm_dashboard.xml"],
         events: {
@@ -12,6 +13,10 @@ odoo.define("field_service_cpa.FsmServiceDashboard", function (require) {
             "click .fsd_reset_filters": "_onResetFilters",
             "click .fsd_kpi_card": "_onKpiClick",
             "click .fsd_spotlight_card": "_onSpotlightClick",
+        },
+
+        willStart: function () {
+            return loadChartJs();
         },
 
         init: function (parent, action) {
@@ -224,11 +229,11 @@ odoo.define("field_service_cpa.FsmServiceDashboard", function (require) {
                 config.options = config.options || {};
                 config.options.onClick = function (event, items) {
                     if (items && items.length) {
-                        onClick(items[0]._index, items[0]);
+                        onClick(items[0].index !== undefined ? items[0].index : items[0]._index, items[0]);
                     }
                 };
             }
-            this.charts[key] = new Chart(canvas, config);
+            this.charts[key] = new window.Chart(canvas, chartV2ToV4(config));
         },
 
         _getBarOptions: function () {
@@ -302,7 +307,6 @@ odoo.define("field_service_cpa.FsmServiceDashboard", function (require) {
         },
     });
 
-    core.action_registry.add("fsm_service_monitor_dashboard", FsmServiceDashboard);
+    registerLegacyAction("fsm_service_monitor_dashboard", FsmServiceDashboard);
 
-    return FsmServiceDashboard;
-});
+    export default FsmServiceDashboard;

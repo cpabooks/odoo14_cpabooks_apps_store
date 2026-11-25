@@ -27,8 +27,16 @@ class CafmVarWorkRemark(models.Model):
         related='var_work_id.company_id', store=True, readonly=True,
     )
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmVarWorkRemark(vals)
+        return records
+
+    def _create_single_CafmVarWorkRemark(self, vals):
         work_id = vals.get('var_work_id')
         if work_id:
             # Latest remark always Sr. 1 — shift older lines down

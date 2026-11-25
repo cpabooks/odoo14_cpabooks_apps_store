@@ -61,20 +61,23 @@ class AccountMove(models.Model):
                 if line.discount != line.contract_discount:
                     line.discount = line.contract_discount
                     changed |= line
-        if changed:
-            changed.recompute_tax_line = True
-            changed._onchange_price_subtotal()
-            self._onchange_invoice_line_ids()
+        # Odoo 16+ recomputes subtotals, taxes and payment terms from the
+        # line discount by itself, no explicit onchange calls are needed.
 
-    def _move_autocomplete_invoice_lines_values(self):
-        # Server-side create / write with invoice_line_ids (API, sales order
-        # invoicing, "Next Progress Claim"): align the discount first, Odoo
-        # then recomputes subtotals, taxes and payment terms.
-        # Here the lines are in line_ids (invoice_line_ids is not filled yet on
-        # the new record built by Odoo).
-        lines = self.line_ids.filtered(lambda line: line._contracting_is_product_line())
-        lines._contracting_sync_discount(self.is_construction_invoice)
-        return super(AccountMove, self)._move_autocomplete_invoice_lines_values()
+    def _contracting_sync_all_lines(self):
+        # Server-side create / write with invoice lines (API, sales order
+        # invoicing, "Next Progress Claim"): align the discount with the
+        # Work Done %; Odoo then recomputes subtotals, taxes and payment terms.
+        for move in self:
+            if move.state != 'draft' or move.move_type not in CONTRACTING_MOVE_TYPES:
+                continue
+            move._contracting_product_lines()._contracting_sync_discount(move.is_construction_invoice)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        moves = super().create(vals_list)
+        moves._contracting_sync_all_lines()
+        return moves
 
     def write(self, vals):
         switch = 'is_construction_invoice' in vals \
@@ -94,6 +97,8 @@ class AccountMove(models.Model):
         res = super(AccountMove, self).write(vals)
         for move in to_resync:
             move._contracting_resync_lines()
+        if ('invoice_line_ids' in vals or 'line_ids' in vals) and not self.env.context.get('cpa_contracting_syncing'):
+            self.with_context(cpa_contracting_syncing=True)._contracting_sync_all_lines()
         return res
 
     def _contracting_resync_lines(self):

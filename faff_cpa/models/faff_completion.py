@@ -33,8 +33,16 @@ class FaffCompletion(models.Model):
         default="draft",
     )
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_FaffCompletion(vals)
+        return records
+
+    def _create_single_FaffCompletion(self, vals):
         if vals.get("name", "New") == "New":
             vals["name"] = (
                 self.env["ir.sequence"].next_by_code("cpabooks.faff.completion")

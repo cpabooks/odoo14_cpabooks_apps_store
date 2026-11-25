@@ -20,15 +20,15 @@
             <xpath expr="//field[@name='order_line']" position="attributes">
                 <attribute name="widget">section_and_note_one2many</attribute>
                 <attribute name="mode">tree,form</attribute>
-                <attribute name="attrs">{'readonly': ['|', ('state', '=', 'cancel'), '&amp;', ('task_id', '=', False), ('state', '=', 'done')]}</attribute>
+                <attribute name="readonly">state == 'cancel' or (not task_id and state == 'done')</attribute>
             </xpath>
-            <xpath expr="//field[@name='order_line']/tree" position="attributes">
+            <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="editable">bottom</attribute>
                 <attribute name="create">1</attribute>
                 <attribute name="edit">1</attribute>
                 <attribute name="delete">1</attribute>
             </xpath>
-            <xpath expr="//field[@name='order_line']/tree/control" position="replace">
+            <xpath expr="//field[@name='order_line']/list/control" position="replace">
                 <control>
                     <create name="add_product_control" string="Add a line"/>
                     <create name="add_section_control" string="Add a section"
@@ -46,12 +46,12 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//button[@name='action_quotation_send']" position="attributes">
-                <attribute name="attrs">{'invisible': ['&amp;', ('task_id', '!=', False), ('state', 'not in', ('sale', 'done'))]}</attribute>
+                <attribute name="invisible">task_id and state not in ('sale', 'done')</attribute>
             </xpath>
             <!-- Show Create Invoice on confirmed SO even when Lock Confirmed Sales
                  auto-locks to state=done (standard Odoo only allows state=sale). -->
             <xpath expr="(//button[@name='%(sale.action_view_sale_advance_payment_inv)d'])[2]" position="attributes">
-                <attribute name="attrs">{'invisible': ['|', ('invoice_status', '!=', 'no'), ('state', 'not in', ['sale', 'done'])]}</attribute>
+                <attribute name="invisible">invoice_status != 'no' or state not in ('sale', 'done')</attribute>
             </xpath>
         </field>
     </record>

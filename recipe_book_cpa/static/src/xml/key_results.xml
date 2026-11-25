@@ -39,7 +39,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr t-foreach="widget.data.companies" t-as="company" class="kr_company" t-att-data-id="company.id">
+                    <tr t-foreach="widget.data.companies" t-as="company" t-key="company_index" class="kr_company" t-att-data-id="company.id">
                         <td class="kr_link" t-att-title="company.name" t-esc="company.name"/>
                         <td t-attf-class="kr_sale #{company.sales_missing and 'kr_miss' or ''}">
                             <div class="kr_amt" t-esc="company.sales"/>

@@ -37,8 +37,8 @@
                 <button name="action_open_client_letter_wizard"
                         type="object"
                         string="Send Client Letter"
-                        attrs="{'invisible': [('move_type', '!=', 'out_invoice')]}"
-                        class="oe_highlight"/>
+                       
+                        class="oe_highlight" invisible="move_type != 'out_invoice'"/>
             </xpath>
         </field>
     </record>

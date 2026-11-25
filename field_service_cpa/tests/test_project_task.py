@@ -506,7 +506,7 @@ class TestProjectTask(TransactionCase):
             'partner_id': partner.id,
             'task_id': task.id,
         })
-        task.invalidate_cache()
+        task.invalidate_model()
         self.assertEqual(task.stage, 'qty_issued')
 
     def test_fsm_stage_next_action_foc_stays_site_visited(self):
@@ -609,7 +609,7 @@ class TestProjectTask(TransactionCase):
             'visited_date': today,
         })
         task.write({'state': 'in_progress'})
-        task.invalidate_cache()
+        task.invalidate_model()
         self.assertEqual(task.next_action, 'foc')
         self.assertEqual(task.stage, 'site_visited')
         self.assertEqual(task.state, 'site_visited')
@@ -637,7 +637,7 @@ class TestProjectTask(TransactionCase):
             })],
         })
         order.action_confirm()
-        task.invalidate_cache()
+        task.invalidate_model()
         self.assertEqual(task.stage, 'qty_approved')
         task.write({'next_action': 'foc'})
         self.assertEqual(task.stage, 'qty_approved')

@@ -4,7 +4,7 @@
         <field name="name">cpabooks.faff.estimate.tree</field>
         <field name="model">cpabooks.faff.estimate</field>
         <field name="arch" type="xml">
-            <tree>
+            <list>
                 <field name="name"/>
                 <field name="job_id"/>
                 <field name="state"/>
@@ -12,7 +12,7 @@
                 <field name="selling_amount"/>
                 <field name="expected_profit"/>
                 <field name="margin_percent"/>
-            </tree>
+            </list>
         </field>
     </record>
     <record id="view_faff_estimate_form" model="ir.ui.view">
@@ -21,9 +21,9 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_save_estimation" type="object" string="Save Estimation" states="draft"/>
+                    <button name="action_save_estimation" type="object" string="Save Estimation" invisible="state != 'draft'"/>
                     <button name="action_approve_estimation" type="object" string="Approve Estimation"
-                            class="oe_highlight" states="draft,saved"/>
+                            class="oe_highlight" invisible="state not in ('draft', 'saved')"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
@@ -43,7 +43,7 @@
                         <field name="margin_percent"/>
                     </group>
                     <field name="line_ids">
-                        <tree editable="bottom">
+                        <list editable="bottom">
                             <field name="product_id"/>
                             <field name="name"/>
                             <field name="category"/>
@@ -59,7 +59,7 @@
                             <field name="selling_price"/>
                             <field name="tax_ids" widget="many2many_tags"/>
                             <field name="total_selling_price"/>
-                        </tree>
+                        </list>
                     </field>
                     <field name="notes"/>
                 </sheet>
@@ -69,6 +69,6 @@
     <record id="action_faff_estimate" model="ir.actions.act_window">
         <field name="name">Estimations</field>
         <field name="res_model">cpabooks.faff.estimate</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
 </odoo>

@@ -24,17 +24,9 @@ class SaleOrder(models.Model):
             partner = task.partner_id or task.project_id.partner_id
             if partner:
                 order.partner_id = partner
-                if hasattr(order, 'onchange_partner_id'):
-                    order.onchange_partner_id()
-                elif hasattr(order, '_onchange_partner_id'):
-                    order._onchange_partner_id()
 
             if task.project_id and 'project_id' in order._fields:
                 order.project_id = task.project_id
-            if task.analytic_account_id:
-                order.analytic_account_id = task.analytic_account_id
-            elif task.project_id and task.project_id.analytic_account_id:
-                order.analytic_account_id = task.project_id.analytic_account_id
             if task.company_id:
                 order.company_id = task.company_id
             if task.user_id:
@@ -83,10 +75,10 @@ class SaleOrder(models.Model):
             'product_id': line.product_id.id,
             'name': line.name,
             'product_uom_qty': line.product_uom_qty,
-            'product_uom': line.product_uom.id,
+            'product_uom_id': line.product_uom_id.id,
             'price_unit': line.price_unit,
             'discount': line.discount,
-            'tax_id': [(6, 0, line.tax_id.ids)],
+            'tax_ids': [(6, 0, line.tax_ids.ids)],
         }
 
     @api.model_create_multi

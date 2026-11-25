@@ -47,7 +47,7 @@ class MaterialRequestLine(models.Model):
         """)
         return bool(self.env.cr.fetchone())
 
-    @api.depends('task_id', 'issue_move_id', 'issue_move_id.quantity_done', 'issue_move_id.state')
+    @api.depends('task_id', 'issue_move_id', 'issue_move_id.quantity', 'issue_move_id.state')
     def get_quantity_done(self):
         picking_model = self.env['stock.picking']
         has_issue_task_field = 'issue_project_task_id' in picking_model._fields
@@ -58,20 +58,20 @@ class MaterialRequestLine(models.Model):
             if rec.issue_move_id:
                 move = rec.issue_move_id
                 if move.state != 'cancel':
-                    rec.quantity_done = move.quantity_done
+                    rec.quantity_done = move.quantity
                     if 'amount' in move._fields:
                         rec.amount_done = move.amount
                     else:
-                        rec.amount_done = move.quantity_done * rec.product_id.list_price
+                        rec.amount_done = move.quantity * rec.product_id.list_price
             elif rec.task_id and has_issue_task_field:
                 pickings = self.env['stock.picking'].search([
                     ('issue_project_task_id', '=', rec.task_id.id),
                     ('state', '=', 'done'),
                 ])
-                moves = pickings.move_ids_without_package.filtered(
+                moves = pickings.move_ids.filtered(
                     lambda move: move.product_id.id == rec.product_id.id and move.state != 'cancel'
                 )
-                rec.quantity_done = sum(moves.mapped('quantity_done'))
+                rec.quantity_done = sum(moves.mapped('quantity'))
                 if moves and 'amount' in moves._fields:
                     rec.amount_done = sum(moves.mapped('amount'))
                 else:

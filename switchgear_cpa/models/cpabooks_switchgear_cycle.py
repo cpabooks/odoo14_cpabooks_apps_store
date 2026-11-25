@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 """Full CPA Switchgear processing cycle (16 steps) for progress status UI."""
 
-from odoo import _
+from odoo import _ as _translate  # noqa: F401  (runtime translations)
+
+
+def _(text):
+    """Module-level labels: translated where rendered, not at import time."""
+    return text
 
 # theme -> first color index in mixin _PROGRESS_COLORS
 _CYCLE_THEME_OFFSET = {
@@ -202,7 +207,7 @@ def mo_is_in_progress(mo):
         return True
     if mo.move_raw_ids.filtered(lambda m: m.state in ('assigned', 'partially_available', 'done')):
         return True
-    if mo.move_raw_ids.filtered(lambda m: m.quantity_done):
+    if mo.move_raw_ids.filtered(lambda m: m.picked and m.quantity):
         return True
     return False
 

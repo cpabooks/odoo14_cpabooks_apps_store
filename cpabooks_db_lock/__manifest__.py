@@ -2,7 +2,7 @@
 {
     "name": "Database Manager Lock",
     "summary": "Hide and block the Odoo database manager: no Manage Databases link, no database selector, no create / drop / backup / restore URLs",
-    "version": "14.0.1.0.0",
+    "version": "19.0.1.0.0",
     "category": "Tools",
     "author": "CPA Books",
     "website": "https://www.cpabooks.co",

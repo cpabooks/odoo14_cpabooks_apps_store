@@ -4,7 +4,7 @@
         <field name="name">cpabooks.cafm.var.work.tree</field>
         <field name="model">cpabooks.cafm.var.work</field>
         <field name="arch" type="xml">
-            <tree string="VAR Work Report" class="o_cafm_tally_tree" js_class="cafm_tally_list" decoration-muted="status=='cancelled'">
+            <list string="VAR Work Report" class="o_cafm_tally_tree" js_class="cafm_tally_list" decoration-muted="status=='cancelled'">
                 <!-- Excel left→right first; then Odoo QT.No / Call No. (create-here) -->
                 <field name="qt_no_tally" string="QT.No (Tally)"/>
                 <field name="qt_date" string="QT.Date"/>
@@ -31,7 +31,7 @@
                 <field name="problem_description" string="Problem Description"/>
                 <field name="remarks_last_update" string="Remarks (last update)"/>
                 <field name="status" string="Status"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -92,22 +92,18 @@
                     <notebook>
                         <page string="Remarks history" name="remarks">
                             <field name="remark_ids" readonly="1" nolabel="1">
-                                <tree create="0" delete="0" edit="0" default_order="sr asc">
+                                <list create="0" delete="0" edit="0" default_order="sr asc">
                                     <field name="sr" string="Sr."/>
                                     <field name="name" string="Remark"/>
                                     <field name="user_id" string="Updated By"/>
                                     <field name="remark_date" string="Date"/>
                                     <field name="source" string="Source"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
-                    <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
-                    <field name="message_ids"/>
-                </div>
+                <chatter/>
             </form>
         </field>
     </record>
@@ -130,7 +126,7 @@
                 <filter name="invoiced" string="VAR work - Invoiced" domain="[('status','=','invoiced')]"/>
                 <filter name="no_status" string="No Status Found" domain="[('status','=','no_status')]"/>
                 <filter name="closed" string="Closed" domain="[('status','=','closed')]"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter name="groupby_partner" string="Client Name" context="{'group_by': 'partner_id'}"/>
                     <filter name="groupby_l2" string="L2 Level (Client Group)" context="{'group_by': 'l2_level_id'}"/>
                     <filter name="groupby_l3" string="L3 Level (Project)" context="{'group_by': 'l3_level_id'}"/>
@@ -146,37 +142,37 @@
     <record id="action_cafm_var_work_approval" model="ir.actions.act_window">
         <field name="name">VAR Work Approval</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'search_default_waiting_approval': 1, 'group_by': []}</field>
     </record>
     <record id="action_cafm_var_work_ongoing" model="ir.actions.act_window">
         <field name="name">Work Ongoing</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'search_default_work_ongoing': 1, 'group_by': []}</field>
     </record>
     <record id="action_cafm_var_waiting_lpo" model="ir.actions.act_window">
         <field name="name">Waiting for LPO</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'search_default_waiting_lpo': 1, 'group_by': []}</field>
     </record>
     <record id="action_cafm_var_waiting_report" model="ir.actions.act_window">
         <field name="name">Waiting for Report Completion</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'search_default_waiting_report': 1, 'group_by': []}</field>
     </record>
     <record id="action_cafm_var_work_invoiced" model="ir.actions.act_window">
         <field name="name">VAR work - Invoiced</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'search_default_invoiced': 1, 'group_by': []}</field>
     </record>
     <record id="action_cafm_var_work_report" model="ir.actions.act_window">
         <field name="name">VAR Work Report</field>
         <field name="res_model">cpabooks.cafm.var.work</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'group_by': ['partner_id', 'work_date:year', 'work_date:month']}</field>
     </record>
 </odoo>

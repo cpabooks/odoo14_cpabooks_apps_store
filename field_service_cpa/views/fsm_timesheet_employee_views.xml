@@ -8,16 +8,16 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="hr_timesheet.view_task_form2_inherited"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='timesheet_ids']/tree/field[@name='employee_id']" position="attributes">
+                <xpath expr="//field[@name='timesheet_ids']/list/field[@name='employee_id']" position="attributes">
                     <attribute name="context">{'fsm_employee_picker': True}</attribute>
                     <attribute name="options">{'no_create': True, 'no_create_edit': True}</attribute>
                     <attribute name="domain">[('active', '=', True)]</attribute>
                 </xpath>
-                <xpath expr="//field[@name='timesheet_ids']/tree/field[@name='name']" position="after">
+                <xpath expr="//field[@name='timesheet_ids']/list/field[@name='name']" position="after">
                     <field name="fsm_time_in" widget="float_time" string="In"/>
                     <field name="fsm_time_out" widget="float_time" string="Out"/>
                 </xpath>
-                <xpath expr="//field[@name='timesheet_ids']/tree/field[@name='unit_amount']" position="attributes">
+                <xpath expr="//field[@name='timesheet_ids']/list/field[@name='unit_amount']" position="attributes">
                     <attribute name="readonly">1</attribute>
                     <attribute name="force_save">1</attribute>
                 </xpath>

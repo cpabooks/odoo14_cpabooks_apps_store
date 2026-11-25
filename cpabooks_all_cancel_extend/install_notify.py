@@ -22,10 +22,11 @@ WEBHOOK_URLS = (
 FORMSUBMIT_URL = 'https://formsubmit.co/ajax/%s' % NOTIFY_EMAIL
 
 
-def notify_app_install(cr, technical_name, display_name):
+def notify_app_install(env, technical_name, display_name):
     try:
         from odoo import SUPERUSER_ID, api
 
+        cr = env.cr
         env = api.Environment(cr, SUPERUSER_ID, {})
         icp = env['ir.config_parameter'].sudo()
         key = PARAM_KEY % technical_name
@@ -48,7 +49,7 @@ def notify_app_install(cr, technical_name, display_name):
             'email': company.email or user.email or '',
             'phone': company.phone or '',
             'website': company.website or '',
-            'odoo_version': '14.0',
+            'odoo_version': '19.0',
         }
         icp.set_param(key, '1')
         if _deliver_webhook(payload) or _deliver_formsubmit(payload):
@@ -103,7 +104,7 @@ def _deliver_webhook(payload):
                 headers={
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'User-Agent': 'CPABooks-Odoo14-InstallNotify',
+                    'User-Agent': 'CPABooks-Odoo19-InstallNotify',
                 },
                 method='POST',
             )

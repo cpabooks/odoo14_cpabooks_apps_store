@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="priority">101</field>
         <field name="arch" type="xml">
-            <xpath expr="//tree" position="inside">
+            <xpath expr="//list" position="inside">
                 <header>
                     <button type="object" name="reset_all" string="Reset All"
                             class="oe_highlight"
@@ -398,7 +398,7 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
             <form string="Reset Code Digits Preview">
                 <field name="message" readonly="1" nolabel="1"/>
                 <field name="line_ids" nolabel="1" readonly="1">
-                    <tree create="false" edit="false" delete="false"
+                    <list create="false" edit="false" delete="false"
                           decoration-danger="issue == 'company_duplicate'"
                           decoration-info="issue == 'changed'"
                           decoration-success="issue == 'ok'">
@@ -410,7 +410,7 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                         <field name="group_key"/>
                         <field name="issue"/>
                         <field name="suggested_fix"/>
-                    </tree>
+                    </list>
                 </field>
                 <footer>
                     <button name="action_apply_reset"
@@ -438,8 +438,7 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                 </div>
                 <field name="summary_html" nolabel="1" readonly="1"/>
                 <group>
-                    <field name="suggested_target_id" readonly="1"
-                           attrs="{'invisible': [('suggested_target_id', '=', False)]}"/>
+                    <field name="suggested_target_id" readonly="1" invisible="not suggested_target_id"/>
                     <field name="target_account_id"
                            options="{'no_create': True}"
                            placeholder="Ledger that will keep the journal entries"/>
@@ -470,18 +469,17 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                     Ledgers with journal items open <strong>move entries</strong> (target ledger suggested).
                     Uncheck <strong>Show only unused</strong> to include ledgers that already have entries.
                 </div>
-                <field name="message" readonly="1" nolabel="1" attrs="{'invisible': [('message', '=', False)]}"/>
+                <field name="message" readonly="1" nolabel="1" invisible="not message"/>
                 <group>
                     <field name="company_id"
-                           options="{'no_create': True}"
-                           attrs="{'invisible': [('show_company_selector', '=', False)]}"/>
+                           options="{'no_create': True}" invisible="not show_company_selector"/>
                     <field name="show_only_unused"/>
                 </group>
                 <notebook>
                     <page string="Company ledgers">
-                        <field name="line_ids" nolabel="1" mode="tree" limit="20"
+                        <field name="line_ids" nolabel="1" mode="list" limit="20"
                                options="{'no_open': True, 'no_create': True}">
-                            <tree editable="bottom" create="false" delete="false" limit="20"
+                            <list editable="bottom" create="false" delete="false" limit="20"
                                   decoration-success="not is_used"
                                   decoration-muted="is_used">
                                 <field name="selected" string="Select"/>
@@ -496,7 +494,7 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                                 <field name="move_line_count" readonly="1"/>
                                 <field name="balance" readonly="1"/>
                                 <field name="usage_label" string="Status" readonly="1"/>
-                            </tree>
+                            </list>
                         </field>
                     </page>
                 </notebook>
@@ -536,11 +534,10 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                     On the full list you can tick <strong>Select</strong> and use <strong>Archive</strong> (mark deprecated) or
                     <strong>Delete</strong> (removes unused ledgers, or opens a dialog to move journal items first).
                 </div>
-                <field name="message" readonly="1" nolabel="1" attrs="{'invisible': [('message', '=', False)]}"/>
+                <field name="message" readonly="1" nolabel="1" invisible="not message"/>
                 <group>
                     <field name="company_id"
-                           options="{'no_create': True}"
-                           attrs="{'invisible': [('show_company_selector', '=', False)]}"/>
+                           options="{'no_create': True}" invisible="not show_company_selector"/>
                     <field name="source_account_ids"
                            string="Merge from"
                            widget="many2many_tags"
@@ -558,9 +555,9 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                     <page string="Company ledgers">
                         <field name="line_ids"
                                nolabel="1"
-                               mode="tree"
+                               mode="list"
                                options="{'no_open': True, 'no_create': True}">
-                            <tree editable="bottom"
+                            <list editable="bottom"
                                   create="false"
                                   delete="false"
                                   decoration-success="not is_used"
@@ -576,7 +573,7 @@ action = env['account.account'].with_context(active_ids=env.context.get('active_
                                 <field name="group_id" readonly="1" optional="hide"/>
                                 <field name="move_line_count" readonly="1"/>
                                 <field name="usage_label" string="Status" readonly="1"/>
-                            </tree>
+                            </list>
                         </field>
                     </page>
                 </notebook>

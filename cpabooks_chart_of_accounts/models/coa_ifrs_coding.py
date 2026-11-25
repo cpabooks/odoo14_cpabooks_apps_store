@@ -546,7 +546,7 @@ class CoaIfrsCoding(models.AbstractModel):
         if not accounts:
             return 0
         accounts.with_context(**ctx).write({'group_id': group_to.id})
-        Account.flush(['group_id'])
+        Account.flush_model(['group_id'])
         return len(accounts)
 
     @api.model

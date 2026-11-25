@@ -1,10 +1,10 @@
-odoo.define('switchgear_cpa.switchgear_processing_cycle', function (require) {
-'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@switchgear_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc } from "@switchgear_cpa/js/legacy_compat";
+import { AppShell } from "@switchgear_cpa/js/switchgear_app_shell";
 
-var AbstractAction = require('web.AbstractAction');
-var core = require('web.core');
-var AppShell = require('switchgear_cpa.switchgear_app_shell');
-
+const $ = window.jQuery;
 var _t = core._t;
 
 var CYCLE_STEPS = [
@@ -26,7 +26,7 @@ var CYCLE_STEPS = [
     {step: 16, label: 'Vendor Payment', xmlid: 'account.action_account_payments_payable', theme: 'accounting'},
 ];
 
-var SwitchgearProcessingCycleAction = AbstractAction.extend({
+var SwitchgearProcessingCycleAction = legacyAction({
     contentTemplate: 'SwitchgearProcessingCycle',
     xmlDependencies: ['/switchgear_cpa/static/src/xml/switchgear_processing_cycle.xml'],
     hasSidebar: true,
@@ -110,7 +110,6 @@ var SwitchgearProcessingCycleAction = AbstractAction.extend({
     },
 });
 
-core.action_registry.add('switchgear_processing_cycle', SwitchgearProcessingCycleAction);
+registerLegacyAction('switchgear_processing_cycle', SwitchgearProcessingCycleAction);
 
-return SwitchgearProcessingCycleAction;
-});
+export default SwitchgearProcessingCycleAction;

@@ -23,13 +23,15 @@ def reload_python_module(module_name):
     _logger.info('CPABooks CAFM: cleared Python cache for %s before upgrade', module_name)
 
 
-def post_init_hook(cr, registry):
+def post_init_hook(env):
+    cr = env.cr
+    registry = env.registry
     from .install_notify import notify_app_install
-    notify_app_install(cr, 'cafm_cpa', 'Facility Management')
+    notify_app_install(env, 'cafm_cpa', 'Facility Management')
     env = api.Environment(cr, SUPERUSER_ID, {})
     manager_group = env.ref('cafm_cpa.group_cafm_manager', raise_if_not_found=False)
     if manager_group:
         users = env['res.users'].with_context(active_test=False).search([('share', '=', False)])
-        manager_group.write({'users': [(4, user.id) for user in users]})
+        manager_group.write({'user_ids': [(4, user.id) for user in users]})
     if 'cpabooks.cafm.amc.invoice.reg' in env:
         env['cpabooks.cafm.amc.invoice.reg'].ensure_amc_follow_up_users()

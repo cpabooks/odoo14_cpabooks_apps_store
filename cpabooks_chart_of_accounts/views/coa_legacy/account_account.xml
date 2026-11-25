@@ -13,12 +13,12 @@
                 </xpath>
 
                 <xpath expr="//div[hasclass('oe_title')]/div/field[@name='code']" position="before">
-                    <label for="previous" invisible="1" attrs="{'invisible': [('get_previous', '=', False)]}"/>
-                    <field name="previous" invisible="1" attrs="{'invisible': [('get_previous', '=', False)]}"/>
+                    <label for="previous" invisible="1"/>
+                    <field name="previous" invisible="1"/>
                 </xpath>
                 <!--                <xpath expr="//div[@class='oe_title']" position="inside">-->
-                <!--                        <field name="group_id" string="Select Group" attrs="{'invisible': [('get_previous', '=', False)]}" placeholder="Group"/>-->
-                <!--                    &lt;!&ndash;                    <label for="group_id" attrs="{'invisible': [('get_previous', '=', False)]}"/>&ndash;&gt;-->
+                <!--                        <field name="group_id" string="Select Group" placeholder="Group" invisible="not get_previous"/>-->
+                <!--                    &lt;!&ndash;                    <label for="group_id" invisible="not get_previous"/>&ndash;&gt;-->
                 <!--                </xpath>-->
 
                 <xpath expr="//div[hasclass('oe_title')]/div/field[@name='name']" position="attributes">

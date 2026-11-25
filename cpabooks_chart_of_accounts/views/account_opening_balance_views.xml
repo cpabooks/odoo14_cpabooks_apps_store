@@ -26,22 +26,21 @@ action = env['account.account'].cpa_coa_menu_add_opening_balance()
             <field name="ref" position="after">
                 <field name="cpabooks_is_opening_balance" invisible="1"/>
             </field>
-            <xpath expr="//field[@name='line_ids']/tree/field[@name='account_id']" position="after">
+            <xpath expr="//field[@name='line_ids']/list/field[@name='account_id']" position="after">
                 <field name="cpabooks_opening_auto_re" invisible="1"/>
             </xpath>
-            <xpath expr="//field[@name='line_ids']/tree" position="attributes">
+            <xpath expr="//field[@name='line_ids']/list" position="attributes">
                 <attribute name="decoration-info">cpabooks_opening_auto_re</attribute>
             </xpath>
-            <xpath expr="//field[@name='line_ids']/tree/field[@name='debit']" position="attributes">
-                <attribute name="attrs">{'readonly': ['|', ('cpabooks_opening_auto_re', '=', True), ('credit', '!=', 0)]}</attribute>
+            <xpath expr="//field[@name='line_ids']/list/field[@name='debit']" position="attributes">
+                <attribute name="readonly">cpabooks_opening_auto_re or credit != 0</attribute>
             </xpath>
-            <xpath expr="//field[@name='line_ids']/tree/field[@name='credit']" position="attributes">
-                <attribute name="attrs">{'readonly': ['|', ('cpabooks_opening_auto_re', '=', True), ('debit', '!=', 0)]}</attribute>
+            <xpath expr="//field[@name='line_ids']/list/field[@name='credit']" position="attributes">
+                <attribute name="readonly">cpabooks_opening_auto_re or debit != 0</attribute>
             </xpath>
             <xpath expr="//page[@id='aml_tab']/field[@name='line_ids']" position="after">
                 <div class="o_cpabooks_jv_narration"
-                     style="border: 1px solid #6c757d; border-radius: 4px; padding: 10px; margin-top: 8px;"
-                     attrs="{'invisible': [('move_type', '!=', 'entry')]}">
+                     style="border: 1px solid #6c757d; border-radius: 4px; padding: 10px; margin-top: 8px;" invisible="move_type != 'entry'">
                     <label for="narration" string="Narration:" class="font-weight-bold"/>
                     <field name="narration" nolabel="1"
                            placeholder="Narration / internal note..."

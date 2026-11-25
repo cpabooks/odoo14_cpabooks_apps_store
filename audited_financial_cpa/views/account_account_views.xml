@@ -25,7 +25,7 @@
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="priority">999</field>
         <field name="arch" type="xml">
-            <xpath expr="//tree" position="inside">
+            <xpath expr="//list" position="inside">
                 <field name="afg_group_id" string="AFG group" optional="show"/>
                 <field name="ctf_category" string="CT Filing" optional="show"/>
             </xpath>

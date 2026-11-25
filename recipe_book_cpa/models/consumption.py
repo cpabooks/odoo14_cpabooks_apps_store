@@ -10,13 +10,12 @@ class DailyClosing(models.Model):
     theoretical_consumption=fields.Float(string='Expected from Sales'); expected_closing_qty=fields.Float(compute='_calc',store=True); variance_qty=fields.Float(compute='_calc',store=True); variance_pct=fields.Float(compute='_calc',store=True)
     state=fields.Selection([('ok','OK'),('warning','Check'),('variance','Variance')],compute='_calc',store=True)
     is_demo = fields.Boolean(string='Sample', default=False, index=True)
-    def name_get(self):
-        result = []
+    @api.depends('product_id', 'date')
+    def _compute_display_name(self):
         for row in self:
             product = row.product_id.display_name or ''
             when = row.date and fields.Date.to_string(row.date) or ''
-            result.append((row.id, (when + ' ' + product).strip() or 'Closing'))
-        return result
+            row.display_name = (when + ' ' + product).strip() or 'Closing'
     @api.depends('opening_qty','purchase_qty','transfer_in_qty','transfer_out_qty','waste_qty','actual_closing_qty','theoretical_consumption')
     def _calc(self):
       for r in self:

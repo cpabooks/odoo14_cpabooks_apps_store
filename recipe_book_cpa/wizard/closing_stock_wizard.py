@@ -37,6 +37,6 @@ class ClosingWizard(models.TransientModel):
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'cpabooks.recipe.closing',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('date', '=', self.date), ('branch', '=', self.branch)],
         }

@@ -216,13 +216,26 @@ class CafmContract(models.Model):
     ], default='0')
     state_change_date = fields.Date(string='State Change Date', readonly=True, copy=False)
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Contract number must be unique.'),
-        ('period_positive', 'CHECK(contract_period_years > 0)', 'Contract period must be greater than zero.'),
-        ('total_non_negative', 'CHECK(total_contract_value >= 0)', 'Total contract value cannot be negative.'),
-        ('flats_non_negative', 'CHECK(number_of_flats >= 0)', 'Number of flats cannot be negative.'),
-        ('sqft_non_negative', 'CHECK(sqft_qty >= 0)', 'SQFT quantity cannot be negative.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Contract number must be unique.",
+    )
+    _period_positive = models.Constraint(
+        'CHECK(contract_period_years > 0)',
+        "Contract period must be greater than zero.",
+    )
+    _total_non_negative = models.Constraint(
+        'CHECK(total_contract_value >= 0)',
+        "Total contract value cannot be negative.",
+    )
+    _flats_non_negative = models.Constraint(
+        'CHECK(number_of_flats >= 0)',
+        "Number of flats cannot be negative.",
+    )
+    _sqft_non_negative = models.Constraint(
+        'CHECK(sqft_qty >= 0)',
+        "SQFT quantity cannot be negative.",
+    )
 
     @api.onchange('contract_date', 'contract_period_years')
     def _onchange_contract_dates(self):
@@ -323,8 +336,16 @@ class CafmContract(models.Model):
             if rec.contract_date and rec.contract_expiry and rec.contract_expiry < rec.contract_date:
                 raise ValidationError(_('Contract expiry must be on or after the contract date.'))
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmContract(vals)
+        return records
+
+    def _create_single_CafmContract(self, vals):
         vals = self._prepare_import_vals(vals)
         if vals.get('name', _('New')) == _('New'):
             vals['name'] = self.env['ir.sequence'].next_by_code('cpabooks.cafm.contract') or _('New')
@@ -414,7 +435,7 @@ class CafmContract(models.Model):
             'type': 'ir.actions.act_window',
             'name': _('Contract Orders'),
             'res_model': 'cpabooks.cafm.contract.order',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('contract_id', '=', self.id)],
             'context': {'default_contract_id': self.id},
             'target': 'current',

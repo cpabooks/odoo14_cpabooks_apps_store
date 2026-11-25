@@ -151,6 +151,15 @@ _FSM_WORKFLOW_BANNER = {
 
 class ProjectTask(models.Model):
     _inherit = 'project.task'
+
+    @api.model
+    def crn_shell_existing_xmlids(self, xmlids):
+        """CRN sidebar: keep only entries whose action exists in this database."""
+        found = []
+        for xmlid in xmlids or []:
+            if isinstance(xmlid, str) and '.' in xmlid and self.env.ref(xmlid, raise_if_not_found=False):
+                found.append(xmlid)
+        return found
     _rec_name = 'task_seq'
     _order = 'write_date desc, create_date desc, id desc'
 
@@ -213,6 +222,13 @@ class ProjectTask(models.Model):
         'res.currency',
         related='company_id.currency_id',
         readonly=True,
+    )
+    # Odoo 15+ replaced project.task.user_id by user_ids; CRN logic works with
+    # one assignee, so keep a stored single-user field in sync with user_ids.
+    user_id = fields.Many2one(
+        'res.users', string='Assigned to', index=True,
+        compute='_compute_fsm_single_user', inverse='_inverse_fsm_single_user',
+        store=True, readonly=False,
     )
     analytic_account_id = fields.Many2one(
         'account.analytic.account',
@@ -915,7 +931,7 @@ class ProjectTask(models.Model):
         return [('id', 'in', matched_ids)]
 
     @api.depends(
-        'parent_id.project_id.subtask_project_id',
+        'parent_id.project_id',
         'invoice_id',
         'invoice_id.project_id',
         'qt_no',
@@ -1843,10 +1859,16 @@ class ProjectTask(models.Model):
                 if task.analytic_account_id.name != account_name:
                     task.analytic_account_id.sudo().write({'name': account_name})
                 continue
+            plan = (
+                task.project_id.account_id.plan_id
+                or self.env['account.analytic.plan'].sudo().search([], limit=1)
+                or self.env['account.analytic.plan'].sudo().create({'name': 'Projects'})
+            )
             task.sudo().write({
                 'analytic_account_id': analytic_model.create({
                     'name': account_name,
                     'company_id': company.id,
+                    'plan_id': plan.id,
                 }).id,
             })
 
@@ -2264,15 +2286,26 @@ class ProjectTask(models.Model):
     def _update_name(self):
         return True
 
-    def name_get(self):
+    @api.depends('user_ids')
+    def _compute_fsm_single_user(self):
+        for task in self:
+            task.user_id = task.user_ids[:1]
+
+    def _inverse_fsm_single_user(self):
+        for task in self:
+            if task.user_id and task.user_id not in task.user_ids:
+                task.user_ids = [(6, 0, (task.user_id | task.user_ids).ids)]
+            elif not task.user_id and task.user_ids:
+                task.user_ids = [(5, 0, 0)]
+
+    @api.depends('task_seq', 'is_fsm', 'name')
+    @api.depends_context('show_task_seq', 'show_crn_number')
+    def _compute_display_name(self):
         show_crn_number = (
             self.env.context.get('show_task_seq')
             or self.env.context.get('show_crn_number')
         )
-        result = []
-        fallback_names = {}
         fallback_tasks = self.browse()
-
         for task in self:
             seq = task.task_seq if task.task_seq and task.task_seq != '/' else False
             seq_display = seq[len('TID-'):] if seq and seq.startswith('TID-') else seq
@@ -2280,23 +2313,15 @@ class ProjectTask(models.Model):
             # even when related is_fsm is False (empty project) or context is missing.
             is_crn_number = bool(seq and str(seq).startswith('CRN'))
             if show_crn_number or is_crn_number or (task.is_fsm and seq):
-                result.append((task.id, seq_display or _('CRN')))
+                task.display_name = seq_display or _('CRN')
             else:
                 fallback_tasks |= task
-
         if fallback_tasks:
-            fallback_names = dict(super(ProjectTask, fallback_tasks).name_get())
-
-        if fallback_names:
-            ordered_result = []
-            custom_names = dict(result)
-            for task in self:
-                ordered_result.append((task.id, custom_names.get(task.id) or fallback_names.get(task.id)))
-            return ordered_result
-        return result
+            super(ProjectTask, fallback_tasks)._compute_display_name()
 
     @api.model
-    def name_search(self, name='', args=None, operator='ilike', limit=100):
+    def name_search(self, name='', domain=None, operator='ilike', limit=100):
+        args = domain
         args = list(args or [])
         show_crn_number = (
             self.env.context.get('show_task_seq')
@@ -2310,12 +2335,12 @@ class ProjectTask(models.Model):
             for term in args
         )
         if not crn_scoped:
-            return super().name_search(name=name, args=args, operator=operator, limit=limit)
+            return super().name_search(name=name, domain=args, operator=operator, limit=limit)
         args = [('task_seq', '=like', 'CRN%')] + args
         if name:
             args = [('task_seq', operator, name)] + args
-        tasks = self.search(args, limit=limit)
-        return tasks.with_context(show_task_seq=True, show_crn_number=True).name_get()
+        tasks = self.search(args, limit=limit).with_context(show_task_seq=True, show_crn_number=True)
+        return [(task.id, task.display_name) for task in tasks]
 
     @api.onchange('complaint_title')
     def _onchange_complaint_title_set_name(self):
@@ -2464,7 +2489,7 @@ class ProjectTask(models.Model):
         'state',
         'is_fsm',
         'check_fsm',
-        'planned_hours',
+        'allocated_hours',
         'effective_hours',
         'subtask_effective_hours',
     )
@@ -2612,7 +2637,7 @@ class ProjectTask(models.Model):
         if list_views:
             action['views'] = list_views + other_views + form_views
         else:
-            action['views'] = [(False, 'tree')] + other_views + (form_views or [(False, 'form')])
+            action['views'] = [(False, 'list')] + other_views + (form_views or [(False, 'form')])
         action['views'] = [
             (
                 self._cpabooks_fsm_action_view_id(view),
@@ -2724,8 +2749,8 @@ class ProjectTask(models.Model):
                 rate = 0.0
                 if 'fsm_employee_timesheet_cost' in line._fields:
                     rate = line.fsm_employee_timesheet_cost or 0.0
-                if not rate and line.employee_id and 'timesheet_cost' in line.employee_id._fields:
-                    rate = line.employee_id.timesheet_cost or 0.0
+                if not rate and line.employee_id and 'hourly_cost' in line.employee_id._fields:
+                    rate = line.employee_id.hourly_cost or 0.0
                 hours = line.unit_amount or 0.0
                 lines.append((0, 0, {
                     'date': line.date,
@@ -2915,7 +2940,7 @@ class ProjectTask(models.Model):
             partner = invoice.partner_id or rec.partner_id
             if partner:
                 rec.partner_id = partner
-                rec.client_contact = partner.phone or partner.mobile or rec.client_contact
+                rec.client_contact = partner.phone or rec.client_contact
                 rec.client_email = partner.email or rec.client_email
 
             delivery_person = (
@@ -2928,7 +2953,7 @@ class ProjectTask(models.Model):
                     'contact.person',
                     delivery_person.display_name or delivery_person.name,
                 )
-                rec.client_contact = delivery_person.phone or delivery_person.mobile or rec.client_contact
+                rec.client_contact = delivery_person.phone or rec.client_contact
                 rec.client_email = delivery_person.email or rec.client_email
 
             site_name = False
@@ -3091,7 +3116,7 @@ class ProjectTask(models.Model):
             rec.partner_id = rec.qt_no.partner_id
             rec.project_id = rec.qt_no.project_id
             rec.client_email = rec.qt_no.partner_id.email
-            rec.client_contact = rec.qt_no.partner_id.phone or rec.qt_no.partner_id.mobile
+            rec.client_contact = rec.qt_no.partner_id.phone
         return {
             'domain': {
                 'qt_no': self._get_qt_no_form_domain(),
@@ -3123,14 +3148,14 @@ class ProjectTask(models.Model):
     @api.depends(
         'material_return_picking_ids',
         'material_return_picking_ids.state',
-        'material_return_picking_ids.move_ids_without_package',
-        'material_return_picking_ids.move_ids_without_package.state',
-        'material_return_picking_ids.move_ids_without_package.product_uom_qty',
-        'material_return_picking_ids.move_ids_without_package.quantity_done',
+        'material_return_picking_ids.move_ids',
+        'material_return_picking_ids.move_ids.state',
+        'material_return_picking_ids.move_ids.product_uom_qty',
+        'material_return_picking_ids.move_ids.quantity',
     )
     def _compute_material_return_move_ids(self):
         for task in self:
-            moves = task.material_return_picking_ids.mapped('move_ids_without_package').filtered(
+            moves = task.material_return_picking_ids.mapped('move_ids').filtered(
                 lambda mv: mv.state != 'cancel'
             )
             task.material_return_move_ids = moves
@@ -3148,12 +3173,12 @@ class ProjectTask(models.Model):
         for line in material_lines:
             if 'issue_move_id' in line._fields and line.issue_move_id:
                 move = line.issue_move_id
-                issued_qty = move.quantity_done if move.state != 'cancel' else 0.0
+                issued_qty = move.quantity if move.state != 'cancel' else 0.0
             else:
-                moves = pickings.move_ids_without_package.filtered(
+                moves = pickings.move_ids.filtered(
                     lambda move: move.product_id.id == line.product_id.id and move.state != 'cancel'
                 )
-                issued_qty = sum(moves.mapped('quantity_done'))
+                issued_qty = sum(moves.mapped('quantity'))
             if issued_qty < line.quantity:
                 return False
         return True
@@ -3171,7 +3196,7 @@ class ProjectTask(models.Model):
         return [('id', 'not in', done_tasks.ids)]
 
     def _update_issue_note_done(self):
-        self.invalidate_cache(['issue_note_done'])
+        self.invalidate_model(['issue_note_done'])
 
     def _fsm_cancel_tasks(self, include_related=False):
         tasks = self.sudo().with_context(active_test=False)
@@ -3203,7 +3228,7 @@ class ProjectTask(models.Model):
                 if picking.state not in ('done', 'cancel'):
                     picking.action_cancel()
                 elif picking.state == 'done':
-                    picking.move_ids_without_package.write({'state': 'cancel'})
+                    picking.move_ids.write({'state': 'cancel'})
                     picking.write({'state': 'cancel'})
             except Exception:
                 pass
@@ -3375,7 +3400,7 @@ class ProjectTask(models.Model):
         'timesheet_ids.fsm_employee_timesheet_cost',
         'timesheet_ids.unit_amount',
         'timesheet_ids.employee_id',
-        'timesheet_ids.employee_id.timesheet_cost',
+        'timesheet_ids.employee_id.hourly_cost',
     )
     def _compute_timesheet_cost_total(self):
         for rec in self:
@@ -3599,5 +3624,5 @@ class ProjectTaskCustomerLabourLine(models.Model):
         for line in self:
             if line.employee_id and not line.description:
                 line.description = line.employee_id.name
-            if line.employee_id and 'timesheet_cost' in line.employee_id._fields:
-                line.rate = line.employee_id.timesheet_cost or 0.0
+            if line.employee_id and 'hourly_cost' in line.employee_id._fields:
+                line.rate = line.employee_id.hourly_cost or 0.0

@@ -17,7 +17,7 @@
                         <notebook>
                             <page string="Summary of Cont. Order to Invoice">
                                 <field name="summary_line_ids" nolabel="1" readonly="1">
-                                    <tree create="0" edit="0" delete="0">
+                                    <list create="0" edit="0" delete="0">
                                         <field name="name"/>
                                         <field name="overdue"/>
                                         <field name="m01"/>
@@ -36,12 +36,12 @@
                                         <field name="y02"/>
                                         <field name="y03"/>
                                         <button name="action_open_orders" type="object" string="Open" class="btn-secondary"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                             <page string="AMC Cont. Orders">
                                 <field name="all_line_ids" nolabel="1" readonly="1">
-                                    <tree create="0" edit="0" delete="0">
+                                    <list create="0" edit="0" delete="0">
                                         <field name="sequence"/>
                                         <field name="contract_number"/>
                                         <field name="customer_name"/>
@@ -63,12 +63,12 @@
                                         <field name="y02" sum="Total"/>
                                         <field name="y03" sum="Total"/>
                                         <button name="action_open_orders" type="object" string="Open" class="btn-secondary"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                             <page string="Orders Invoiced">
                                 <field name="invoiced_line_ids" nolabel="1" readonly="1">
-                                    <tree create="0" edit="0" delete="0">
+                                    <list create="0" edit="0" delete="0">
                                         <field name="sequence"/>
                                         <field name="contract_number"/>
                                         <field name="customer_name"/>
@@ -90,12 +90,12 @@
                                         <field name="y02" sum="Total"/>
                                         <field name="y03" sum="Total"/>
                                         <button name="action_open_orders" type="object" string="Open" class="btn-secondary"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                             <page string="Pending Orders Invoice Pending">
                                 <field name="pending_line_ids" nolabel="1" readonly="1">
-                                    <tree create="0" edit="0" delete="0">
+                                    <list create="0" edit="0" delete="0">
                                         <field name="sequence"/>
                                         <field name="contract_number"/>
                                         <field name="customer_name"/>
@@ -117,7 +117,7 @@
                                         <field name="y02" sum="Total"/>
                                         <field name="y03" sum="Total"/>
                                         <button name="action_open_orders" type="object" string="Open" class="btn-secondary"/>
-                                    </tree>
+                                    </list>
                                 </field>
                             </page>
                         </notebook>

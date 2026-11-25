@@ -13,7 +13,7 @@
                     <field name="check_fsm" invisible="1"/>
                 </xpath>
                 <xpath expr="//header/button[@name='action_create_crn_from_task']" position="attributes">
-                    <attribute name="attrs">{'invisible': ['|', '|', '|', ('fsm_crn_form', '=', True), ('is_fsm', '=', True), ('check_fsm', '=', True), ('task_seq', '=like', 'CRN%')]}</attribute>
+                    <attribute name="invisible">fsm_crn_form or is_fsm or check_fsm or 'CRN%' in (task_seq or "")</attribute>
                 </xpath>
             </field>
         </record>

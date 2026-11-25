@@ -11,7 +11,7 @@
 <!--            <xpath expr="//field[@name='origin']" position="after">-->
 <!--                <field name="project_id" string="Project/Job"/>-->
 <!--            </xpath>-->
-            <xpath expr="//page[@name='detailed_operations_shown']" position="attributes">
+            <xpath expr="//page[@name='operations']" position="attributes">
                 <attribute name="string">Delivery Order</attribute>
             </xpath>
 <!--            <xpath expr="//page[@name='operations']" position="attributes">-->

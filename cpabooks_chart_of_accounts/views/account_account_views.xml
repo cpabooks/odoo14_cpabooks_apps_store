@@ -47,11 +47,11 @@
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="priority">999</field>
         <field name="arch" type="xml">
-            <xpath expr="//tree/field[@name='group_id']" position="attributes">
+            <xpath expr="//list/field[@name='group_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
                 <attribute name="optional">hide</attribute>
             </xpath>
-            <xpath expr="//tree/field[@name='company_id']" position="attributes">
+            <xpath expr="//list/field[@name='company_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
                 <attribute name="optional">hide</attribute>
             </xpath>
@@ -78,8 +78,7 @@
                 <button name="action_cpabooks_ifrs_name_review"
                         type="object"
                         class="oe_stat_button"
-                        icon="fa-pencil-square-o"
-                        attrs="{'invisible': [('cpabooks_ifrs_needs_name_review', '=', False)]}">
+                        icon="fa-pencil-square-o" invisible="not cpabooks_ifrs_needs_name_review">
                     <div class="o_stat_info">
                         <span class="o_stat_text">IFRS Name Review</span>
                     </div>
@@ -90,10 +89,8 @@
                 <field name="cpabooks_l1_type_label" invisible="1"/>
             </field>
             <field name="group_id" position="after">
-                <field name="cpabooks_previous_code" readonly="1"
-                       attrs="{'invisible': [('cpabooks_previous_code', '=', False)]}"/>
-                <field name="cpabooks_previous_name" readonly="1"
-                       attrs="{'invisible': [('cpabooks_previous_name', '=', False)]}"/>
+                <field name="cpabooks_previous_code" readonly="1" invisible="not cpabooks_previous_code"/>
+                <field name="cpabooks_previous_name" readonly="1" invisible="not cpabooks_previous_name"/>
                 <field name="cpabooks_ifrs_needs_name_review" invisible="1"/>
             </field>
             <field name="group_id" position="before">

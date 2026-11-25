@@ -19,7 +19,7 @@
 <!--        <field name="inherit_id" ref="sale.view_order_form"/>-->
 <!--        <field name="arch" type="xml">-->
 <!--            <xpath expr="//header" position="inside">-->
-<!--                <button name="action_revise_sale_order" string="Revise" class="oe_stat_button" icon="fa-plus" type="object" attrs="{'invisible':[('state','not in',('sale','done'))]}"/>-->
+<!--                <button name="action_revise_sale_order" string="Revise" class="oe_stat_button" icon="fa-plus" type="object" invisible="state not in ('sale', 'done')"/>-->
 <!--            </xpath>-->
 
 <!--        </field>-->
@@ -34,7 +34,7 @@
                         <attribute name="readonly">0</attribute>
                 </field>
                 <field name="name" position="attributes">
-                        <attribute name="attrs">{'readonly':[('system_admin','=',False)]}</attribute>
+                        <attribute name="readonly">not system_admin</attribute>
                 </field>
                 <field name="name" position="after">
                     <field name="system_admin" invisible="1"/>

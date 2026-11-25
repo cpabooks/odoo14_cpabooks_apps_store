@@ -44,8 +44,16 @@ class CafmStockIssue(models.Model):
         self.flat_villa = call.flat or (call.cafm_unit_id.name if call.cafm_unit_id else False)
         self.technician_id = call.technician_id
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmStockIssue(vals)
+        return records
+
+    def _create_single_CafmStockIssue(self, vals):
         if vals.get('name', _('New')) == _('New'):
             code = {
                 'amc': 'cpabooks.cafm.stock.issue.amc',

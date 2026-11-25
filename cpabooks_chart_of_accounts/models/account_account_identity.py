@@ -51,7 +51,7 @@ class AccountAccountInherit(models.Model):
 	# 										  left join account_partial_reconcile apr on aml.id=apr.credit_move_id
 	# 										  left join account_partial_reconcile apr1 on aml.id=apr1.debit_move_id
 	# 										  ) and company_id in (select id from res_company)"""
-    #     self._cr.execute(query=query)
+    #     self.env.cr.execute(query=query)
 
 class AccountGroupInherit(models.Model):
     _inherit="account.group"

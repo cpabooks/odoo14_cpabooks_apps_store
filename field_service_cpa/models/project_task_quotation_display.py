@@ -221,7 +221,7 @@ class ProjectTaskFsmQuotationDisplay(models.Model):
         ]
         fnames = [name for name in fnames if name in self._fields]
         if fnames:
-            self.invalidate_cache(fnames)
+            self.invalidate_model(fnames)
 
     @api.depends(
         'stage',

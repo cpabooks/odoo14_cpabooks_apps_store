@@ -56,7 +56,11 @@ class AccountPaymentInheritance(models.Model):
             if current_prefix == sequence_prefix:
                 return current_name
 
-        highest_payment = self.env['account.payment'].sudo().with_context(
+        # Odoo 17+: account.payment no longer carries sequence_prefix/number
+        # (it is not an _inherits of account.move), so read the highest suffix
+        # from payment names that use the same prefix.
+        padding = int(get_sequence_object.padding)
+        candidates = self.env['account.payment'].sudo().with_context(
             cpabooks_jv_view_mode=False,
             cpabooks_odoo_fix_jv_view_mode=False,
         ).search(
@@ -64,13 +68,34 @@ class AccountPaymentInheritance(models.Model):
                 ('payment_type', '=', payment_type),
                 ('company_id', '=', company_id),
                 ('id', '!=', self.id),
-                ('sequence_prefix', '=', sequence_prefix),
+                ('name', '=like', sequence_prefix + '%'),
             ],
-            limit=1,
-            order='sequence_number desc, id desc',
-        )[:1]
-        next_number = (highest_payment.sequence_number or 0) + 1
-        return f"{sequence_prefix}{str(next_number).zfill(get_sequence_object.padding)}"
+        )
+        highest = 0
+        for name in candidates.mapped('name'):
+            suffix = (name or '')[len(sequence_prefix):]
+            if suffix.isdigit():
+                highest = max(highest, int(suffix))
+        next_number = highest + 1
+        return f"{sequence_prefix}{str(next_number).zfill(padding)}"
+
+    @api.depends('move_id.name', 'state')
+    def _compute_name(self):
+        """Keep CPABooks voucher numbers; Odoo 19 would copy the journal entry name."""
+        keep = self.filtered(
+            lambda p: p.name and p.name not in ('/', 'DRAFT', 'draft', 'Draft', 'NEW', 'new', 'New')
+        )
+        for payment in keep:
+            payment.name = payment.name
+        super(AccountPaymentInheritance, self - keep)._compute_name()
+
+    def action_post(self):
+        res = super().action_post()
+        for payment in self:
+            move = payment.move_id
+            if move and payment.name and move.name != payment.name:
+                move.with_context(skip_duplicate_source_name_restore=True).name = payment.name
+        return res
 
     # @api.model
     # def create(self, vals_list):
@@ -592,7 +617,7 @@ class AccountPaymentInheritance(models.Model):
     #                 idx = split_seq.index(str_month)
     #                 split_seq[idx] = str(self.invoice_date).split('-')[1]
     #                 get_sequence = "/".join(split_seq)
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
     #     #1st change
     #     elif '/%(year)s/%(month)s/' in get_sequence_object.prefix and get_sequence_object.sequence_pattern=='month_year_monthly':
@@ -605,11 +630,11 @@ class AccountPaymentInheritance(models.Model):
     #             #     split_highest_inv=get_highest_inv.name.split('/')
     #                 # get_sequence_object.number_next_actual=int(split_highest_inv[-1])-2
     #                 get_sequence_object.number_next_actual =get_sequence_object.number_next_actual-1
-    #                 # self._cr.commit()
+    #                 # self.env.cr.commit()
     #         else:
     #             split_seq = get_sequence.split('/')
     #             get_sequence_object.number_next_actual = get_sequence_object.number_next_actual-1
-    #             # self._cr.commit()
+    #             # self.env.cr.commit()
     # 
     #             # split_highest_inv = get_highest_inv.split('/')
     #             # get_sequence_object.number_next_actual = int(split_highest_inv[-1]) + 1
@@ -704,7 +729,7 @@ class AccountPaymentInheritance(models.Model):
     #                 get_sequence = "/".join(orginal_sequence)
     #                 #endregion
     #         
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
     # 
     #     elif '/%(year)s/%(month)s/' not in get_sequence_object.prefix and '/%(year)s/' in get_sequence_object.prefix and get_sequence_object.sequence_pattern=='year' :
@@ -735,7 +760,7 @@ class AccountPaymentInheritance(models.Model):
     # 
     #        
     # 
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
     # 
     #     elif '/%(year)s/%(month)s/' not in get_sequence_object.prefix and '/%(year)s/' in get_sequence_object.prefix and get_sequence_object.sequence_pattern=='year_yearly':
@@ -814,7 +839,7 @@ class AccountPaymentInheritance(models.Model):
     #                 # endregion
     # 
     #       
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
     # 
     #     elif '/%(year)s/%(month)s/' not in get_sequence_object.prefix and '/%(month)s/' in get_sequence_object.prefix:
@@ -853,7 +878,7 @@ class AccountPaymentInheritance(models.Model):
     #                 get_sequence = "/".join(split_seq)
     # 
     #        
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
     # 
     # 
@@ -871,11 +896,19 @@ class AccountPaymentInheritance(models.Model):
     #         else:
     #             split_seq = get_sequence.split('/')
     #             get_sequence = "/".join(split_seq)
-    #         self._cr.commit()
+    #         self.env.cr.commit()
     #         return get_sequence
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_AccountPaymentInheritance(vals)
+        return records
+
+    def _create_single_AccountPaymentInheritance(self, vals_list):
         res = super(AccountPaymentInheritance, self.with_context(skip_payment_move_sequence=True)).create(vals_list)
         company_id = res.company_id.id or self.env.company.id
         sequence_date = vals_list.get('date') or res.date
@@ -884,9 +917,9 @@ class AccountPaymentInheritance(models.Model):
             get_sequence_object = self.env['ir.sequence'].sudo().search(
                 [('sequence_for', '=', 'receipt_voucher'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
-            if res.name != '/' or res.name.upper() != 'DRAFT' or res.name.upper() != 'NEW':
+            if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
                 payment_name = ''
-            if res.name == '/' or res.name.upper() == 'DRAFT' or res.name.upper() == 'NEW':
+            if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 payment_name = ''
             get_sequence = res._get_backdated_sequence_name('receipt_voucher', sequence_date, current_name=False)
             if not get_sequence:
@@ -896,9 +929,9 @@ class AccountPaymentInheritance(models.Model):
             get_sequence_object = self.env['ir.sequence'].sudo().search(
                 [('sequence_for', '=', 'payment_voucher'), ('company_id', 'in', [company_id, False])],
                 limit=1, )
-            if res.name != '/' or res.name.upper() != 'DRAFT' or res.name.upper() != 'NEW':
+            if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
                 payment_name = ''
-            if res.name == '/' or res.name.upper() == 'DRAFT' or res.name.upper() == 'NEW':
+            if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                 payment_name = ''
             get_sequence = res._get_backdated_sequence_name('payment_voucher', sequence_date, current_name=False)
             if not get_sequence:
@@ -985,10 +1018,6 @@ class AccountPaymentInheritance(models.Model):
         rec = super(AccountPaymentInheritance, self).write(vals_list)
         for res in self:
             company_id = res.company_id.id or self.env.company.id
-            if 'name' in vals_list.keys():
-                get_number=vals_list['name'].split('/')
-                res.sequence_number=get_number[-1]
-                res.sequence_prefix='/'.join(get_number[:-1]) + '/'
             payment_name=''
 
             # or (res.name == '/' and not isinstance(res.invoice_date, bool))
@@ -1000,9 +1029,9 @@ class AccountPaymentInheritance(models.Model):
                         get_sequence_object = self.env['ir.sequence'].sudo().search(
                             [('sequence_for', '=', 'receipt_voucher'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
-                        if res.name!='/' or res.name.upper()!='DRAFT' or res.name.upper()!='NEW':
+                        if res.name!='/' or (res.name or '').upper()!='DRAFT' or (res.name or '').upper()!='NEW':
                             payment_name=res.name
-                        if res.name == '/' or res.name.upper() == 'DRAFT' or res.name.upper() == 'NEW':
+                        if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             payment_name = ''
 
                         if payment_name!='':
@@ -1030,9 +1059,9 @@ class AccountPaymentInheritance(models.Model):
                         get_sequence_object = self.env['ir.sequence'].sudo().search(
                             [('sequence_for', '=', 'payment_voucher'), ('company_id', 'in', [company_id, False])],
                             limit=1, )
-                        if res.name != '/' or res.name.upper() != 'DRAFT' or res.name.upper() != 'NEW':
+                        if res.name != '/' or (res.name or '').upper() != 'DRAFT' or (res.name or '').upper() != 'NEW':
                             payment_name = res.name
-                        if res.name == '/' or res.name.upper() == 'DRAFT' or res.name.upper() == 'NEW':
+                        if res.name == '/' or (res.name or '').upper() == 'DRAFT' or (res.name or '').upper() == 'NEW':
                             payment_name = ''
 
                         if payment_name != '':

@@ -1,14 +1,13 @@
-odoo.define('switchgear_cpa.switchgear_dashboard_action', function (require) {
-'use strict';
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction } from "@switchgear_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import { legacyRpc as rpc } from "@switchgear_cpa/js/legacy_compat";
+import { AppShell } from "@switchgear_cpa/js/switchgear_app_shell";
 
-var AbstractAction = require('web.AbstractAction');
-var core = require('web.core');
-var rpc = require('web.rpc');
-var AppShell = require('switchgear_cpa.switchgear_app_shell');
-
+const $ = window.jQuery;
 var _t = core._t;
 
-var SwitchgearDashboardAction = AbstractAction.extend({
+var SwitchgearDashboardAction = legacyAction({
     contentTemplate: 'SwitchgearDashboard',
     xmlDependencies: ['/switchgear_cpa/static/src/xml/switchgear_dashboard.xml'],
 
@@ -145,8 +144,7 @@ var SwitchgearDashboardAction = AbstractAction.extend({
     },
 });
 
-core.action_registry.add('switchgear_dashboard', SwitchgearDashboardAction);
-core.action_registry.add('switchgear_flowchart', SwitchgearDashboardAction);
+registerLegacyAction('switchgear_dashboard', SwitchgearDashboardAction);
+registerLegacyAction('switchgear_flowchart', SwitchgearDashboardAction);
 
-return SwitchgearDashboardAction;
-});
+export default SwitchgearDashboardAction;

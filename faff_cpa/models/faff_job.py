@@ -249,8 +249,16 @@ class FaffJob(models.Model):
 
     override_reason = fields.Text(string="Last Override Reason")
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_FaffJob(vals)
+        return records
+
+    def _create_single_FaffJob(self, vals):
         if vals.get("name", "New") == "New":
             vals["name"] = (
                 self.env["ir.sequence"].next_by_code("cpabooks.faff.job") or "FAFF/00001"
@@ -527,7 +535,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Tasks"),
             "res_model": "project.task",
-            "view_mode": "tree,form,kanban",
+            "view_mode": "list,form,kanban",
             "domain": domain,
             "context": {
                 "default_project_id": self.project_id.id if self.project_id else False,
@@ -541,7 +549,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Purchase"),
             "res_model": "purchase.order",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("faff_job_id", "=", self.id)],
             "context": {"default_faff_job_id": self.id},
         }
@@ -553,7 +561,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Material Issues"),
             "res_model": "stock.picking",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [
                 ("faff_job_id", "=", self.id),
                 "|",
@@ -577,7 +585,7 @@ class FaffJob(models.Model):
                 "type": "ir.actions.act_window",
                 "name": _("Delivery / Handover"),
                 "res_model": "cpabooks.faff.completion",
-                "view_mode": "tree,form",
+                "view_mode": "list,form",
                 "domain": [("job_id", "=", self.id)],
                 "context": {"default_job_id": self.id},
             }
@@ -585,7 +593,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Delivery"),
             "res_model": "stock.picking",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("id", "in", picking_ids)],
             "context": {"default_faff_job_id": self.id},
         }
@@ -601,7 +609,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Invoice"),
             "res_model": "account.move",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("id", "in", invoices.ids)],
             "context": {
                 "default_move_type": "out_invoice",
@@ -631,7 +639,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Payment"),
             "res_model": "account.payment",
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("id", "in", list(payment_ids))],
             "context": {
                 "default_partner_id": self.partner_id.id,
@@ -646,7 +654,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Attachments"),
             "res_model": "ir.attachment",
-            "view_mode": "kanban,tree,form",
+            "view_mode": "kanban,list,form",
             "domain": [("res_model", "=", "cpabooks.faff.job"), ("res_id", "=", self.id)],
             "context": {
                 "default_res_model": "cpabooks.faff.job",
@@ -660,7 +668,7 @@ class FaffJob(models.Model):
             "type": "ir.actions.act_window",
             "name": self._fields[field_name].string,
             "res_model": model,
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "domain": [("job_id", "=", self.id)],
             "context": {"default_job_id": self.id},
         }

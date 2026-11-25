@@ -15,8 +15,7 @@
                 </div>
                 <group>
                     <field name="operation" widget="radio"/>
-                    <field name="payment_mode" widget="radio"
-                           attrs="{'invisible': [('res_model', '!=', 'account.move')]}"/>
+                    <field name="payment_mode" widget="radio" invisible="res_model != 'account.move'"/>
                 </group>
                 <footer>
                     <button string="Close" class="btn-secondary" special="cancel"/>
@@ -33,7 +32,7 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="account.model_account_move"/>
         <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
     </record>
 
     <record id="action_cpa_cancel_wizard_payment" model="ir.actions.act_window">
@@ -43,7 +42,7 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="account.model_account_payment"/>
         <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
     </record>
 
     <record id="action_cpa_cancel_wizard_sale" model="ir.actions.act_window">
@@ -53,7 +52,7 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="sale.model_sale_order"/>
         <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
     </record>
 
     <record id="action_cpa_cancel_wizard_purchase" model="ir.actions.act_window">
@@ -63,7 +62,7 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="purchase.model_purchase_order"/>
         <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
     </record>
 
     <record id="action_cpa_cancel_wizard_picking" model="ir.actions.act_window">
@@ -73,6 +72,6 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="stock.model_stock_picking"/>
         <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
+        <field name="group_ids" eval="[(6, 0, [ref('group_cpa_cancel_posted')])]"/>
     </record>
 </odoo>

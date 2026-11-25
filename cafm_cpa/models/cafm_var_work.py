@@ -147,8 +147,16 @@ class CafmVarWork(models.Model):
                 'user_id': self.env.uid,
             })
 
-    @api.model
-    def create(self, vals):
+    @api.model_create_multi
+    def create(self, vals_list):
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+        records = self.browse()
+        for vals in vals_list:
+            records |= self._create_single_CafmVarWork(vals)
+        return records
+
+    def _create_single_CafmVarWork(self, vals):
         vals = dict(vals or {})
         vals.pop('sl_no', None)
         vals = self._link_call_from_numbers(vals)

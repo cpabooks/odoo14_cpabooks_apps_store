@@ -256,7 +256,7 @@ class CafmDashboard(models.AbstractModel):
             )
         views = action.get('views') or []
         action['views'] = [
-            [view_id, mode if mode != 'tree' else 'list']
+            [view_id, mode if mode != 'list' else 'list']
             for view_id, mode in views
         ] or [[False, 'list'], [False, 'form']]
         # Never drop into create-form when opening dashboard drills.
@@ -308,8 +308,8 @@ class CafmDashboard(models.AbstractModel):
             'type': 'ir.actions.act_window',
             'name': name or _('Call Register'),
             'res_model': 'maintenance.request',
-            'view_mode': 'tree,form',
-            'views': [[tree_view.id, 'tree'], [form_view.id, 'form']],
+            'view_mode': 'list,form',
+            'views': [[tree_view.id, 'list'], [form_view.id, 'form']],
             'search_view_id': [search_view.id, 'search'],
             'domain': merged_domain,
             'context': {},

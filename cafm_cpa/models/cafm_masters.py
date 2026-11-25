@@ -12,9 +12,10 @@ class CafmLocation(models.Model):
     active = fields.Boolean(default=True)
     note = fields.Text()
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Location must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Location must be unique.",
+    )
 
 
 class CafmContactPerson(models.Model):
@@ -38,9 +39,10 @@ class CafmCustomerGroup(models.Model):
     active = fields.Boolean(default=True)
     note = fields.Text()
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Customer group must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Customer group must be unique.",
+    )
 
 
 class CafmPriority(models.Model):
@@ -52,9 +54,10 @@ class CafmPriority(models.Model):
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Priority must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Priority must be unique.",
+    )
 
 
 class CafmJobType(models.Model):
@@ -65,9 +68,10 @@ class CafmJobType(models.Model):
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Type of Job must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Type of Job must be unique.",
+    )
 
 
 class CafmWorkType(models.Model):
@@ -78,9 +82,10 @@ class CafmWorkType(models.Model):
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Type of Work must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Type of Work must be unique.",
+    )
 
 
 class CafmProblemReported(models.Model):
@@ -91,9 +96,10 @@ class CafmProblemReported(models.Model):
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Problem Reported must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Problem Reported must be unique.",
+    )
 
 
 class CafmClientManager(models.Model):
@@ -145,6 +151,7 @@ class CafmDepartment(models.Model):
         string='Projects / L1',
     )
 
-    _sql_constraints = [
-        ('name_unique', 'unique(name)', 'Department must be unique.'),
-    ]
+    _name_unique = models.Constraint(
+        'unique(name)',
+        "Department must be unique.",
+    )

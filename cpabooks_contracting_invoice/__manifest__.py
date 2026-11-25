@@ -2,7 +2,7 @@
 {
     "name": "Construction & Labour Supply Invoice",
     "summary": "Progress billing for contractors: Work Done %, Previous % and a Contracting Invoice PDF",
-    "version": "14.0.1.0.0",
+    "version": "19.0.1.0.0",
     "category": "Accounting/Accounting",
     "author": "CPA Books",
     "website": "https://www.cpabooks.co",
@@ -33,11 +33,17 @@ Depends only on Odoo Accounting (Invoicing).
         "account",
     ],
     "data": [
-        "views/assets.xml",
         "views/account_move_views.xml",
         "views/res_config_settings_views.xml",
         "report/contracting_invoice_report.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "cpabooks_contracting_invoice/static/src/css/invoice_kind_toggle.css",
+            "cpabooks_contracting_invoice/static/src/js/invoice_kind_toggle.js",
+            "cpabooks_contracting_invoice/static/src/xml/invoice_kind_toggle.xml",
+        ],
+    },
     "installable": True,
     "application": False,
     "auto_install": False,

@@ -161,6 +161,11 @@ class FsmTestDataWizard(models.TransientModel):
         ], {
             'name': analytic_name,
             'company_id': company.id,
+            # Odoo 16+: analytic accounts belong to a plan
+            'plan_id': (
+                self.env['account.analytic.plan'].sudo().search([], limit=1)
+                or self.env['account.analytic.plan'].sudo().create({'name': 'Projects'})
+            ).id,
         })
         return self._get_or_create('project.project', [
             ('name', '=', analytic_name),
@@ -171,7 +176,7 @@ class FsmTestDataWizard(models.TransientModel):
             'allow_timesheets': True,
             'allow_quotations': True,
             'allow_worksheets': True,
-            'analytic_account_id': analytic.id,
+            'account_id': analytic.id,
             'company_id': company.id,
         })
 
@@ -194,7 +199,8 @@ class FsmTestDataWizard(models.TransientModel):
         for name, product_type, cost, price in specs:
             products |= self._get_or_create('product.product', [('name', '=', name)], {
                 'name': name,
-                'type': product_type,
+                'type': 'service' if product_type == 'service' else 'consu',
+                'is_storable': product_type == 'product',
                 'standard_price': cost,
                 'list_price': price,
             })
@@ -204,8 +210,8 @@ class FsmTestDataWizard(models.TransientModel):
         employees = self.env['hr.employee'].sudo()
         for name in ['Arun Mathew', 'Bilal Khan', 'Naveen George', 'Rashid Ali']:
             vals = {'name': 'FSM Test Data - %s' % name, 'company_id': self.env.company.id}
-            if 'timesheet_cost' in self.env['hr.employee']._fields:
-                vals['timesheet_cost'] = 85.0
+            if 'hourly_cost' in self.env['hr.employee']._fields:
+                vals['hourly_cost'] = 85.0
             employees |= self._get_or_create('hr.employee', [
                 ('name', '=', vals['name']),
                 ('company_id', 'in', [self.env.company.id, False]),
@@ -295,7 +301,7 @@ class FsmTestDataWizard(models.TransientModel):
         return 'foc' if stage == 'in_progress' else False
 
     def _create_materials_and_issue(self, task, products, material_index):
-        material_products = products.filtered(lambda product: product.type == 'product')
+        material_products = products.filtered(lambda product: product.is_storable)
         selected = material_products[material_index % len(material_products)]
         quantity = 1.0 + (material_index % 3)
         issued_quantity = quantity if material_index % 4 else max(quantity - 1.0, 0.0)
@@ -330,8 +336,8 @@ class FsmTestDataWizard(models.TransientModel):
             'amount': -(hours * 85.0),
             'company_id': task.company_id.id,
         }
-        if 'account_id' in self.env['account.analytic.line']._fields and task.project_id.analytic_account_id:
-            vals['account_id'] = task.project_id.analytic_account_id.id
+        if 'account_id' in self.env['account.analytic.line']._fields and task.project_id.account_id:
+            vals['account_id'] = task.project_id.account_id.id
         self._track(self.env['account.analytic.line'].sudo().create(vals))
 
     def _create_sales_flow(self, task, service_product, stage_target, date):
@@ -348,7 +354,7 @@ class FsmTestDataWizard(models.TransientModel):
                     'product_id': service_product.id,
                     'name': 'Field service work for %s' % task.task_seq,
                     'product_uom_qty': 1.0,
-                    'product_uom': service_product.uom_id.id,
+                    'product_uom_id': service_product.uom_id.id,
                     'price_unit': 650.0,
                 })],
             }))
