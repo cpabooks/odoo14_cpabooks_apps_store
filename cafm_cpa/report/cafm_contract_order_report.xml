@@ -12,7 +12,7 @@
         />
 
         <record id="action_report_cafm_contract_order" model="ir.actions.report">
-            <field name="binding_model_id" ref="cafm_cpa.model_cafm_cpa_contract_order"/>
+            <field name="binding_model_id" ref="cafm_cpa.model_cpabooks_cafm_contract_order"/>
             <field name="binding_type">report</field>
         </record>
     </data>

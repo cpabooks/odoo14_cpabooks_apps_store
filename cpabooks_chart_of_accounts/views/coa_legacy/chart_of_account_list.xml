@@ -24,9 +24,6 @@
                 <xpath expr="//field[@name='tag_ids']" position="attributes">
                     <attribute name="readonly">1</attribute>
                 </xpath>
-                <xpath expr="//field[@name='allowed_journal_ids']" position="attributes">
-                    <attribute name="readonly">1</attribute>
-                </xpath>
                 <xpath expr="//field[@name='group_id']" position="attributes">
                     <attribute name="readonly">1</attribute>
                 </xpath>

@@ -94,7 +94,7 @@ class AuditedFinancialLedgerMergeWizard(models.TransientModel):
     line_ids = fields.One2many(
         "audited.financial.ledger.merge.line",
         "wizard_id",
-        string="Ledgers",
+        string="Ledger lines",
     )
     info_message = fields.Text(string="Status", readonly=True)
     line_count = fields.Integer(compute="_compute_line_count")
@@ -178,7 +178,7 @@ class AuditedFinancialLedgerMergeWizard(models.TransientModel):
             alive = self.account_ids.exists()
             if alive != self.account_ids:
                 self.account_ids = alive
-        self.invalidate_model()
+        self.invalidate_recordset()
 
     def _included_lines(self):
         self.ensure_one()
@@ -441,7 +441,7 @@ class AuditedFinancialLedgerMergeWizard(models.TransientModel):
         target_name = target.display_name
         self._drop_lines_for_accounts(sources)
         result = self._do_merge_accounts(target, sources)
-        self.env.invalidate_model()
+        self.env.invalidate_all()
         keep = self.line_ids.filtered(lambda l: l.account_id.id == target.id)
         usage = (self._ledger_usage_stats(target.ids) or {}).get(target.id) or {}
         for line in keep:
@@ -563,7 +563,7 @@ class AuditedFinancialLedgerMergeWizard(models.TransientModel):
                     deprecated.append(source.display_name)
                 except Exception as dep_err:
                     deprecated.append("%s (%s)" % (source.display_name, dep_err))
-        self.env.invalidate_model()
+        self.env.invalidate_all()
         return {"lines_moved": lines_moved, "deleted": [], "deprecated": deprecated}
 
     def action_close(self):

@@ -1,10 +1,12 @@
-odoo.define("cafm_cpa.CafmDashboard", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction, legacyRpc as rpc, loadChartJs, chartV2ToV4, currentAppXmlid, onShellUpdate, openMenuByXmlid } from "@cafm_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import * as cafm_cpa_shell from "@cafm_cpa/js/cafm_shell_sidebar";
+import * as cafm_cpa_ui_theme from "@cafm_cpa/js/cafm_ui_theme";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-
-    var CafmDashboard = AbstractAction.extend({
+const $ = window.jQuery;
+const _t = core._t;
+    var CafmDashboard = legacyAction({
         contentTemplate: "CpabooksCafmDashboard",
         xmlDependencies: ["/cafm_cpa/static/src/xml/cafm_dashboard_main.xml"],
         THEME_KEY: "cpa_cafm_dashboard_theme",
@@ -14,6 +16,10 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
             "click .o_cfd_completion_kpi": "_onDrillClick",
             "click .o_cfd_open_main_menu": "_onOpenMainMenu",
             "click .cpa-cafm-theme-btn": "_onThemeClick",
+        },
+
+        willStart: function () {
+            return loadChartJs();
         },
 
         init: function (parent, action) {
@@ -29,12 +35,12 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
             this.set("title", "CAFM Operations Dashboard");
             return this._super.apply(this, arguments).then(function () {
                 try {
-                    require("cafm_cpa.shell").requestSyncSidebar(true);
+                    cafm_cpa_shell.requestSyncSidebar(true);
                 } catch (error) {
                     // shell loads globally; dashboard still works without it
                 }
                 try {
-                    var UiTheme = require("cafm_cpa.ui_theme");
+const UiTheme = cafm_cpa_ui_theme;
                     self._theme = UiTheme.syncShellTheme();
                     UiTheme.applyUiTheme(self._theme);
                     UiTheme.syncNavbarToggleState();
@@ -59,7 +65,7 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
 
         _readStoredTheme: function () {
             try {
-                return require("cafm_cpa.ui_theme").readTheme();
+                return cafm_cpa_ui_theme.readTheme();
             } catch (e) {
                 return "default";
             }
@@ -67,7 +73,7 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
 
         _applyTheme: function (theme) {
             try {
-                this._theme = require("cafm_cpa.ui_theme").applyUiTheme(theme);
+                this._theme = cafm_cpa_ui_theme.applyUiTheme(theme);
             } catch (e) {
                 this._theme = theme === "dark" ? "dark" : "default";
             }
@@ -84,7 +90,7 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
 
         _injectNavbarThemeToggle: function () {
             try {
-                require("cafm_cpa.ui_theme").injectNavbarThemeToggle();
+                cafm_cpa_ui_theme.injectNavbarThemeToggle();
             } catch (e) { /* ignore */ }
         },
 
@@ -300,7 +306,7 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
                     borderWidth: 1,
                 };
             });
-            this._charts[key] = new window.Chart(canvas.getContext("2d"), {
+            this._charts[key] = new window.Chart(canvas.getContext("2d"), chartV2ToV4({
                 type: "bar",
                 data: {
                     labels: labels,
@@ -333,7 +339,7 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
                         }],
                     },
                 },
-            });
+            }));
         },
 
         _renderKpis: function (kpis) {
@@ -433,6 +439,5 @@ odoo.define("cafm_cpa.CafmDashboard", function (require) {
         },
     });
 
-    core.action_registry.add("cafm_cpa_dashboard", CafmDashboard);
-    return CafmDashboard;
-});
+    registerLegacyAction("cafm_cpa_dashboard", CafmDashboard);
+    export default CafmDashboard;

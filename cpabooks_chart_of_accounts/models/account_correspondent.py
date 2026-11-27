@@ -12,7 +12,7 @@ class AccountAccountCorrespondent(models.Model):
         string='Correspondent Dr/Cr Ledger',
         index=True,
         ondelete='set null',
-        domain="[('company_id', '=', company_id), ('deprecated', '=', False), ('id', '!=', id)]",
+        domain="[('company_ids', 'in', company_id), ('id', '!=', id)]",
         help='Paired P&L / Balance Sheet ledger. Set on either account; both sides stay in sync.',
     )
 

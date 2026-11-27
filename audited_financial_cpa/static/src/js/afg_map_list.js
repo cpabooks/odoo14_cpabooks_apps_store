@@ -1,488 +1,264 @@
-odoo.define('audited_financial_cpa.afg_map_list', function (require) {
-    'use strict';
+/** @odoo-module **/
 
-    var ListController = require('web.ListController');
-    var ListRenderer = require('web.ListRenderer');
-    var core = require('web.core');
+import { onMounted, onPatched, onWillStart } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { listView } from "@web/views/list/list_view";
+import { ListController } from "@web/views/list/list_controller";
+import { ListRenderer } from "@web/views/list/list_renderer";
 
-    var _t = core._t;
+function isAfgList(props) {
+    const model = props.resModel || (props.list && props.list.resModel) || "";
+    const ctx = props.context || (props.list && props.list.context) || {};
+    return (
+        model === "audited.financial.group" ||
+        model === "audited.financial.ctf.group" ||
+        model === "account.group" ||
+        ctx.afg_map_list
+    );
+}
 
-    function afgActionXmlId(widget) {
-        var cur = widget;
-        var n = 0;
-        while (cur && n < 8) {
-            if (cur.action && (cur.action.xml_id || cur.action.xmlId)) {
-                return cur.action.xml_id || cur.action.xmlId;
+export class AfgMapListController extends ListController {
+    setup() {
+        super.setup();
+        this.orm = useService("orm");
+        onWillStart(async () => {
+            if (!isAfgList(this.props)) {
+                return;
             }
-            cur = cur.getParent && cur.getParent();
-            n += 1;
-        }
-        return '';
-    }
-
-    function afgContext(widget) {
-        var ctx = (widget.state && widget.state.context) || {};
-        var cur = widget;
-        var n = 0;
-        while (cur && n < 8) {
-            if (cur.action && cur.action.context) {
-                ctx = _.extend({}, cur.action.context, ctx);
-                break;
+            const model = this.props.resModel;
+            const ctx = this.props.context || {};
+            if (model === "audited.financial.ctf.group" || ctx.afg_map_mode === "ctf") {
+                await this.orm.call("audited.financial.ctf.group", "action_setup_default_ctf_groups", []);
+                await this.orm.call("account.account", "action_afg_ensure_ctf_map", []);
+            } else if (model === "audited.financial.group") {
+                await this.orm.call("audited.financial.group", "action_afg_ensure_standard_map", []);
             }
-            cur = cur.getParent && cur.getParent();
-            n += 1;
-        }
-        return ctx;
+        });
+        onMounted(() => this._afgInstallButtons());
     }
 
-    function isAfgMapList(widget) {
-        var model = (widget.state && widget.state.model) || widget.modelName || '';
-        if (model === 'audited.financial.group' || model === 'audited.financial.ctf.group') {
-            return true;
-        }
-        var ctx = afgContext(widget);
-        if (ctx.afg_map_list) {
-            return true;
-        }
-        var xml = afgActionXmlId(widget) || '';
-        return xml.indexOf('action_afg_l') !== -1
-            || xml.indexOf('action_audited_financial_group') !== -1;
-    }
-
-    function groupValue(group) {
-        var val = group && group.value;
-        if (_.isArray(val)) {
-            return val[0];
-        }
-        return val || '';
-    }
-
-    function afgDoAction(widget, action) {
-        var cur = widget;
-        var n = 0;
-        while (cur && n < 10) {
-            if (cur.do_action) {
-                return cur.do_action(action);
-            }
-            cur = cur.getParent && cur.getParent();
-            n += 1;
-        }
-        return Promise.resolve();
-    }
-
-    function afgSyncLedgerToggle($buttons, expanded) {
-        if (!$buttons) {
+    _afgInstallButtons() {
+        if (!isAfgList(this.props) || document.querySelector(".o_afg_btn_expand_ledgers")) {
             return;
         }
-        $buttons.find('.o_cpabooks_show_ledgers_toggle').each(function () {
-            var $btn = $(this);
-            $btn.toggleClass('o_afg_ledgers_expanded active', !!expanded);
-            $btn.text(expanded ? _t('Collapse ledgers') : _t('Expand ledgers'));
+        const slot = document.querySelector(".o_control_panel_main_buttons");
+        if (!slot) {
+            return;
+        }
+        const expand = document.createElement("button");
+        expand.type = "button";
+        expand.className = "btn btn-secondary o_afg_btn_expand_ledgers";
+        expand.textContent = "Expand ledgers";
+        expand.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            const renderer = this._afgRenderer;
+            if (!renderer) {
+                return;
+            }
+            const expanded = expand.classList.toggle("o_afg_ledgers_expanded");
+            expand.textContent = expanded ? "Collapse ledgers" : "Expand ledgers";
+            if (expanded) {
+                renderer.afgExpandAll();
+            } else {
+                renderer.afgCollapseAll();
+            }
+        });
+        slot.appendChild(expand);
+    }
+}
+
+export class AfgMapListRenderer extends ListRenderer {
+    setup() {
+        super.setup();
+        this.orm = useService("orm");
+        this.actionService = useService("action");
+        this._afgExpanded = {};
+        this._afgChildren = {};
+        if (this.env.controller) {
+            // filled below if the controller asks
+        }
+        onMounted(() => {
+            this._afgRegister();
+            this._afgBindMenu();
+        });
+        onPatched(() => {
+            this._afgRestore();
+            this._afgBindMenu();
         });
     }
 
-    ListRenderer.include({
-        events: _.extend({}, ListRenderer.prototype.events, {
-            'contextmenu tbody tr.o_data_row': '_onAfgContextMenu',
-            'contextmenu tbody tr.o_group_header': '_onAfgOdooGroupContextMenu',
-        }),
-
-        init: function () {
-            this._super.apply(this, arguments);
-            this._afgExpanded = {};
-            this._afgChildren = {};
-        },
-
-        _afgMode: function () {
-            return afgContext(this).afg_map_mode || '';
-        },
-
-        _afgIsOdooGrouped: function () {
-            return !!(this.state.groupedBy && this.state.groupedBy.length);
-        },
-
-        _renderGroupRow: function (group, groupLevel) {
-            var $row = this._super.apply(this, arguments);
-            if (isAfgMapList(this)) {
-                $row.attr('data-afg-group-value', groupValue(group));
+    _afgRegister() {
+        const controller = this.env.searchModel ? null : null;
+        // The list controller is the parent component in Odoo 19.
+        let parent = this.__owl__ && this.__owl__.parent;
+        while (parent) {
+            const comp = parent.component;
+            if (comp && comp instanceof AfgMapListController) {
+                comp._afgRenderer = this;
+                break;
             }
-            return $row;
-        },
+            parent = parent.parent;
+        }
+    }
 
-        _renderView: function () {
-            var self = this;
-            return this._super.apply(this, arguments).then(function () {
-                if (isAfgMapList(self) && !self._afgIsOdooGrouped()) {
-                    self._afgRestoreExpanded();
-                }
-            });
-        },
+    _afgActive() {
+        return isAfgList(this.props);
+    }
 
-        _onRowClicked: function (ev) {
-            if (!isAfgMapList(this)) {
-                return this._super.apply(this, arguments);
-            }
-            var $tr = $(ev.currentTarget);
-            if ($tr.hasClass('o_group_header')) {
-                return this._super.apply(this, arguments);
-            }
-            if ($tr.hasClass('o_afg_child_row')) {
-                ev.stopPropagation();
-                ev.preventDefault();
-                return;
-            }
-            if (this._afgIsOdooGrouped()) {
-                return this._super.apply(this, arguments);
-            }
-            if (ev.target.closest('.o_list_record_selector')) {
-                return this._super.apply(this, arguments);
-            }
+    async onCellClicked(record, column, ev, newWindow) {
+        if (!this._afgActive() || (column && column.widget === "handle")) {
+            return super.onCellClicked(record, column, ev, newWindow);
+        }
+        if (ev && ev.target && ev.target.closest(".o_list_record_selector, button, a")) {
+            return super.onCellClicked(record, column, ev, newWindow);
+        }
+        if (ev) {
             ev.stopPropagation();
             ev.preventDefault();
-            var rec = this._afgRecordFromRow($tr);
-            if (rec) {
-                this._afgToggle(rec.res_id, $tr);
-            }
-        },
+        }
+        await this._afgToggle(record);
+    }
 
-        _afgRecordFromRow: function ($tr) {
-            var id = $tr.attr('data-id');
-            return _.find(this.state.data || [], function (rec) {
-                return String(rec.id) === String(id);
-            });
-        },
+    _afgRow(record) {
+        const table = this.tableRef && this.tableRef.el;
+        if (!table || !record) {
+            return null;
+        }
+        return table.querySelector(`tr.o_data_row[data-id="${record.id}"]`);
+    }
 
-        _afgColspan: function () {
-            var cols = (this.columns && this.columns.length) || 1;
-            if (this.hasSelectors) {
-                cols += 1;
-            }
-            return cols;
-        },
+    _afgClearChildren(row) {
+        if (!row) {
+            return;
+        }
+        let next = row.nextElementSibling;
+        while (next && next.classList.contains("o_afg_child_row")) {
+            const drop = next;
+            next = next.nextElementSibling;
+            drop.remove();
+        }
+    }
 
-        _renderAfgChildRow: function (child) {
-            var $tr = $('<tr/>', {
-                'class': 'o_data_row o_afg_child_row',
-                'data-account-id': child.id,
-            });
-            var label = ((child.code || '') + '  ' + (child.name || '')).trim();
-            if (this.hasSelectors) {
-                $tr.append($('<td/>', {'class': 'o_list_record_selector'}));
-            }
-            $tr.append($('<td/>', {
-                'class': 'o_afg_child_cell',
-                colspan: Math.max(1, this._afgColspan() - (this.hasSelectors ? 1 : 0)),
-            }).text(label));
-            return $tr;
-        },
+    _afgInsertChildren(row, children) {
+        this._afgClearChildren(row);
+        let last = row;
+        const colspan = Math.max(1, (this.columns || []).length);
+        (children || []).forEach((child) => {
+            const tr = document.createElement("tr");
+            tr.className = "o_data_row o_afg_child_row";
+            tr.dataset.accountId = String(child.id || "");
+            const td = document.createElement("td");
+            td.colSpan = colspan;
+            td.className = "o_afg_child_cell";
+            td.textContent = `${child.code || ""}  ${child.name || ""}`.trim();
+            tr.appendChild(td);
+            last.insertAdjacentElement("afterend", tr);
+            last = tr;
+        });
+    }
 
-        _afgClearChildRows: function ($tr) {
-            var $next = $tr.next();
-            while ($next.length && $next.hasClass('o_afg_child_row')) {
-                var $drop = $next;
-                $next = $next.next();
-                $drop.remove();
-            }
-        },
+    async _afgToggle(record) {
+        const resId = record.resId;
+        const row = this._afgRow(record);
+        if (!resId || !row) {
+            return;
+        }
+        if (this._afgExpanded[resId]) {
+            delete this._afgExpanded[resId];
+            this._afgClearChildren(row);
+            return;
+        }
+        const rows = await this.orm.call(this.props.list.resModel, "afg_map_fetch_children", [[resId]]);
+        this._afgExpanded[resId] = true;
+        this._afgChildren[resId] = rows || [];
+        this._afgInsertChildren(row, rows || []);
+    }
 
-        _afgInsertChildren: function ($tr, rows) {
-            this._afgClearChildRows($tr);
-            var $last = $tr;
-            var self = this;
-            _.each(rows || [], function (child) {
-                var $c = self._renderAfgChildRow(child);
-                $last.after($c);
-                $last = $c;
-            });
-        },
-
-        _afgRowByResId: function (resId) {
-            var self = this;
-            var $found = $();
-            this.$('tbody tr.o_data_row').not('.o_afg_child_row').each(function () {
-                var rec = self._afgRecordFromRow($(this));
-                if (rec && rec.res_id === resId) {
-                    $found = $(this);
-                    return false;
-                }
-            });
-            return $found;
-        },
-
-        _afgRestoreExpanded: function () {
-            var self = this;
-            _.each(this._afgExpanded, function (on, resId) {
-                if (!on) {
-                    return;
-                }
-                var $tr = self._afgRowByResId(parseInt(resId, 10) || resId);
-                if ($tr.length) {
-                    self._afgInsertChildren($tr, self._afgChildren[resId] || []);
-                }
-            });
-        },
-
-        _afgToggle: function (resId, $tr) {
-            var self = this;
-            if (this._afgExpanded[resId]) {
-                delete this._afgExpanded[resId];
-                this._afgClearChildRows($tr);
-                return Promise.resolve();
-            }
-            return this._rpc({
-                model: this.state.model,
-                method: 'afg_map_fetch_children',
-                args: [[resId]],
-            }).then(function (rows) {
-                self._afgExpanded[resId] = true;
-                self._afgChildren[resId] = rows || [];
-                self._afgInsertChildren($tr, rows || []);
-            });
-        },
-
-        _afgExpandAll: function (depth) {
-            var self = this;
-            depth = depth || 0;
-            if (depth > 60) {
-                return Promise.resolve();
-            }
-            if (this._afgIsOdooGrouped()) {
-                var $closed = this.$('.o_group_header .fa-caret-right').closest('.o_group_header');
-                if (!$closed.length) {
-                    return Promise.resolve();
-                }
-                var before = $closed.length;
-                $closed.first().trigger('click');
-                return new Promise(function (resolve) {
-                    setTimeout(function () {
-                        var after = self.$('.o_group_header .fa-caret-right').closest('.o_group_header').length;
-                        if (after >= before) {
-                            resolve();
-                            return;
-                        }
-                        self._afgExpandAll(depth + 1).then(resolve);
-                    }, 50);
-                });
-            }
-            var ids = _.map(this.state.data || [], function (rec) { return rec.res_id; });
-            if (!ids.length) {
-                return Promise.resolve();
-            }
-            return this._rpc({
-                model: this.state.model,
-                method: 'afg_map_fetch_children_multi',
-                args: [ids],
-            }).then(function (map) {
-                map = map || {};
-                _.each(ids, function (rid) {
-                    self._afgExpanded[rid] = true;
-                    self._afgChildren[rid] = map[String(rid)] || [];
-                    var $tr = self._afgRowByResId(rid);
-                    if ($tr.length) {
-                        self._afgInsertChildren($tr, self._afgChildren[rid]);
-                    }
-                });
-            });
-        },
-
-        _afgCollapseAll: function (depth) {
-            var self = this;
-            depth = depth || 0;
-            if (depth > 60) {
-                return Promise.resolve();
-            }
-            if (this._afgIsOdooGrouped()) {
-                var $open = this.$('.o_group_header .fa-caret-down').closest('.o_group_header');
-                if (!$open.length) {
-                    return Promise.resolve();
-                }
-                var before = $open.length;
-                $open.first().trigger('click');
-                return new Promise(function (resolve) {
-                    setTimeout(function () {
-                        var after = self.$('.o_group_header .fa-caret-down').closest('.o_group_header').length;
-                        if (after >= before) {
-                            resolve();
-                            return;
-                        }
-                        self._afgCollapseAll(depth + 1).then(resolve);
-                    }, 40);
-                });
-            }
-            this._afgExpanded = {};
-            this.$('tr.o_afg_child_row').remove();
-            return Promise.resolve();
-        },
-
-        _onAfgContextMenu: function (ev) {
-            if (!isAfgMapList(this)) {
+    _afgRestore() {
+        if (!this._afgActive()) {
+            return;
+        }
+        (this.props.list.records || []).forEach((record) => {
+            if (!this._afgExpanded[record.resId]) {
                 return;
             }
-            var $tr = $(ev.currentTarget);
-            if ($tr.hasClass('o_afg_child_row')) {
+            const row = this._afgRow(record);
+            if (row) {
+                this._afgInsertChildren(row, this._afgChildren[record.resId] || []);
+            }
+        });
+    }
+
+    async afgExpandAll() {
+        const records = this.props.list.records || [];
+        const ids = records.map((record) => record.resId).filter(Boolean);
+        if (!ids.length) {
+            return;
+        }
+        const mapped = await this.orm.call(this.props.list.resModel, "afg_map_fetch_children_multi", [ids]);
+        ids.forEach((resId) => {
+            this._afgExpanded[resId] = true;
+            this._afgChildren[resId] = (mapped && (mapped[resId] || mapped[String(resId)])) || [];
+        });
+        this._afgRestore();
+    }
+
+    afgCollapseAll() {
+        this._afgExpanded = {};
+        const table = this.tableRef && this.tableRef.el;
+        if (!table) {
+            return;
+        }
+        table.querySelectorAll("tr.o_afg_child_row").forEach((row) => row.remove());
+    }
+
+    _afgBindMenu() {
+        const table = this.tableRef && this.tableRef.el;
+        if (!table || table.dataset.afgMenu === "1" || !this._afgActive()) {
+            return;
+        }
+        table.dataset.afgMenu = "1";
+        table.addEventListener("contextmenu", (ev) => {
+            const row = ev.target.closest("tr");
+            if (!row) {
+                return;
+            }
+            if (row.classList.contains("o_afg_child_row")) {
                 ev.preventDefault();
-                ev.stopPropagation();
-                var accId = parseInt($tr.attr('data-account-id'), 10);
+                const accId = parseInt(row.dataset.accountId, 10);
                 if (!accId) {
                     return;
                 }
-                var self = this;
-                this._rpc({
-                    model: 'account.account',
-                    method: 'get_formview_action',
-                    args: [[accId]],
-                }).then(function (action) {
-                    afgDoAction(self, action);
-                });
-                return;
-            }
-            if (this._afgIsOdooGrouped()) {
-                return;
-            }
-            ev.preventDefault();
-            ev.stopPropagation();
-            var rec = this._afgRecordFromRow($tr);
-            if (!rec) {
-                return;
-            }
-            var widget = this;
-            this._rpc({
-                model: this.state.model,
-                method: 'action_afg_map_popup',
-                args: [[rec.res_id]],
-            }).then(function (action) {
-                afgDoAction(widget, action);
-            });
-        },
-
-        _onAfgOdooGroupContextMenu: function (ev) {
-            if (!isAfgMapList(this)) {
-                return;
-            }
-            ev.preventDefault();
-            ev.stopPropagation();
-            var val = $(ev.currentTarget).attr('data-afg-group-value') || '';
-            var mode = this._afgMode();
-            var widget = this;
-            var def;
-            if (mode === 'ctf' || this.state.groupedBy && this.state.groupedBy[0] === 'ctf_category') {
-                def = this._rpc({
-                    model: 'account.account',
-                    method: 'action_afg_map_popup_ctf',
-                    args: [val],
-                });
-            } else {
-                var gid = parseInt(val, 10);
-                if (!gid) {
-                    return;
-                }
-                def = this._rpc({
-                    model: 'account.group',
-                    method: 'action_afg_map_popup',
-                    args: [[gid]],
-                });
-            }
-            def.then(function (action) {
-                afgDoAction(widget, action);
-            });
-        },
-    });
-
-    ListController.include({
-        willStart: function () {
-            var self = this;
-            var args = arguments;
-            var superFn = this._super.bind(this);
-            var model = this.modelName || (this.action && this.action.res_model) || '';
-            var xml = (this.action && (this.action.xml_id || this.action.xmlId)) || '';
-            var ctx = (this.action && this.action.context) || {};
-            var isAfg = model === 'audited.financial.group'
-                || model === 'audited.financial.ctf.group'
-                || ctx.afg_map_list
-                || xml.indexOf('action_afg_l') !== -1
-                || xml.indexOf('action_audited_financial_group') !== -1;
-            var prep = Promise.resolve();
-            if (isAfg && (model === 'audited.financial.ctf.group' || ctx.afg_map_mode === 'ctf' || xml.indexOf('action_afg_l1') !== -1)) {
-                prep = this._rpc({
-                    model: 'audited.financial.ctf.group',
-                    method: 'action_setup_default_ctf_groups',
-                    args: [],
-                }).then(function () {
-                    return self._rpc({
-                        model: 'account.account',
-                        method: 'action_afg_ensure_ctf_map',
-                        args: [],
-                    });
-                });
-            } else if (isAfg && model === 'audited.financial.group') {
-                prep = this._rpc({
-                    model: 'audited.financial.group',
-                    method: 'action_afg_ensure_standard_map',
-                    args: [],
-                });
-            } else if (isAfg && (ctx.afg_map_mode === 'ctf' || xml.indexOf('action_afg_l1') !== -1)) {
-                prep = this._rpc({
-                    model: 'account.account',
-                    method: 'action_afg_ensure_ctf_map',
-                    args: [],
-                });
-            }
-            return prep.then(function () {
-                return superFn.apply(self, args);
-            });
-        },
-
-        renderButtons: function () {
-            this._super.apply(this, arguments);
-            if (!this.$buttons) {
-                return;
-            }
-            var model = this.modelName || (this.action && this.action.res_model) || '';
-            var xml = (this.action && (this.action.xml_id || this.action.xmlId)) || '';
-            var ctx = (this.action && this.action.context) || {};
-            var isAfg = model === 'audited.financial.group'
-                || model === 'audited.financial.ctf.group'
-                || ctx.afg_map_list
-                || xml.indexOf('action_afg_l') !== -1
-                || xml.indexOf('action_audited_financial_group') !== -1;
-            if (!isAfg) {
-                return;
-            }
-            var self = this;
-            if (!this.$buttons.find('.o_afg_btn_collapse').length) {
-                var $collapse = $('<button type="button" class="btn btn-secondary o_afg_btn_collapse"/>')
-                    .text(_t('Collapse'));
-                this.$buttons.append($collapse);
-                $collapse.on('click', function () {
-                    self.renderer && self.renderer._afgCollapseAll && self.renderer._afgCollapseAll();
-                    afgSyncLedgerToggle(self.$buttons, false);
-                });
-            }
-            setTimeout(function () {
-                if (!self.$buttons) {
-                    return;
-                }
-                self.$buttons.find('.o_afg_btn_expand').remove();
-                self.$buttons.find('.o_cpabooks_show_ledgers_toggle').each(function () {
-                    var el = this;
-                    if (el.getAttribute('data-afg-bound') === '1') {
-                        return;
+                this.orm.call("account.account", "get_formview_action", [[accId]]).then((action) => {
+                    if (action) {
+                        this.actionService.doAction(action);
                     }
-                    el.setAttribute('data-afg-bound', '1');
-                    el.addEventListener('click', function (ev) {
-                        ev.preventDefault();
-                        ev.stopImmediatePropagation();
-                        var $btn = $(el);
-                        var on = !$btn.hasClass('o_afg_ledgers_expanded');
-                        afgSyncLedgerToggle(self.$buttons, on);
-                        if (on) {
-                            self.renderer && self.renderer._afgExpandAll && self.renderer._afgExpandAll();
-                        } else {
-                            self.renderer && self.renderer._afgCollapseAll && self.renderer._afgCollapseAll();
-                        }
-                    }, true);
                 });
-            }, 300);
-        },
-    });
-});
+                return;
+            }
+            const dataRow = row.classList.contains("o_data_row") ? row : null;
+            if (!dataRow) {
+                return;
+            }
+            const record = (this.props.list.records || []).find((item) => String(item.id) === dataRow.dataset.id);
+            if (!record || !record.resId) {
+                return;
+            }
+            ev.preventDefault();
+            this.orm.call(this.props.list.resModel, "action_afg_map_popup", [[record.resId]]).then((action) => {
+                if (action) {
+                    this.actionService.doAction(action);
+                }
+            });
+        });
+    }
+}
+
+export const afgMapListView = {
+    ...listView,
+    Controller: AfgMapListController,
+    Renderer: AfgMapListRenderer,
+};
+
+registry.category("views").add("afg_map_list", afgMapListView);

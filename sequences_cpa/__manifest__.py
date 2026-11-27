@@ -17,7 +17,7 @@ Purchase, Inventory, Project and CRM in Odoo 19.
     'category': 'Productivity',
     'version': '19.0.1.68',
     'license': 'LGPL-3',
-    'price': 29.00,
+    'price': 20.00,
     'currency': 'USD',
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',
 

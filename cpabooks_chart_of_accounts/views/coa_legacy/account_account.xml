@@ -7,12 +7,12 @@
             <field name="inherit_id" ref="account.view_account_form"/>
             <field name="arch" type="xml">
 
-                <xpath expr="//field[@name='deprecated']" position="after">
+                <xpath expr="//page[@name='accounting']//field[@name='active']" position="after">
                     <field name="get_previous"/>
                     <field name="identity_code" string="Identity Code" readonly="1" force_save="1"/>
                 </xpath>
 
-                <xpath expr="//div[hasclass('oe_title')]/div/field[@name='code']" position="before">
+                <xpath expr="//sheet//field[@name='code']" position="before">
                     <label for="previous" invisible="1"/>
                     <field name="previous" invisible="1"/>
                 </xpath>
@@ -21,10 +21,10 @@
                 <!--                    &lt;!&ndash;                    <label for="group_id" invisible="not get_previous"/>&ndash;&gt;-->
                 <!--                </xpath>-->
 
-                <xpath expr="//div[hasclass('oe_title')]/div/field[@name='name']" position="attributes">
+                <xpath expr="//sheet//field[@name='name']" position="attributes">
                     <attribute name="placeholder">Insert New Ledger Name</attribute>
                 </xpath>
-                <xpath expr="//div[hasclass('oe_title')]/div/field[@name='name']" position="after">
+                <xpath expr="//sheet//field[@name='name']" position="after">
                     <field name="cpabooks_sync_name_all_companies" invisible="1"/>
                 </xpath>
 
@@ -36,7 +36,7 @@
                     <field name="qid" invisible="1"/>
                 </xpath>
 
-                <xpath expr="//group[@name='security_group']" position="after">
+                <xpath expr="//page[@name='accounting']" position="inside">
                     <group string="Related">
                         <field name="cpabooks_related_account_ids"
                                string="Related Ledgers"

@@ -1,9 +1,10 @@
-odoo.define("cafm_cpa.CafmGuide", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction, legacyRpc as rpc, loadChartJs, chartV2ToV4, currentAppXmlid, onShellUpdate, openMenuByXmlid } from "@cafm_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import * as cafm_cpa_shell from "@cafm_cpa/js/cafm_shell_sidebar";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-
+const $ = window.jQuery;
+const _t = core._t;
     var AMC_STEPS = [
         {step: 1, label: "Client / Project", xmlid: "cafm_cpa.action_cafm_cpa_projects", theme: "contract"},
         {step: 2, label: "Create AMC Contract", xmlid: "cafm_cpa.action_cafm_cpa_amc", theme: "contract"},
@@ -27,7 +28,7 @@ odoo.define("cafm_cpa.CafmGuide", function (require) {
 
     function syncShell() {
         try {
-            require("cafm_cpa.shell").requestSyncSidebar(true);
+            cafm_cpa_shell.requestSyncSidebar(true);
         } catch (e) {
             // optional
         }
@@ -42,7 +43,7 @@ odoo.define("cafm_cpa.CafmGuide", function (require) {
         return String(tag).indexOf("var") !== -1 ? "var" : "amc";
     }
 
-    var CafmHowItWorks = AbstractAction.extend({
+    var CafmHowItWorks = legacyAction({
         contentTemplate: "CpabooksCafmHowItWorks",
         xmlDependencies: ["/cafm_cpa/static/src/xml/cafm_guide.xml"],
         events: {
@@ -126,15 +127,15 @@ odoo.define("cafm_cpa.CafmGuide", function (require) {
         },
     });
 
-    core.action_registry.add("cafm_cpa_how_amc", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_how_var", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_how_amc", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_how_var", CafmHowItWorks);
     // Legacy tags → AMC combined page
-    core.action_registry.add("cafm_cpa_organogram", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_process_cycle", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_amc_flowchart", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_amc_cycle", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_var_flowchart", CafmHowItWorks);
-    core.action_registry.add("cafm_cpa_var_cycle", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_organogram", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_process_cycle", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_amc_flowchart", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_amc_cycle", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_var_flowchart", CafmHowItWorks);
+    registerLegacyAction("cafm_cpa_var_cycle", CafmHowItWorks);
 
-    return {CafmHowItWorks: CafmHowItWorks};
-});
+    export { CafmHowItWorks };
+

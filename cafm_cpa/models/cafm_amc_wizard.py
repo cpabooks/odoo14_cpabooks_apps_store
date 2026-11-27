@@ -79,7 +79,7 @@ class CafmAmcLifecycleWizard(models.TransientModel):
             """
             SELECT 1 FROM information_schema.tables
              WHERE table_schema = 'public'
-               AND table_name = 'cafm_cpa_amc_wizard'
+               AND table_name = 'cpabooks_cafm_amc_wizard'
             """
         )
         if not cr.fetchone():
@@ -88,23 +88,23 @@ class CafmAmcLifecycleWizard(models.TransientModel):
             """
             SELECT column_name FROM information_schema.columns
              WHERE table_schema = 'public'
-               AND table_name = 'cafm_cpa_amc_wizard'
+               AND table_name = 'cpabooks_cafm_amc_wizard'
             """
         )
         cols = {row[0] for row in cr.fetchall()}
         if "step_index" not in cols:
             cr.execute(
-                "ALTER TABLE cafm_cpa_amc_wizard "
+                "ALTER TABLE cpabooks_cafm_amc_wizard "
                 "ADD COLUMN step_index INTEGER DEFAULT 0"
             )
         if "material_mode" not in cols:
             cr.execute(
-                "ALTER TABLE cafm_cpa_amc_wizard "
+                "ALTER TABLE cpabooks_cafm_amc_wizard "
                 "ADD COLUMN material_mode VARCHAR DEFAULT 'issue'"
             )
         if "sale_order_id" not in cols:
             cr.execute(
-                "ALTER TABLE cafm_cpa_amc_wizard "
+                "ALTER TABLE cpabooks_cafm_amc_wizard "
                 "ADD COLUMN sale_order_id INTEGER"
             )
 

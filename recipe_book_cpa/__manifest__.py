@@ -16,7 +16,7 @@ Recipe Book for restaurants on Odoo 19.
     'author': 'CPA Books',
     'website': 'https://www.cpabooks.co',
     'license': 'LGPL-3',
-    'price': 150.00,
+    'price': 30.00,
     'currency': 'USD',
     'support': 'info@cpabooks.org',
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',

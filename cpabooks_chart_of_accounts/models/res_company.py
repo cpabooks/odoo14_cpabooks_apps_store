@@ -29,25 +29,18 @@ class ResCompany(models.Model):
         if not companies:
             return True
 
-        self.env.cr.execute(
-            """
-            SELECT company_id,
-                   COUNT(*) FILTER (
-                       WHERE LENGTH(REGEXP_REPLACE(COALESCE(code, ''), '[^0-9]', '', 'g')) = 4
-                   ) AS four_digit_count,
-                   COUNT(*) FILTER (
-                       WHERE LENGTH(REGEXP_REPLACE(COALESCE(code, ''), '[^0-9]', '', 'g')) = 6
-                   ) AS six_digit_count
-              FROM account_account
-             WHERE company_id = ANY(%s)
-             GROUP BY company_id
-            """,
-            [companies.ids],
-        )
-        counts = {
-            company_id: (four_count, six_count)
-            for company_id, four_count, six_count in self.env.cr.fetchall()
-        }
+        # Odoo 18+: account codes are company dependent; count in Python
+        counts = {}
+        Account = self.env['account.account'].sudo().with_context(active_test=False)
+        for company in companies:
+            four_count = six_count = 0
+            for account in Account.with_company(company).search([('company_ids', 'in', company.id)]):
+                digits = ''.join(ch for ch in (account.code or '') if ch.isdigit())
+                if len(digits) == 4:
+                    four_count += 1
+                elif len(digits) == 6:
+                    six_count += 1
+            counts[company.id] = (four_count, six_count)
         for company in companies:
             four_count, six_count = counts.get(company.id, (0, 0))
             company.cpabooks_coa_code_digits = (

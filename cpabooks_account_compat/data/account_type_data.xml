@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Odoo 14 account types; code = Odoo 19 account_type -->
+    <record id="data_account_type_receivable" model="account.account.type">
+        <field name="name">Receivable</field>
+        <field name="code">asset_receivable</field>
+        <field name="sequence">10</field>
+        <field name="internal_group">asset</field>
+        <field name="type">receivable</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_liquidity" model="account.account.type">
+        <field name="name">Bank and Cash</field>
+        <field name="code">asset_cash</field>
+        <field name="sequence">20</field>
+        <field name="internal_group">asset</field>
+        <field name="type">liquidity</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_current_assets" model="account.account.type">
+        <field name="name">Current Assets</field>
+        <field name="code">asset_current</field>
+        <field name="sequence">30</field>
+        <field name="internal_group">asset</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_non_current_assets" model="account.account.type">
+        <field name="name">Non-current Assets</field>
+        <field name="code">asset_non_current</field>
+        <field name="sequence">40</field>
+        <field name="internal_group">asset</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_prepayments" model="account.account.type">
+        <field name="name">Prepayments</field>
+        <field name="code">asset_prepayments</field>
+        <field name="sequence">50</field>
+        <field name="internal_group">asset</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_fixed_assets" model="account.account.type">
+        <field name="name">Fixed Assets</field>
+        <field name="code">asset_fixed</field>
+        <field name="sequence">60</field>
+        <field name="internal_group">asset</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_payable" model="account.account.type">
+        <field name="name">Payable</field>
+        <field name="code">liability_payable</field>
+        <field name="sequence">70</field>
+        <field name="internal_group">liability</field>
+        <field name="type">payable</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_credit_card" model="account.account.type">
+        <field name="name">Credit Card</field>
+        <field name="code">liability_credit_card</field>
+        <field name="sequence">80</field>
+        <field name="internal_group">liability</field>
+        <field name="type">liquidity</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_current_liabilities" model="account.account.type">
+        <field name="name">Current Liabilities</field>
+        <field name="code">liability_current</field>
+        <field name="sequence">90</field>
+        <field name="internal_group">liability</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_non_current_liabilities" model="account.account.type">
+        <field name="name">Non-current Liabilities</field>
+        <field name="code">liability_non_current</field>
+        <field name="sequence">100</field>
+        <field name="internal_group">liability</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_equity" model="account.account.type">
+        <field name="name">Equity</field>
+        <field name="code">equity</field>
+        <field name="sequence">110</field>
+        <field name="internal_group">equity</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_unaffected_earnings" model="account.account.type">
+        <field name="name">Current Year Earnings</field>
+        <field name="code">equity_unaffected</field>
+        <field name="sequence">120</field>
+        <field name="internal_group">equity</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="True"/>
+    </record>
+    <record id="data_account_type_revenue" model="account.account.type">
+        <field name="name">Income</field>
+        <field name="code">income</field>
+        <field name="sequence">130</field>
+        <field name="internal_group">income</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+    <record id="data_account_type_other_income" model="account.account.type">
+        <field name="name">Other Income</field>
+        <field name="code">income_other</field>
+        <field name="sequence">140</field>
+        <field name="internal_group">income</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+    <record id="data_account_type_expenses" model="account.account.type">
+        <field name="name">Expenses</field>
+        <field name="code">expense</field>
+        <field name="sequence">150</field>
+        <field name="internal_group">expense</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+    <record id="data_account_type_depreciation" model="account.account.type">
+        <field name="name">Depreciation</field>
+        <field name="code">expense_depreciation</field>
+        <field name="sequence">160</field>
+        <field name="internal_group">expense</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+    <record id="data_account_type_direct_costs" model="account.account.type">
+        <field name="name">Cost of Revenue</field>
+        <field name="code">expense_direct_cost</field>
+        <field name="sequence">170</field>
+        <field name="internal_group">expense</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+    <record id="data_account_off_sheet" model="account.account.type">
+        <field name="name">Off-Balance Sheet</field>
+        <field name="code">off_balance</field>
+        <field name="sequence">180</field>
+        <field name="internal_group">off</field>
+        <field name="type">other</field>
+        <field name="include_initial_balance" eval="False"/>
+    </record>
+</odoo>

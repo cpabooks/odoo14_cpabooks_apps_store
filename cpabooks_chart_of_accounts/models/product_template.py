@@ -72,7 +72,6 @@ class ProductTemplateInherit(models.Model):
             'purchase_ok': True,
             'categ_id': categ.id,
             'uom_id': uom.id,
-            'uom_po_id': uom.id,
             'purchase_line_warn': 'no-message',
             'company_id': company.id,
         }

@@ -333,8 +333,7 @@ class CoaBulkActionsWizard(models.TransientModel):
         base_domain = [
             ('company_id', '=', company.id),
             ('id', 'not in', exclude_ids),
-            ('deprecated', '=', False),
-        ]
+            ]
         user_types = source_accounts.mapped('user_type_id')
         if len(user_types) == 1:
             match = self.env['account.account'].search(
@@ -436,7 +435,7 @@ class CoaBulkActionsWizard(models.TransientModel):
         if any(account.company_id != self.company_id for account in accounts):
             raise UserError(_('Selected ledgers must belong to %s.') % self.company_id.display_name)
 
-        accounts.write({'deprecated': True})
+        accounts.write({'active': False})
         self.write({
             'message': _('Archived (deprecated): %s') % ', '.join(accounts.mapped('display_name')),
         })
@@ -498,7 +497,7 @@ class CoaBulkActionsWizard(models.TransientModel):
             except Exception as error:
                 try:
                     with self.env.cr.savepoint():
-                        account.write({'deprecated': True})
+                        account.write({'active': False})
                     archived_names.append(name)
                 except Exception as dep_error:
                     failed.append('%s (%s)' % (name, dep_error))
@@ -630,24 +629,9 @@ class CoaBulkActionsWizard(models.TransientModel):
         return self.env.cr.rowcount
 
     def _cpabooks_reassign_ir_properties(self, target, sources):
-        Property = self.env['ir.property'].sudo()
-        source_refs = ['account.account,%s' % account_id for account_id in sources.ids]
-        target_ref = 'account.account,%s' % target.id
-        for prop in Property.search([('value_reference', 'in', source_refs)]):
-            conflict = Property.search(
-                [
-                    ('fields_id', '=', prop.fields_id.id),
-                    ('company_id', '=', prop.company_id.id),
-                    ('res_id', '=', prop.res_id),
-                    ('id', '!=', prop.id),
-                    ('value_reference', '=', target_ref),
-                ],
-                limit=1,
-            )
-            if conflict:
-                prop.unlink()
-            else:
-                prop.write({'value_reference': target_ref})
+        """Odoo 18+: company-dependent account values are jsonb columns (no ir.property)."""
+        from .account_jsonb_property import reassign_company_dependent_accounts
+        reassign_company_dependent_accounts(self.env, sources.ids, target.id)
 
     def _cpabooks_merge_skip_models(self):
         return {
@@ -655,7 +639,6 @@ class CoaBulkActionsWizard(models.TransientModel):
             'account.move.line',
             'coa.bulk.actions.wizard',
             'coa.bulk.actions.wizard.line',
-            'ir.property',
             'audited.financial.group.line',
             'audited.financial.line',
             'account.aged.partner',
@@ -762,7 +745,7 @@ class CoaBulkActionsWizard(models.TransientModel):
         self._cpabooks_reassign_audited_financial_group_lines(target, sources)
         self._cpabooks_reassign_audited_financial_lines(target, sources)
         self._cpabooks_reassign_stored_many2one_refs(target, sources)
-        env['ir.property'].env.flush_all()
+        env.flush_all()
         if 'audited.financial.group.line' in env:
             env['audited.financial.group.line'].env.flush_all()
 
@@ -780,7 +763,7 @@ class CoaBulkActionsWizard(models.TransientModel):
             except Exception as error:
                 try:
                     with env.cr.savepoint():
-                        source.write({'deprecated': True})
+                        source.write({'active': False})
                     deprecated.append('%s (%s)' % (name, error))
                 except Exception as dep_error:
                     deprecated.append(
@@ -1388,7 +1371,10 @@ class AccountAccount(models.Model):
             """
             SELECT a.id
               FROM account_account a
-             WHERE a.company_id = ANY(%s)
+             WHERE EXISTS (
+                    SELECT 1 FROM account_account_res_company_rel rel
+                     WHERE rel.account_account_id = a.id AND rel.res_company_id = ANY(%s)
+               )
                AND NOT EXISTS (
                     SELECT 1 FROM account_move_line l WHERE l.account_id = a.id
                )

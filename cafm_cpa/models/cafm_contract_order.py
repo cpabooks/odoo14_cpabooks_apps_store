@@ -298,18 +298,14 @@ class CafmContractOrder(models.Model):
         self.write({'state': 'draft'})
 
     def _get_income_account(self):
-        revenue_type = self.env.ref('account.data_account_type_revenue', raise_if_not_found=False)
         domain = [
-            ('company_id', '=', self.company_id.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', self.company_id.id),
         ]
-        if revenue_type:
-            domain.append(('user_type_id', '=', revenue_type.id))
+        domain.append(('account_type', '=', 'income'))
         account = self.env['account.account'].search(domain, limit=1)
         if not account:
             account = self.env['account.account'].search([
-                ('company_id', '=', self.company_id.id),
-                ('deprecated', '=', False),
+                ('company_ids', 'in', self.company_id.id),
             ], limit=1)
         if not account:
             raise UserError(_('Please configure an income account before creating invoices.'))

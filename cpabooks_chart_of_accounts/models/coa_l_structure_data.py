@@ -19,6 +19,7 @@ L1_BY_INTERNAL_GROUP = {
     'income': '4',
     'expense': '5',
     'off_balance': '1',
+    'off': '1',
 }
 
 # (group_code, label, keyword_patterns)

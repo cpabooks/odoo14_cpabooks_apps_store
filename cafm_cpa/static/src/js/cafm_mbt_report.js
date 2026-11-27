@@ -1,5 +1,6 @@
-odoo.define("cafm_cpa.mbt_report", function (require) {
-    "use strict";
+/** @odoo-module **/
+/* MBT report table expand/collapse helpers (called from server-rendered HTML). */
+
 
     var pfx = "o_cafm_mbt";
 
@@ -99,16 +100,11 @@ odoo.define("cafm_cpa.mbt_report", function (require) {
         }
     }
 
-    // Re-bind after Odoo form / HTML field updates
-    var core = require("web.core");
-    core.bus.on("DOM_updated", null, function () {
-        window.setTimeout(applyAll, 0);
-    });
-    $(document).ready(function () {
-        window.setTimeout(applyAll, 50);
-    });
+    // Re-bind after Odoo renders forms / HTML fields (Odoo 19: no DOM_updated bus)
+    new MutationObserver(function () {
+        window.clearTimeout(window[pfx + "_timer"]);
+        window[pfx + "_timer"] = window.setTimeout(applyAll, 50);
+    }).observe(document.documentElement, { childList: true, subtree: true });
+    window.setTimeout(applyAll, 50);
 
-    return {
-        applyAll: applyAll,
-    };
-});
+

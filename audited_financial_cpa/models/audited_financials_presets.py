@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """Default AFG (L1) preset definitions and keyword rules for auto-mapping chart accounts."""
-import re
 
 # Preset order: (code, name, report_section, sequence, sensitivity_category)
-# report_section matches audited_financials.AFG_REPORT_SECTION keys
+# report_section matches audited_financial_cpa.AFG_REPORT_SECTION keys
 AFG_PRESET_GROUPS = [
     ("AFG_REV", "Revenue", "pl", 10, "revenue"),
     ("AFG_COR", "Cost of revenue", "pl", 20, "cost_of_revenue"),
@@ -103,19 +102,19 @@ AFG_MATCH_RULES = [
     )),
     # CPABooks direct-cost prefix (DC-/COS-) before generic selling rules
     ("AFG_COR", 275, ("expense",), (
-        "dc -", "cos -", "cost of sales", "cogs", "cost of goods", "cost of material",
+        "cost of sales", "cogs", "cost of goods", "cost of material",
         "direct material", "direct shop", "direct labor", "direct labour",
         "manufacturing", "material cost", "sub-contractor", "sub contractor",
         "stock input", "stock output",
     )),
     ("AFG_SELL", 265, ("expense",), (
-        "sad -", "sampling", "promotional", "commission", "delivery", "freight",
+        "sampling", "promotional", "commission", "delivery", "freight",
         "transport", "advertisement", "publicity", "marketing", "talabat",
         "platform fee", "distribution",
     )),
     # CPABooks GA-* admin prefix — before CTO/CTD staff rules so GA rent stays G&A
     ("AFG_GNA", 255, ("expense",), (
-        "ga -", "office rent", "shop rent", "rent expense", "rent - office", "rent - warehouse",
+        "office rent", "shop rent", "rent expense", "rent - office", "rent - warehouse",
         "rent shop", "trade license", "license", "permit", "utility", "water", "electricity",
         "cleaning", "stationery", "professional fee", "legal fee", "audit fee", "bank charge",
         "insurance", "general & admin", "general and admin", "g&a", "telephone", "internet",
@@ -128,7 +127,7 @@ AFG_MATCH_RULES = [
     )),
     # P&L employee / EOS expense charge (CTO-/CTD-/CTC- prefixes)
     ("AFG_PAYROLL", 250, ("expense",), (
-        "cto -", "ctd -", "ctc -", "salary", "wages", "payroll", "staff cost", "leave salary",
+        "salary", "wages", "payroll", "staff cost", "leave salary",
         "end of service", "eos indemnity", "eos expense", "gratuity expense", "gratuity",
         "medical insurance", "accommodation", "visa expense", "director", "wps",
         "air ticket", "training", "uniform", "workmen compensation", "school allow",
@@ -155,17 +154,7 @@ def _account_match_code(account, rules=AFG_MATCH_RULES):
     """
     hay = ("%s %s" % (account.code or "", account.name or "")).lower()
     ig = account.internal_group
-    # Same prefixes as Default P&L (SAD / GA / CTO / DC) — even if internal_group is empty.
-    prefix = _account_name_prefix_code(account)
-    if prefix:
-        return prefix
-    # CoA type Cost of Sales → Cost of revenue (no per-ledger mapping).
-    # SAD- prefix stays selling even if the type was set to Cost of Sales.
-    if (
-        ig == "expense"
-        and not _account_has_selling_prefix(hay)
-        and _account_type_is_cost_of_sales(account)
-    ):
+    if ig == "expense" and _account_type_is_cost_of_sales(account):
         return "AFG_COR"
     best = (-1, -1, None)  # weighted score, priority, code
     for code, priority, groups, keywords in rules:
@@ -191,33 +180,14 @@ def _account_match_code(account, rules=AFG_MATCH_RULES):
     return "AFG_UNGRP_BS"
 
 
-def _account_name_prefix_code(account):
-    """Map CPABooks ledger prefixes the same way Default P&L types do."""
-    name = (account.name or "").strip().lower()
-    name = re.sub(r"^[|\s]+", "", name)
-    name = re.sub(r"^\s*[\d][\w./-]*\s*\|\s*", "", name)
-    if name.startswith("sad -") or name.startswith("sad-") or name.startswith("sad "):
-        return "AFG_SELL"
-    if name.startswith("ga -") or name.startswith("ga-") or name.startswith("ga "):
-        return "AFG_GNA"
-    if name.startswith(("cto -", "cto-", "ctc -", "ctc-", "ctd -", "ctd-")):
-        return "AFG_PAYROLL"
-    if name.startswith(("dc -", "dc-", "cos -", "cos-", "com -", "com-")):
-        return "AFG_COR"
-    return None
-
-
-def _account_has_selling_prefix(hay):
-    hay = hay or ""
-    return "sad -" in hay or hay.startswith("sad ") or hay.startswith("sad-")
-
-
 def _account_type_is_cost_of_sales(account):
     """True for CoA type Cost of Sales / Cost of Revenue / Direct Costs."""
+    if getattr(account, "account_type", None) == "expense_direct_cost":
+        return True
     ut = account.user_type_id
     if not ut:
         return False
-    ref = account.env.ref("account.data_account_type_direct_costs", raise_if_not_found=False)
+    ref = account.env.ref("cpabooks_account_compat.data_account_type_direct_costs", raise_if_not_found=False)
     if ref and ut.id == ref.id:
         return True
     name = (ut.name or "").strip().lower()

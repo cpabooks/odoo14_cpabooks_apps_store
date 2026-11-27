@@ -165,9 +165,11 @@ class ProjectTask(models.Model):
 
     project_id = fields.Many2one(required=False)
 
-    state = fields.Selection(
+    # Odoo 17+ owns project.task.state (In Progress / Done / ...): the CRN
+    # workflow state lives in its own field.
+    fsm_state = fields.Selection(
         STATE,
-        string='State',
+        string='CRN State',
         compute='_compute_state_from_stage',
         inverse='_inverse_state_from_fsm_selection',
         search='_search_state',
@@ -175,7 +177,7 @@ class ProjectTask(models.Model):
     )
     remarks = fields.Text('Remarks', tracking=True)
     date_start = fields.Date('Start Date', default=fields.Date.today)
-    date_end = fields.Date('End Date')
+    fsm_date_end = fields.Date('End Date')
     task_seq = fields.Char('CRN Number', copy=False, readonly=True, index=True, default='/')
     fsm_creator_uid = fields.Many2one(
         'res.users',
@@ -529,10 +531,6 @@ class ProjectTask(models.Model):
             res.pop('project_id', None)
         if not res.get('name'):
             res['name'] = self._default_task_name_from_vals(res)
-        # cpabooks_project_extend defaulted state to 'todo'; our state uses FSM keys only
-        st = res.get('state')
-        if st is not None and st is not False and st not in _FSM_STATE_KEYS:
-            res.pop('state', None)
         return res
 
     @api.model
@@ -618,7 +616,7 @@ class ProjectTask(models.Model):
             if not task.partner_id and task.parent_id.partner_id:
                 task.partner_id = task.parent_id.partner_id
 
-    def message_subscribe(self, partner_ids=None, channel_ids=None, subtype_ids=None):
+    def message_subscribe(self, partner_ids=None, subtype_ids=None):
         """Avoid duplicate followers when the same partner is subscribed twice (e.g. duplicate form widgets)."""
         if partner_ids and self.ids:
             existing_partner_ids = set(self.env['mail.followers'].sudo().search([
@@ -627,11 +625,10 @@ class ProjectTask(models.Model):
                 ('partner_id', 'in', partner_ids),
             ]).mapped('partner_id').ids)
             partner_ids = [pid for pid in partner_ids if pid not in existing_partner_ids]
-            if not partner_ids and not channel_ids:
+            if not partner_ids:
                 return True
         return super().message_subscribe(
             partner_ids=partner_ids,
-            channel_ids=channel_ids,
             subtype_ids=subtype_ids,
         )
 
@@ -664,12 +661,7 @@ class ProjectTask(models.Model):
                 ('sequence_for', '=', 'fsm_crn'),
                 ('company_id', 'in', [company_id, False]),
             ], order='company_id desc', limit=1)
-        if 'sequence_for' not in sequence_model._fields:
-            prefix = 'CRN/CO%s/%s/' % (company_id, year)
-        elif seq and seq.prefix:
-            prefix = seq.prefix
-        else:
-            prefix = 'CRN/CO%s/%s/' % (company_id, year)
+        prefix = self._crn_resolved_prefix(seq, company_id, year)
         tasks = self.with_context(active_test=False).sudo().search([
             ('task_seq', '=like', prefix + '%'),
         ])
@@ -677,6 +669,28 @@ class ProjectTask(models.Model):
         for task in tasks:
             max_number = max(max_number, self._crn_number_from_task_seq(task.task_seq))
         return max_number
+
+    @api.model
+    def _crn_resolved_prefix(self, seq, company_id, year, sequence_date=None):
+        """CRN prefix with %(year)s / %(month)s / %(day)s filled in."""
+        if not (seq and seq.prefix):
+            return 'CRN/CO%s/%s/' % (company_id, year)
+        ref_date = sequence_date or fields.Date.context_today(self)
+        if isinstance(ref_date, str):
+            ref_date = fields.Date.to_date(ref_date)
+        elif isinstance(ref_date, datetime):
+            ref_date = ref_date.date()
+        if ref_date.year != year:
+            ref_date = ref_date.replace(year=year)
+        try:
+            from odoo.addons.sequences_cpa.models.sequence_format import replace_prefix_placeholders
+            digits = seq._cpabooks_year_digits() if hasattr(seq, '_cpabooks_year_digits') else '4'
+            return replace_prefix_placeholders(seq.prefix, ref_date, digits)
+        except ImportError:
+            return (seq.prefix
+                    .replace('%(year)s', str(ref_date.year))
+                    .replace('%(month)s', '%02d' % ref_date.month)
+                    .replace('%(day)s', '%02d' % ref_date.day))
 
     @api.model
     def _sync_fsm_crn_sequence_counter(self, company_id, year, next_number):
@@ -723,12 +737,7 @@ class ProjectTask(models.Model):
                 ('sequence_for', '=', 'fsm_crn'),
                 ('company_id', 'in', [company_id, False]),
             ], order='company_id desc', limit=1)
-            if 'sequence_for' not in sequence_model._fields:
-                prefix = 'CRN/CO%s/%s/' % (company_id, year)
-            elif seq and seq.prefix:
-                prefix = seq.prefix
-            else:
-                prefix = 'CRN/CO%s/%s/' % (company_id, year)
+            prefix = self._crn_resolved_prefix(seq, company_id, year, sequence_date)
             padding = seq.padding if seq else 5
             return '%s%s' % (prefix, str(max_existing + 1).zfill(padding))
         return self._strip_tid_prefix_from_crn(sequence) or '/'
@@ -844,7 +853,7 @@ class ProjectTask(models.Model):
             vals.setdefault('fsm_creator_uid', self.env.uid)
             vals.pop('user_id', None)
             vals.pop('fsm_assigned_employee_id', None)
-            if not vals.get('planned_date_begin'):
+            if 'planned_date_begin' in self._fields and not vals.get('planned_date_begin'):
                 begin, end = self._fsm_default_planned_datetimes()
                 vals['planned_date_begin'] = begin
                 vals.setdefault('planned_date_end', end)
@@ -859,9 +868,9 @@ class ProjectTask(models.Model):
     def _sanitize_fsm_compute_fields_in_vals(self, vals):
         """Drop legacy project.task.state values (todo/done/hold) after cpabooks_project_extend."""
         vals = dict(vals)
-        st = vals.get('state')
+        st = vals.get('fsm_state')
         if st is not None and st is not False and st not in _FSM_STATE_KEYS:
-            vals.pop('state', None)
+            vals.pop('fsm_state', None)
         sg = vals.get('stage')
         if sg is not None and sg is not False and sg not in _FSM_STAGE_KEYS:
             vals.pop('stage', None)
@@ -875,19 +884,6 @@ class ProjectTask(models.Model):
         if self._is_crn_create_vals(values) and self._cpabooks_should_leave_project_empty():
             res['project_id'] = False
         return res
-
-    def _register_hook(self):
-        """Drop cpabooks_project_extend's default 'todo' if registry state selection is FSM-only."""
-        super()._register_hook()
-        field = self._fields.get('state')
-        if not field or not field.default:
-            return
-        try:
-            valid = set(field.get_values(self.env))
-        except Exception:
-            return
-        if valid and 'todo' not in valid:
-            field.default = False
 
     def _search_fsm_stage_progress(self, operator, value):
         def _as_float(val):
@@ -1115,7 +1111,7 @@ class ProjectTask(models.Model):
             vals['name'] = complaint_title.display_name
         # Duplicate / hidden next_action widgets can send False on save while the header state stays
         # in_progress (FOC → WIP). Restore FOC so stage 4 (QTN approved) can move to 5 (WIP).
-        if vals.get('next_action') is False and vals.get('state') == 'in_progress':
+        if vals.get('next_action') is False and vals.get('fsm_state') == 'in_progress':
             if all(task.visited_by and task.visited_date for task in self):
                 vals['next_action'] = 'foc'
         old_next_actions = {task.id: task.next_action for task in self.filtered('is_fsm')}
@@ -1158,7 +1154,7 @@ class ProjectTask(models.Model):
         next_action = vals.get('next_action', self.next_action)
         if next_action:
             completed.add(next_action)
-        if vals.get('date_end') or self.date_end:
+        if vals.get('fsm_date_end') or self.fsm_date_end:
             completed.add('complete')
         if vals.get('select_invoice') or self.select_invoice:
             completed.add('invoice')
@@ -1236,7 +1232,7 @@ class ProjectTask(models.Model):
         if stage_key == 'qty_approved':
             return self._fsm_has_approved_quotation()
         if stage_key == 'in_progress':
-            return bool(self.date_end) or self._fsm_has_completed_invoice()
+            return bool(self.fsm_date_end) or self._fsm_has_completed_invoice()
         if stage_key == 'waiting_for_invoice':
             return self._fsm_has_completed_invoice()
         if stage_key == 'approved':
@@ -1359,7 +1355,7 @@ class ProjectTask(models.Model):
                     (self.assign_date, _('Assign Date')),
                 ])
         elif stage_index == 3:
-            checks = [(self.date_end, _('End Date'))]
+            checks = [(self.fsm_date_end, _('End Date'))]
         elif stage_index == 4:
             checks = []
             if self.next_action == 'issue':
@@ -1490,8 +1486,8 @@ class ProjectTask(models.Model):
             's3_sales_order': has_qtn_confirmed,
             's3_assign_tech': bool(self.fsm_assigned_employee_id),
             's3_assign_date': bool(self.assign_date),
-            's3_wip': self._get_fsm_workflow_stage_key() in ('in_progress', 'waiting_for_invoice', 'approved') or bool(self.date_end),
-            's3_job_complete': bool(self.date_end),
+            's3_wip': self._get_fsm_workflow_stage_key() in ('in_progress', 'waiting_for_invoice', 'approved') or bool(self.fsm_date_end),
+            's3_job_complete': bool(self.fsm_date_end),
             's3_invoice_created': bool(self.select_invoice) or bool(invoices),
             's3_admin_approval': approval_state in ('approved', 'pending') or bool(self.approved_by),
             's4_client_approved': has_qtn_confirmed,
@@ -1510,7 +1506,7 @@ class ProjectTask(models.Model):
             's5_wip': self._get_fsm_workflow_stage_key() in ('in_progress', 'waiting_for_invoice', 'approved'),
             's5_timesheet': bool(self.timesheet_ids),
             's5_material': bool(self.material_line_ids),
-            's5_end_date': bool(self.date_end),
+            's5_end_date': bool(self.fsm_date_end),
             's5_completion_remarks': bool(self.closing_remarks),
             's5_photos': self._fsm_workflow_has_attachments(),
             's5_service_details': bool(self.complaint_details or self.site_visit),
@@ -1716,7 +1712,7 @@ class ProjectTask(models.Model):
         'next_action',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -1746,7 +1742,7 @@ class ProjectTask(models.Model):
         'next_action',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -1778,7 +1774,7 @@ class ProjectTask(models.Model):
         'next_action',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -1806,7 +1802,7 @@ class ProjectTask(models.Model):
         'next_action',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -2213,7 +2209,7 @@ class ProjectTask(models.Model):
         'fsm_assigned_employee_id',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -2223,7 +2219,7 @@ class ProjectTask(models.Model):
         'timesheet_ids',
         'material_cost_total',
         'stage',
-        'state',
+        'fsm_state',
         'is_fsm',
         'check_fsm',
         'message_ids',
@@ -2293,8 +2289,9 @@ class ProjectTask(models.Model):
 
     def _inverse_fsm_single_user(self):
         for task in self:
-            if task.user_id and task.user_id not in task.user_ids:
-                task.user_ids = [(6, 0, (task.user_id | task.user_ids).ids)]
+            if task.user_id and task.user_ids[:1] != task.user_id:
+                # Odoo 14 semantics: the CRN has one assignee
+                task.user_ids = [(6, 0, task.user_id.ids)]
             elif not task.user_id and task.user_ids:
                 task.user_ids = [(5, 0, 0)]
 
@@ -2351,7 +2348,7 @@ class ProjectTask(models.Model):
     @api.depends('stage')
     def _compute_state_from_stage(self):
         for rec in self:
-            rec.state = rec.stage or 'registered'
+            rec.fsm_state = rec.stage or 'registered'
 
     def _prepare_fsm_inverse_vals_for_fsm_key(self, key):
         """Map a statusbar / stage choice onto stored FSM fields so computed stage survives save."""
@@ -2362,13 +2359,13 @@ class ProjectTask(models.Model):
         if not visit_done:
             raise UserError(_('Fill Visited By and Visited Date before moving to WIP (5. WIP).'))
         vals = {'next_action': 'foc'}
-        if self.date_end:
-            vals['date_end'] = False
+        if self.fsm_date_end:
+            vals['fsm_date_end'] = False
         return vals
 
     def _inverse_state_from_fsm_selection(self):
         for rec in self:
-            vals = rec._prepare_fsm_inverse_vals_for_fsm_key(rec.state)
+            vals = rec._prepare_fsm_inverse_vals_for_fsm_key(rec.fsm_state)
             if vals:
                 rec.write(vals)
 
@@ -2401,7 +2398,7 @@ class ProjectTask(models.Model):
         'visited_date',
         'next_action',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'fsm_assigned_employee_id',
         'user_id',
@@ -2441,7 +2438,7 @@ class ProjectTask(models.Model):
         'fsm_assigned_employee_id',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'closing_remarks',
@@ -2451,7 +2448,7 @@ class ProjectTask(models.Model):
         'timesheet_ids',
         'material_cost_total',
         'stage',
-        'state',
+        'fsm_state',
         'is_fsm',
         'check_fsm',
         'message_ids',
@@ -2480,13 +2477,13 @@ class ProjectTask(models.Model):
         'next_action',
         'user_id',
         'assign_date',
-        'date_end',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
         'material_line_ids',
         'timesheet_ids',
         'stage',
-        'state',
+        'fsm_state',
         'is_fsm',
         'check_fsm',
         'allocated_hours',
@@ -2529,9 +2526,9 @@ class ProjectTask(models.Model):
             return 'job_completed_invoiced'
         if self.next_action == 'closed':
             return 'job_completed'
-        if self.date_end and assigned_for_work and self.next_action == 'foc':
+        if self.fsm_date_end and assigned_for_work and self.next_action == 'foc':
             return 'job_completed'
-        if self.date_end:
+        if self.fsm_date_end:
             return 'waiting_for_invoice'
         if assigned_for_work:
             return 'in_progress'
@@ -3207,7 +3204,7 @@ class ProjectTask(models.Model):
             tasks._fsm_cancel_related_documents()
 
         vals = {
-            'date_end': fields.Date.context_today(self),
+            'fsm_date_end': fields.Date.context_today(self),
             'closing_remarks': _('Cancelled'),
         }
         if 'active' in tasks._fields:
@@ -3424,7 +3421,7 @@ class ProjectTask(models.Model):
                 + (rec.fsm_other_cost or 0.0)
             )
 
-    @api.depends('create_date', 'date_end')
+    @api.depends('create_date', 'fsm_date_end')
     def _compute_age_days(self):
         today = fields.Date.context_today(self)
         for rec in self:
@@ -3432,7 +3429,7 @@ class ProjectTask(models.Model):
                 rec.age_days = 0
                 continue
             start_date = fields.Date.to_date(rec.create_date)
-            end_date = fields.Date.to_date(rec.date_end) if rec.date_end else today
+            end_date = fields.Date.to_date(rec.fsm_date_end) if rec.fsm_date_end else today
             rec.age_days = (end_date - start_date).days
 
     def _jcr_print_row_count(self):
@@ -3452,7 +3449,7 @@ class ProjectTask(models.Model):
         stage_val = self._get_fsm_stage_value() if hasattr(self, '_get_fsm_stage_value') else getattr(self, 'stage', False)
         if stage_val == 'approved':
             return True
-        state_val = getattr(self, 'state', False)
+        state_val = getattr(self, 'fsm_state', False)
         if state_val == 'approved':
             return True
         return False

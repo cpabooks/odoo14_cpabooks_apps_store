@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # COA core first, then the extensions that build on it.
 
+from . import account_jsonb_property  # noqa: F401 (helpers)
+
 from . import function_call_coa
 from . import coa_create
 from . import account_account_identity

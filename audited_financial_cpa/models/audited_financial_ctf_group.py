@@ -87,10 +87,7 @@ class AuditedFinancialCtfGroup(models.Model):
     has_ledgers = fields.Boolean(compute="_compute_has_ledgers", string="Has ledgers")
     indent_name = fields.Char(compute="_compute_indent_name", string="Description")
 
-    _ctf_group_code_uniq = models.Constraint(
-        'unique(code)',
-        "CTF group code must be unique.",
-    )
+    _code_uniq = models.Constraint("unique(code)", "CTF group code must be unique.")
 
     def _ctf_depth(self):
         self.ensure_one()
@@ -116,10 +113,10 @@ class AuditedFinancialCtfGroup(models.Model):
             ]))
 
     @api.model
-    def search(self, args, offset=0, limit=None, order=None, count=False):
-        if not self.env.context.get("afg_skip_ctf_setup") and not count:
+    def search(self, domain, offset=0, limit=None, order=None):
+        if not self.env.context.get("afg_skip_ctf_setup"):
             self.with_context(afg_skip_ctf_setup=True)._setup_default_ctf_groups()
-        return super().search(args, offset=offset, limit=limit, order=order, count=count)
+        return super().search(domain, offset=offset, limit=limit, order=order)
 
     @api.model
     def action_setup_default_ctf_groups(self):
@@ -131,9 +128,10 @@ class AuditedFinancialCtfGroup(models.Model):
             g.code: g
             for g in self.with_context(afg_skip_ctf_setup=True).search([])
         }
+        cur = self.env.company.currency_id.name or "AED"
         for code, name, parent_code, seq, section, cat, allocate in CTF_GROUP_PRESETS:
             vals = {
-                "name": name,
+                "name": name.replace("(AED)", "(%s)" % cur),
                 "code": code,
                 "sequence": seq,
                 "report_section": section,

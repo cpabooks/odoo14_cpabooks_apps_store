@@ -13,26 +13,22 @@ class ResPartner(models.Model):
         receivable = Account.search([
             ('company_id', '=', company.id),
             ('internal_type', '=', 'receivable'),
-            ('deprecated', '=', False),
-        ], limit=1, order='code asc')
+            ], limit=1, order='code asc')
         if not receivable:
             receivable = Account.search([
                 ('company_id', '=', company.id),
                 ('name', '=ilike', 'accounts receivable%'),
-                ('deprecated', '=', False),
-            ], limit=1, order='code asc')
+                ], limit=1, order='code asc')
 
         payable = Account.search([
             ('company_id', '=', company.id),
             ('internal_type', '=', 'payable'),
-            ('deprecated', '=', False),
-        ], limit=1, order='code asc')
+            ], limit=1, order='code asc')
         if not payable:
             payable = Account.search([
                 ('company_id', '=', company.id),
                 ('name', 'in', ('Payables', 'Accounts Payable')),
-                ('deprecated', '=', False),
-            ], limit=1, order='code asc')
+                ], limit=1, order='code asc')
         return receivable, payable
 
     @api.model

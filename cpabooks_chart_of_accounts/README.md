@@ -1,6 +1,6 @@
 # Chart of Accounts Management
 
-Technical name: `cpabooks_chart_of_accounts` · Odoo 14 · LGPL-3
+Technical name: `cpabooks_chart_of_accounts` · Odoo 19 · LGPL-3
 
 Standalone chart-of-accounts module. It depends only on standard Odoo modules:
 `base`, `web`, `mail`, `product`, `account`, `purchase`.

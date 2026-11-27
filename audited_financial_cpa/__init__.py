@@ -1,38 +1,32 @@
 # -*- coding: utf-8 -*-
 
-from . import models
-from . import controllers
+from odoo.modules.module import get_module_path
 
-# Orphaned after a failed/partial uninstall when the main version table was dropped.
+from . import models
+from . import report
+
 _AFG_ORPHAN_REL_TABLES = (
     "audited_financial_version_company_rel",
     "audited_financial_version_report_col_rel",
 )
 
 
-def _mark_project_dashboard_odoo_for_upgrade(cr):
-    """Ensure multico PL/BS report xmlids exist before AFG menus load."""
-    cr.execute(
-        """
-        UPDATE ir_module_module
-        SET state = 'to upgrade'
-        WHERE name = 'project_dashboard_odoo'
-          AND state = 'installed'
-        """
-    )
-
-
-def _ensure_afg_account_ctf_column(cr):
+def _table_exists(cr, table):
     cr.execute(
         """
         SELECT EXISTS (
             SELECT 1 FROM information_schema.tables
             WHERE table_schema = current_schema()
-              AND table_name = 'account_account'
+              AND table_name = %s
         )
-        """
+        """,
+        (table,),
     )
-    if not cr.fetchone()[0]:
+    return bool(cr.fetchone()[0])
+
+
+def _ensure_afg_account_ctf_column(cr):
+    if not _table_exists(cr, "account_account"):
         return
     cr.execute(
         """
@@ -42,40 +36,8 @@ def _ensure_afg_account_ctf_column(cr):
     )
 
 
-def pre_init_hook(env):
-    cr = env.cr
-    """Drop stale M2M tables so reinstall can recreate FK constraints cleanly."""
-    _ensure_afg_account_ctf_column(cr)
-    _mark_project_dashboard_odoo_for_upgrade(cr)
-    _ensure_afg_version_print_columns(cr)
-    _ensure_afg_line_merged_leaf_column(cr)
-    cr.execute(
-        """
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = current_schema()
-              AND table_name = 'audited_financial_version'
-        )
-        """
-    )
-    if cr.fetchone()[0]:
-        return
-    for table in _AFG_ORPHAN_REL_TABLES:
-        cr.execute('DROP TABLE IF EXISTS "%s" CASCADE' % table)
-
-
 def _ensure_afg_version_print_columns(cr):
-    """Stale DBs (e.g. ctvt_03 on 14.0.1.0.147) miss columns the dashboard SELECT always reads."""
-    cr.execute(
-        """
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = current_schema()
-              AND table_name = 'audited_financial_version'
-        )
-        """
-    )
-    if not cr.fetchone()[0]:
+    if not _table_exists(cr, "audited_financial_version"):
         return
     cr.execute(
         """
@@ -90,15 +52,7 @@ def _ensure_afg_version_print_columns(cr):
 
 
 def _ensure_afg_line_merged_leaf_column(cr):
-    cr.execute(
-        """
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_name = 'audited_financial_line'
-        )
-        """
-    )
-    if not cr.fetchone()[0]:
+    if not _table_exists(cr, "audited_financial_line"):
         return
     cr.execute(
         """
@@ -108,53 +62,124 @@ def _ensure_afg_line_merged_leaf_column(cr):
     )
 
 
-def post_init_hook(env):
+OLD_MODULES = ("audited_financials", "cpabooks_audited_financials")
+NEW_MODULE = "audited_financial_cpa"
+
+
+def _adopt_old_module(cr, OLD_MODULE):
+    """Take over the records of an older technical name (audited_financials,
+    cpabooks_audited_financials).
+
+    Without this, installing under the new name would create every menu, view and
+    preset a second time. Records keep their ids, so data and links stay as they are.
+    """
+    cr.execute(
+        "SELECT 1 FROM ir_module_module WHERE name = %s AND state IN ('installed', 'to upgrade', 'to remove')",
+        [OLD_MODULE],
+    )
+    if not cr.fetchone():
+        return
+    cr.execute(
+        """
+        UPDATE ir_model_data d
+           SET module = %s
+         WHERE d.module = %s
+           AND NOT EXISTS (SELECT 1 FROM ir_model_data n WHERE n.module = %s AND n.name = d.name)
+        """,
+        [NEW_MODULE, OLD_MODULE, NEW_MODULE],
+    )
+    cr.execute(
+        "UPDATE ir_ui_view SET key = %s || substr(key, %s) WHERE key LIKE %s",
+        [NEW_MODULE + ".", len(OLD_MODULE) + 2, OLD_MODULE + ".%"],
+    )
+    if not get_module_path(OLD_MODULE, display_warning=False):
+        # The old code is gone and all its records now belong to this module.
+        cr.execute("UPDATE ir_module_module SET state = 'uninstalled' WHERE name = %s", [OLD_MODULE])
+    if _table_exists(cr, "audited_financial_version"):
+        # Data fix of the old 19.0.1.0.257 upgrade: statements use the company currency.
+        cr.execute(
+            """
+            UPDATE audited_financial_version v
+               SET currency_id = c.currency_id
+              FROM res_company c
+             WHERE c.id = v.company_id
+               AND v.currency_id IS DISTINCT FROM c.currency_id
+            """
+        )
+
+
+def _drop_legacy_student_loan_account_views(cr):
+    """The first release of cpabooks_student_loan left chart of accounts views that use
+    fields it no longer defines. Installing this module validates the account form with
+    every view on top of it, so those views must go first. That module recreates its
+    current views when it is upgraded.
+    """
+    cr.execute(
+        """
+        SELECT v.id
+          FROM ir_ui_view v
+          JOIN ir_model_data d
+            ON d.model = 'ir.ui.view'
+           AND d.res_id = v.id
+           AND d.module = 'cpabooks_student_loan'
+         WHERE v.model = 'account.account'
+           AND NOT EXISTS (SELECT 1 FROM ir_ui_view child WHERE child.inherit_id = v.id)
+           AND EXISTS (
+                SELECT 1
+                  FROM jsonb_each_text(v.arch_db) arch
+                 WHERE arch.value ~ 'name="(closing_balance|cpabooks_school|cpabooks_control)"'
+           )
+        """
+    )
+    view_ids = [row[0] for row in cr.fetchall()]
+    if view_ids:
+        cr.execute("DELETE FROM ir_model_data WHERE model = 'ir.ui.view' AND res_id = ANY(%s)", [view_ids])
+        cr.execute("DELETE FROM ir_ui_view WHERE id = ANY(%s)", [view_ids])
+
+
+def pre_init_hook(env):
+    """Take over the old module, then drop stale relation tables left by a partial install."""
     cr = env.cr
-    registry = env.registry
+    for old_module in OLD_MODULES:
+        _adopt_old_module(cr, old_module)
+    _drop_legacy_student_loan_account_views(cr)
+    _ensure_afg_account_ctf_column(cr)
+    _ensure_afg_version_print_columns(cr)
+    _ensure_afg_line_merged_leaf_column(cr)
+    if _table_exists(cr, "audited_financial_version"):
+        return
+    for table in _AFG_ORPHAN_REL_TABLES:
+        cr.execute('DROP TABLE IF EXISTS "%s" CASCADE' % table)
+
+
+def post_init_hook(env):
     import logging
 
-    from odoo import api, SUPERUSER_ID
-
-    from .install_notify import notify_app_install
-
     _logger = logging.getLogger(__name__)
+    cr = env.cr
+    from .install_notify import notify_app_install
     notify_app_install(env, 'audited_financial_cpa', 'Audited Financial Statements')
     _ensure_afg_version_print_columns(cr)
     _ensure_afg_line_merged_leaf_column(cr)
-    env = api.Environment(cr, SUPERUSER_ID, {})
 
+    if "account.account.type" in env:
+        env["account.account.type"]._afg_ensure_standard_types()
     if "audited.financial.group" not in env:
         _logger.error(
-            "audited_financial_cpa post_init: model audited.financial.group missing from registry. "
-            "Restart Odoo and upgrade this module."
+            "audited_financials post_init: model audited.financial.group missing from registry."
         )
         return
     if "audited.financial.version" not in env:
         _logger.error(
-            "audited_financial_cpa post_init: model audited.financial.version missing from registry. "
-            "Restart Odoo and upgrade this module."
+            "audited_financials post_init: model audited.financial.version missing from registry."
         )
         return
 
     env["audited.financial.group"]._setup_default_afg_presets()
     if "audited.financial.ctf.group" in env:
         env["audited.financial.ctf.group"]._setup_default_ctf_groups()
+    if "account.account" in env:
+        env["account.account"]._cpa_apply_saved_ctf()
     env["audited.financial.version"]._afg_mirror_schedule_mappings()
-
     if "audited.financial.menu.cleanup" in env:
-        cleanup = env["audited.financial.menu.cleanup"]
-        if not env.ref(
-            "project_dashboard_odoo.account_financial_html_report_action_bs",
-            raise_if_not_found=False,
-        ):
-            mod = env["ir.module.module"].search(
-                [("name", "=", "project_dashboard_odoo"), ("state", "=", "installed")],
-                limit=1,
-            )
-            if mod:
-                mod.write({"state": "to upgrade"})
-                _logger.warning(
-                    "audited_financial_cpa: project_dashboard_odoo marked to upgrade; "
-                    "upgrade it then upgrade audited_financial_cpa again for multico menus."
-                )
-        cleanup.refresh_afg_menus()
+        env["audited.financial.menu.cleanup"].refresh_afg_menus()

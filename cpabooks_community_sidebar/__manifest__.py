@@ -17,7 +17,7 @@ Built for Community only. It does not depend on or copy web_enterprise.
     'website': 'https://www.cpabooks.co',
     'support': 'info@cpabooks.org',
     'license': 'LGPL-3',
-    'price': 35.00,
+    'price': 20.00,
     'currency': 'USD',
     'images': ['static/description/banner.jpg'],
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',

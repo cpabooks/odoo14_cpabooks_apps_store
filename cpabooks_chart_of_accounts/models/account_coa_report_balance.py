@@ -94,7 +94,7 @@ class AccountCoaReport(models.AbstractModel):
                 totals[idx] += value
                 columns.append(self._cpabooks_tb_net_cell(value, blank_if_zero=True))
 
-            name = account.name_get()[0][1]
+            name = account.display_name
             if len(name) > 40 and not self.env.context.get('print_mode'):
                 name = name[:40] + '...'
 

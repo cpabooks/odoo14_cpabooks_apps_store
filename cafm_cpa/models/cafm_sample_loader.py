@@ -447,18 +447,14 @@ class CafmSampleLoader(models.TransientModel):
         return statuses[idx % len(statuses)]
 
     def _demo_income_account(self):
-        revenue_type = self.env.ref('account.data_account_type_revenue', raise_if_not_found=False)
         domain = [
-            ('company_id', '=', self.env.company.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', self.env.company.id),
         ]
-        if revenue_type:
-            domain.append(('user_type_id', '=', revenue_type.id))
+        domain.append(('account_type', '=', 'income'))
         account = self.env['account.account'].search(domain, limit=1)
         if not account:
             account = self.env['account.account'].search([
-                ('company_id', '=', self.env.company.id),
-                ('deprecated', '=', False),
+                ('company_ids', 'in', self.env.company.id),
             ], limit=1)
         if not account:
             raise UserError(_('Please configure an income account before loading demo invoices.'))

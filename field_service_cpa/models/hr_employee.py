@@ -14,12 +14,12 @@ class HrEmployee(models.Model):
         )
 
     @api.model
-    def search(self, args, offset=0, limit=None, order=None, count=False):
+    def search(self, domain, offset=0, limit=None, order=None):
         if self._fsm_employee_picker_active():
             return super(HrEmployee, self.sudo()).search(
-                args, offset=offset, limit=limit, order=order, count=count
+                domain, offset=offset, limit=limit, order=order
             )
-        return super().search(args, offset=offset, limit=limit, order=order, count=count)
+        return super().search(domain, offset=offset, limit=limit, order=order)
 
     @api.model
     def name_search(self, name='', domain=None, operator='ilike', limit=100):

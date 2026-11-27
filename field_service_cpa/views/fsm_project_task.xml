@@ -38,13 +38,13 @@
                     <field name="date_start" optional="hide"/>
                 </xpath>
                 <xpath expr="//field[@name='planned_date_end']" position="replace" optional="true">
-                    <field name="date_end" optional="hide"/>
+                    <field name="fsm_date_end" optional="hide"/>
                 </xpath>
                 <xpath expr="//field[@name='stage_id']" position="attributes">
                     <attribute name="string">Activity</attribute>
                 </xpath>
                 <xpath expr="//field[@name='stage_id']" position="after">
-                    <field name="state" readonly="1" optional="hide"/>
+                    <field name="fsm_state" readonly="1" optional="hide"/>
                 </xpath>
             </field>
         </record>
@@ -65,7 +65,7 @@
                 <xpath expr="//field[@name='partner_id']" position="attributes">
                     <attribute name="string">Customer</attribute>
                 </xpath>
-                <xpath expr="//field[@name='user_id']" position="attributes">
+                <xpath expr="//field[@name='user_ids']" position="attributes">
                     <attribute name="string">Assigned to</attribute>
                 </xpath>
                 <xpath expr="//filter[@name='my_tasks']" position="replace">

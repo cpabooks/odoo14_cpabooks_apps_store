@@ -397,8 +397,8 @@
         <record id="action_server_cafm_amc_register_delete" model="ir.actions.server">
             <field name="name">Delete</field>
             <field name="sequence" eval="1"/>
-            <field name="model_id" ref="model_cafm_cpa_contract_month_line"/>
-            <field name="binding_model_id" ref="model_cafm_cpa_contract_month_line"/>
+            <field name="model_id" ref="model_cpabooks_cafm_contract_month_line"/>
+            <field name="binding_model_id" ref="model_cpabooks_cafm_contract_month_line"/>
             <field name="binding_type">action</field>
             <field name="binding_view_types">list</field>
             <field name="state">code</field>
@@ -414,8 +414,8 @@ action = {'type': 'ir.actions.client', 'tag': 'reload'}
         <record id="action_server_cafm_amc_print_next_invoice" model="ir.actions.server">
             <field name="name">Print AMC Contracts To be Invoiced</field>
             <field name="sequence" eval="20"/>
-            <field name="model_id" ref="model_cafm_cpa_contract_month_line"/>
-            <field name="binding_model_id" ref="model_cafm_cpa_contract_month_line"/>
+            <field name="model_id" ref="model_cpabooks_cafm_contract_month_line"/>
+            <field name="binding_model_id" ref="model_cpabooks_cafm_contract_month_line"/>
             <field name="binding_type">action</field>
             <field name="binding_view_types">list</field>
             <field name="state">code</field>

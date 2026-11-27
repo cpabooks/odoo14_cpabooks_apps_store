@@ -63,10 +63,12 @@ class AuditedFinancialVersionReport(models.Model):
         return roots
 
     def _dashboard_placeholder_notes(self):
-        """SME UAE IFRS-style notes suitable for management / FTA packs (not a full listed-company annual report)."""
+        """SME IFRS-style notes suitable for management / FTA packs (not a full listed-company annual report)."""
         entity = (self.company_id.display_name or _("the Company"))
         yc = self.year_current
         curr = self.currency_id.name or "AED"
+        uae = self._afg_is_uae()
+        country = self._afg_country_text()
         return [
             {
                 "title": _("1. Reporting entity"),
@@ -74,10 +76,10 @@ class AuditedFinancialVersionReport(models.Model):
                     "<p>%s</p>"
                     % _(
                         "%(entity)s (the \"Company\") is a limited liability company registered in the "
-                        "United Arab Emirates. These financial statements present the financial position "
+                        "%(country)s. These financial statements present the financial position "
                         "and performance of the Company for the year ended 31 December %(year)s."
                     )
-                    % {"entity": entity, "year": yc}
+                    % {"entity": entity, "year": yc, "country": self._afg_country_text()}
                 ),
             },
             {
@@ -147,17 +149,33 @@ class AuditedFinancialVersionReport(models.Model):
             },
             {
                 "title": _("9. Corporate Tax"),
-                "body": "<p>%s</p>" % _(
-                    "The Company is subject to UAE Corporate Tax under Federal Decree-Law No. 47 of 2022. "
-                    "Current and deferred tax, where applicable, are recognised under the policies adopted "
-                    "by management."
+                "body": "<p>%s</p>" % (
+                    _(
+                        "The Company is subject to UAE Corporate Tax under Federal Decree-Law No. 47 of 2022. "
+                        "Current and deferred tax, where applicable, are recognised under the policies adopted "
+                        "by management."
+                    )
+                    if uae
+                    else _(
+                        "The Company is subject to corporate income tax under the applicable tax laws of "
+                        "%(country)s. Current and deferred tax, where applicable, are recognised under the "
+                        "policies adopted by management."
+                    ) % {"country": country}
                 ),
             },
             {
                 "title": _("10. Value Added Tax (VAT)"),
-                "body": "<p>%s</p>" % _(
-                    "The Company accounts for UAE VAT in accordance with Federal Decree-Law No. 8 of 2017. "
-                    "VAT receivable / payable balances are included within other receivables or payables."
+                "body": "<p>%s</p>" % (
+                    _(
+                        "The Company accounts for UAE VAT in accordance with Federal Decree-Law No. 8 of 2017. "
+                        "VAT receivable / payable balances are included within other receivables or payables."
+                    )
+                    if uae
+                    else _(
+                        "The Company accounts for VAT in accordance with the applicable tax laws of "
+                        "%(country)s. VAT receivable / payable balances are included within other "
+                        "receivables or payables."
+                    ) % {"country": country}
                 ),
             },
             {
@@ -2025,6 +2043,8 @@ class AuditedFinancialVersionReport(models.Model):
             doc = self._afg_apply_arabic_print_document(doc)
         if not self.env.context.get("afg_skip_statutory_face"):
             doc["chapters"] = self._afg_apply_statutory_face(doc.get("chapters") or [])
+            if self._afg_print_financials_on():
+                doc["chapters"] = self._afg_financials_only_chapters(doc.get("chapters") or [])
             doc["signatory_label"] = "(Managing Director)"
             doc["print_cover"] = False
         return doc

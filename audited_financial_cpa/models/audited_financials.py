@@ -6,6 +6,7 @@ import calendar
 import csv
 import html as html_lib
 import io
+import json
 import re
 from collections import OrderedDict, defaultdict
 from datetime import timedelta
@@ -14,6 +15,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import logging
 
 from odoo import _, api, fields, models
+from odoo import _ as _odoo_translate
 from odoo.exceptions import MissingError, UserError
 
 from .account_account import CTF_CATEGORY_SELECTION
@@ -205,6 +207,7 @@ def _afg_period_preset_vals(preset, today=None):
 
 def _afg_period_presets_catalog(today=None, version=None):
     """UI cards: yearly / MoM / YoY / Custom (yearly remains default)."""
+    _ = version.env._ if version is not None else _odoo_translate
     today = fields.Date.to_date(today or fields.Date.today())
     specs = [
         ("years", _("Last 2 years"), _("Full calendar years (default)")),
@@ -264,7 +267,8 @@ def _afg_parse_period_span(span):
     return int(s[:-1]), s[-1]
 
 
-def _afg_period_span_label(span):
+def _afg_period_span_label(span, env=None):
+    _ = env._ if env is not None else _odoo_translate
     n, unit = _afg_parse_period_span(span)
     if unit == "y":
         return _("1 year") if n == 1 else _("%s years") % n
@@ -307,14 +311,15 @@ def _afg_period_span_vals(span, today=None):
     }
 
 
-def _afg_period_span_catalog():
+def _afg_period_span_catalog(env=None):
     """UI options for Show periods card."""
+    _ = env._ if env is not None else _odoo_translate
     out = []
     for key in AFG_PERIOD_SPAN_KEYS:
         n, unit = _afg_parse_period_span(key)
         out.append({
             "key": key,
-            "title": _afg_period_span_label(key),
+            "title": _afg_period_span_label(key, env),
             "hint": (
                 _("Full calendar years ending last year")
                 if unit == "y"
@@ -381,8 +386,8 @@ class AuditedFinancialGroup(models.Model):
     )
     note = fields.Text()
 
-    _audited_financial_group_code_company_uniq = models.Constraint(
-        'unique(code, company_id)',
+    _code_company_uniq = models.Constraint(
+        "unique(code, company_id)",
         "AFG code must be unique per company (or once for shared templates).",
     )
 
@@ -411,23 +416,20 @@ class AuditedFinancialGroup(models.Model):
                 "company_id": False,
             })
 
-    def name_get(self):
-        result = []
+    @api.depends("code", "name")
+    def _compute_display_name(self):
         for group in self:
             if group.code:
-                result.append((group.id, "%s — %s" % (group.code, group.name or "")))
+                group.display_name = "%s — %s" % (group.code, group.name or "")
             else:
-                result.append((group.id, group.name or ""))
-        return result
+                group.display_name = group.name or ""
 
     @api.model
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        args = domain
-        args = list(args or [])
-        domain = list(args)
+        domain = list(domain or [])
         if name:
             domain = ["|", ("code", operator, name), ("name", operator, name)] + domain
-        return self.search(domain, limit=limit).name_get()
+        return [(group.id, group.display_name) for group in self.search(domain, limit=limit)]
 
     def _afg_collapse_duplicate_mapping(self):
         """Keep one mapping line per unique ledger name (prefer current company)."""
@@ -630,7 +632,7 @@ class AuditedFinancialGroupAddLedgers(models.TransientModel):
     )
     filter_group_id = fields.Many2one(
         "account.group",
-        string="Group",
+        string="COA group",
         help="Show only this COA group.",
     )
     select_all = fields.Boolean(string="Select all")
@@ -673,7 +675,13 @@ class AuditedFinancialGroupAddLedgers(models.TransientModel):
             domain.append(("user_type_id", "=", self.filter_type_id.id))
         if self.filter_group_id:
             domain.append(("group_id", "=", self.filter_group_id.id))
-        recs = Account.search(domain, order="user_type_id, group_id, name")
+        recs = Account.search(domain, order="user_type_id, name").sorted(
+            lambda a: (
+                a.user_type_id.name or "",
+                a.group_id.code_prefix_start or "",
+                a.name or "",
+            )
+        )
         Version = self.env["audited.financial.version"]
         mapped = set()
         if self.ctf_category:
@@ -835,7 +843,12 @@ class AuditedFinancialGroupLine(models.Model):
         compute="_compute_ledger_caption",
         help="Ledger name only (no CoA code, no company).",
     )
-    company_id = fields.Many2one(related="account_id.company_id", store=True, readonly=True)
+    company_id = fields.Many2one(
+        "res.company",
+        compute="_compute_line_company_id",
+        store=True,
+        readonly=True,
+    )
     currency_id = fields.Many2one(
         related="company_id.currency_id",
         string="Currency",
@@ -862,8 +875,8 @@ class AuditedFinancialGroupLine(models.Model):
         self.unlink()
         return True
 
-    _audited_group_account_uniq = models.Constraint(
-        'unique(group_id, account_id)',
+    _group_account_uniq = models.Constraint(
+        "unique(group_id, account_id)",
         "Each account can only appear once per AFG group.",
     )
 
@@ -894,6 +907,12 @@ class AuditedFinancialGroupLine(models.Model):
             return self.browse()
         return super().create(filtered)
 
+    @api.depends("account_id.company_ids")
+    def _compute_line_company_id(self):
+        for line in self:
+            companies = line.account_id.company_ids.sorted("id")
+            line.company_id = companies[:1]
+
     @api.depends("account_id", "account_id.name")
     def _compute_ledger_caption(self):
         Version = self.env["audited.financial.version"]
@@ -907,18 +926,14 @@ class AuditedFinancialGroupLine(models.Model):
             line.ledger_caption = raw or Version._afg_pl_unique_ledger_key(acc) or acc.code or ""
 
     @api.model
-    def search(self, args, offset=0, limit=None, order=None, count=False):
-        if count or self.env.context.get("afg_skip_collapse"):
-            return super().search(
-                args, offset=offset, limit=limit, order=order, count=count
-            )
-        recs = super().search(args, offset=0, limit=None, order=order, count=False)
+    def search(self, domain, offset=0, limit=None, order=None):
+        if self.env.context.get("afg_skip_collapse"):
+            return super().search(domain, offset=offset, limit=limit, order=order)
+        recs = super().search(domain, offset=0, limit=None, order=order)
         groups = recs.mapped("group_id")
         if groups:
             groups.sudo().with_context(afg_skip_collapse=True)._afg_collapse_duplicate_mapping()
-        return super().search(
-            args, offset=offset, limit=limit, order=order, count=False
-        )
+        return super().search(domain, offset=offset, limit=limit, order=order)
 
     @api.model
     def _afg_ungrouped_codes(self):
@@ -1071,7 +1086,7 @@ class AuditedFinancialVersion(models.Model):
     currency_id = fields.Many2one(
         "res.currency",
         required=True,
-        default=lambda self: self.env.ref("base.AED", raise_if_not_found=False) or self.env.company.currency_id,
+        default=lambda self: self.env.company.currency_id,
     )
     year_current = fields.Integer(
         string="Current year",
@@ -1709,14 +1724,10 @@ class AuditedFinancialVersion(models.Model):
             ("company_id", "in", company_ids),
         ]
         MoveLine = self.env["account.move.line"].with_context(allowed_company_ids=company_ids)
-        groups = MoveLine.read_group(domain, ["balance"], ["account_id"], lazy=False)
         result = {}
-        for row in groups:
-            acc = row.get("account_id")
-            if not acc:
-                continue
-            aid = acc[0]
-            result[aid] = float(row.get("balance") or 0.0)
+        for account, balance in MoveLine._read_group(domain, ["account_id"], ["balance:sum"]):
+            if account:
+                result[account.id] = float(balance or 0.0)
         return result
 
     def _fetch_tb_closing(self, date_to, company_ids):
@@ -1730,14 +1741,10 @@ class AuditedFinancialVersion(models.Model):
             ("company_id", "in", company_ids),
         ]
         MoveLine = self.env["account.move.line"].with_context(allowed_company_ids=company_ids)
-        groups = MoveLine.read_group(domain, ["balance"], ["account_id"], lazy=False)
         result = {}
-        for row in groups:
-            acc = row.get("account_id")
-            if not acc:
-                continue
-            aid = acc[0]
-            result[aid] = float(row.get("balance") or 0.0)
+        for account, balance in MoveLine._read_group(domain, ["account_id"], ["balance:sum"]):
+            if account:
+                result[account.id] = float(balance or 0.0)
         return result
 
     def _tb_fiscalyear_start(self, company, as_of_date):
@@ -1746,12 +1753,40 @@ class AuditedFinancialVersion(models.Model):
         as_of = fields.Date.to_date(as_of_date)
         return company.compute_fiscalyear_dates(as_of)["date_from"]
 
+    def _afg_ensure_account_type_opening_flags(self):
+        """Income and expense types must not carry an opening balance.
+
+        Those types were left NULL. Prior-year profit then never reached
+        unaffected earnings, so Total Assets did not equal Total Equity and Liabilities.
+        """
+        if getattr(self.env.cr, "_afg_opening_flags_ok", False):
+            return
+        self.env.cr.execute(
+            """
+            UPDATE account_account_type
+               SET include_initial_balance = FALSE
+             WHERE internal_group IN ('income', 'expense')
+               AND include_initial_balance IS DISTINCT FROM FALSE
+            """
+        )
+        self.env.cr.execute(
+            """
+            UPDATE account_account_type
+               SET include_initial_balance = TRUE
+             WHERE internal_group IN ('asset', 'liability', 'equity')
+               AND include_initial_balance IS DISTINCT FROM TRUE
+            """
+        )
+        self.env["account.account.type"].invalidate_model()
+        self.env.cr._afg_opening_flags_ok = True
+
     def _fetch_tb_unaffected_earnings(self, fy_date_from, company_ids):
         """P&L before FY start — Accounting ``account.general.ledger`` unaffected earnings.
 
         Domain matches ``_get_options_unaffected_earnings``:
         date &lt;= fy_date_from - 1 on accounts with ``include_initial_balance`` = False.
         """
+        self._afg_ensure_account_type_opening_flags()
         company_ids = [int(c) for c in (company_ids or []) if c]
         fy_date_from = fields.Date.to_date(fy_date_from)
         if not company_ids or not fy_date_from:
@@ -1764,15 +1799,10 @@ class AuditedFinancialVersion(models.Model):
             ("account_id.user_type_id.include_initial_balance", "=", False),
         ]
         MoveLine = self.env["account.move.line"].with_context(allowed_company_ids=company_ids)
-        groups = MoveLine.read_group(domain, ["balance"], ["company_id"], lazy=False)
         result = {}
-        for row in groups:
-            cid = row.get("company_id")
-            if not cid:
-                continue
-            result[int(cid[0] if isinstance(cid, (list, tuple)) else cid)] = float(
-                row.get("balance") or 0.0
-            )
+        for company, balance in MoveLine._read_group(domain, ["company_id"], ["balance:sum"]):
+            if company:
+                result[company.id] = float(balance or 0.0)
         return result
 
     def _tb_unaffected_earnings_account_ids(self, company_ids):
@@ -1780,9 +1810,8 @@ class AuditedFinancialVersion(models.Model):
         company_ids = [int(c) for c in (company_ids or []) if c]
         if not company_ids:
             return {}
-        try:
-            ue_type = self.env.ref("account.data_unaffected_earnings")
-        except ValueError:
+        ue_type = self.env["account.account.type"].sudo().search([("code", "=", "equity_unaffected")], limit=1)
+        if not ue_type:
             return {}
         Account = self._afg_account_sudo()
         accounts = Account.search(
@@ -1790,13 +1819,50 @@ class AuditedFinancialVersion(models.Model):
                 ("user_type_id", "=", ue_type.id),
                 ("company_id", "in", company_ids),
             ],
-            order="company_id, id",
-        )
+            order="id",
+        ).sorted(lambda a: (a.company_id.id, a.id))
         by_cid = {}
         for acc in accounts:
             cid = int(acc.company_id.id)
             if cid not in by_cid:
                 by_cid[cid] = int(acc.id)
+        missing = [cid for cid in company_ids if cid not in by_cid]
+        if not missing:
+            return by_cid
+        # Chart has no Current Year Earnings type (CPABooks keeps
+        # "Undistributed Profits/Losses" as Equity). Prior-year profit
+        # would otherwise stay off the SOFP and Assets ≠ Equity + Liabilities.
+        fallbacks = Account.search(
+            [
+                ("company_id", "in", missing),
+                ("user_type_id.internal_group", "=", "equity"),
+            ],
+            order="id",
+        ).sorted(lambda a: (a.company_id.id, a.code or "", a.id))
+        rank_words = (
+            "undistributed",
+            "current year earning",
+            "unaffected",
+            "earnings (prior",
+            "previous year",
+            "retained",
+        )
+        best = {}
+        for acc in fallbacks:
+            name = (acc.name or "").lower()
+            rank = None
+            for i, word in enumerate(rank_words):
+                if word in name:
+                    rank = i
+                    break
+            if rank is None:
+                continue
+            cid = int(acc.company_id.id)
+            prev = best.get(cid)
+            if prev is None or rank < prev[0]:
+                best[cid] = (rank, int(acc.id))
+        for cid, (_rank, aid) in best.items():
+            by_cid[cid] = aid
         return by_cid
 
     def _fetch_tb_coa_stock(self, date_to, company_ids, fy_anchor_date=None):
@@ -1807,6 +1873,7 @@ class AuditedFinancialVersion(models.Model):
         - P&L (not include_initial_balance): only lines in [FY start, date_to]
         - Unaffected earnings (P&L before FY) injected onto Current Year Earnings
         """
+        self._afg_ensure_account_type_opening_flags()
         company_ids = [int(c) for c in (company_ids or []) if c]
         date_to = fields.Date.to_date(date_to)
         if not company_ids or not date_to:
@@ -1820,25 +1887,23 @@ class AuditedFinancialVersion(models.Model):
             company = Company.browse(cid)
             fy_start = self._tb_fiscalyear_start(company, fy_anchor)
             # Balance-sheet / equity stock accounts
-            groups_bs = MoveLine.read_group(
+            groups_bs = MoveLine._read_group(
                 [
                     ("date", "<=", date_to),
                     ("parent_state", "=", "posted"),
                     ("company_id", "=", cid),
                     ("account_id.user_type_id.include_initial_balance", "=", True),
                 ],
-                ["balance"],
                 ["account_id"],
-                lazy=False,
+                ["balance:sum"],
             )
-            for row in groups_bs:
-                acc = row.get("account_id")
-                if not acc:
+            for account, balance in groups_bs:
+                if not account:
                     continue
-                result[acc[0]] = float(result.get(acc[0], 0.0)) + float(row.get("balance") or 0.0)
+                result[account.id] = float(result.get(account.id, 0.0)) + float(balance or 0.0)
             # P&L within the fiscal year only (Opening on income/expense stays nil)
             if fy_start <= date_to:
-                groups_pnl = MoveLine.read_group(
+                groups_pnl = MoveLine._read_group(
                     [
                         ("date", ">=", fy_start),
                         ("date", "<=", date_to),
@@ -1846,17 +1911,13 @@ class AuditedFinancialVersion(models.Model):
                         ("company_id", "=", cid),
                         ("account_id.user_type_id.include_initial_balance", "=", False),
                     ],
-                    ["balance"],
                     ["account_id"],
-                    lazy=False,
+                    ["balance:sum"],
                 )
-                for row in groups_pnl:
-                    acc = row.get("account_id")
-                    if not acc:
+                for account, balance in groups_pnl:
+                    if not account:
                         continue
-                    result[acc[0]] = float(result.get(acc[0], 0.0)) + float(
-                        row.get("balance") or 0.0
-                    )
+                    result[account.id] = float(result.get(account.id, 0.0)) + float(balance or 0.0)
 
         # Per-company unaffected earnings → Current Year Earnings (GL / CoA TB)
         ue_target = self._tb_unaffected_earnings_account_ids(company_ids)
@@ -2022,13 +2083,7 @@ class AuditedFinancialVersion(models.Model):
                     )
         # Flush pending ORM writes first — clear() otherwise reloads stale DB rows and
         # drops in-flight period preset / date changes from the dashboard.
-        Version = self.env["audited.financial.version"]
-        Line = self.env["audited.financial.line"]
-        GLine = self.env["audited.financial.group.line"]
-        if hasattr(Version, "flush"):
-            Version.env.flush_all()
-            Line.env.flush_all()
-            GLine.env.flush_all()
+        self.env.flush_all()
         self.env.clear()
         return True
 
@@ -2251,7 +2306,9 @@ class AuditedFinancialVersion(models.Model):
         Account = self._afg_account_sudo().with_context(allowed_company_ids=cids)
         AccountGroup = self.env["account.group"].sudo()
         # Include archived accounts: Odoo BS/TB still carry their posted balances
-        accounts = Account.search([("company_id", "in", cids)], order="company_id, code")
+        accounts = Account.search([("company_id", "in", cids)], order="code").sorted(
+            lambda a: (a.company_id.id, a.code or "")
+        )
         # Cross-company chart accounts that still have AML under these companies (CoA parity)
         map_aids = set()
         for _key, by_cid in (maps_by_cid or {}).items():
@@ -3072,19 +3129,18 @@ class AuditedFinancialVersion(models.Model):
                 if not k:
                     continue
                 code = (gl.group_id.code or "")
-                if code in ungrp:
-                    key_to_group.setdefault(k, gl.group_id)
-                else:
+                prev = key_to_group.get(k)
+                if not prev or ((prev.code or "") in ungrp and code not in ungrp):
                     key_to_group[k] = gl.group_id
             existing = {gl.account_id.id: gl for gl in mapped_lines}
             for acc in accounts:
                 k = ver._afg_pl_unique_ledger_key(acc)
                 target = key_to_group.get(k)
-                if not target:
+                if not target or (target.code or "") in ungrp:
                     continue
                 gl = existing.get(acc.id)
                 if gl:
-                    if gl.group_id.id != target.id:
+                    if (gl.group_id.code or "") in ungrp and gl.group_id.id != target.id:
                         gl.group_id = target.id
                 else:
                     existing[acc.id] = Line.create({
@@ -3156,9 +3212,8 @@ class AuditedFinancialVersion(models.Model):
             if not k:
                 continue
             code = (gl.group_id.code or "")
-            if code in ungrp:
-                key_to_group.setdefault(k, gl.group_id)
-            else:
+            prev = key_to_group.get(k)
+            if not prev or ((prev.code or "") in ungrp and code not in ungrp):
                 key_to_group[k] = gl.group_id
         existing = {gl.account_id.id: gl for gl in mapped_lines}
         for acc in accounts:
@@ -3168,7 +3223,7 @@ class AuditedFinancialVersion(models.Model):
                 continue
             gl = existing.get(acc.id)
             if gl:
-                if gl.group_id.id != target.id:
+                if (gl.group_id.code or "") in ungrp and gl.group_id.id != target.id:
                     gl.group_id = target.id
             else:
                 existing[acc.id] = Line.create({
@@ -3200,9 +3255,6 @@ class AuditedFinancialVersion(models.Model):
         ])
         changed = False
         for acc in accounts:
-            hay = ("%s %s" % (acc.code or "", acc.name or "")).lower()
-            if "sad -" in hay or hay.startswith("sad "):
-                continue
             lines = Line.with_context(afg_skip_collapse=True).search([
                 ("account_id", "=", acc.id),
             ])
@@ -3598,8 +3650,8 @@ class AuditedFinancialVersion(models.Model):
                     "title": _("1. Reporting entity"),
                     "body": "<p>%s</p>" % _(
                         "%(entity)s (the \"Company\") is a limited liability company registered in the "
-                        "United Arab Emirates."
-                    ) % {"entity": self.company_id.display_name or _("the Company")},
+                        "%(country)s."
+                    ) % {"entity": self.company_id.display_name or _("the Company"), "country": self._afg_country_text()},
                 },
                 {
                     "title": _("2. Basis of preparation"),
@@ -3665,7 +3717,7 @@ class AuditedFinancialVersion(models.Model):
             }
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_model()
+            ver.invalidate_recordset()
             result.update({
                 "year_prior": ver.year_prior,
                 "year_current": ver.year_current,
@@ -3715,7 +3767,7 @@ class AuditedFinancialVersion(models.Model):
         vals = _afg_period_span_vals(span)
         result = {
             "period_span": span,
-            "period_span_label": _afg_period_span_label(span),
+            "period_span_label": _afg_period_span_label(span, self.env),
             "period_preset": vals.get("period_preset"),
             "year_prior": False,
             "year_current": False,
@@ -3725,7 +3777,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_model()
+            ver.invalidate_recordset()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4105,11 +4157,11 @@ class AuditedFinancialVersion(models.Model):
         mf = float(flags.get("margin_footer") or 10)
         try:
             report = self.env.ref(
-                "project_dashboard_odoo.action_report_afg_audit_pdf",
+                "audited_financial_cpa.action_report_afg_audit_pdf",
                 raise_if_not_found=False,
             )
             pf = self.env.ref(
-                "project_dashboard_odoo.paperformat_afg_audit",
+                "audited_financial_cpa.paperformat_afg_audit",
                 raise_if_not_found=False,
             )
             if not report or not pf:
@@ -4337,7 +4389,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_model()
+            ver.invalidate_recordset()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4387,7 +4439,7 @@ class AuditedFinancialVersion(models.Model):
         for ver in self:
             ver.with_context(skip_afg_audit=True).write(vals)
             ver.with_context(afg_keep_user_years=True).action_load_default_data()
-            ver.invalidate_model()
+            ver.invalidate_recordset()
             result.update({
                 "period_preset": ver.period_preset,
                 "year_prior": ver.year_prior,
@@ -4487,6 +4539,66 @@ class AuditedFinancialVersion(models.Model):
             },
         }
 
+    def afg_open_vouchers(self, payload=None):
+        """Open Show Vouchers for the ledger(s) behind the clicked amount."""
+        self.ensure_one()
+        payload = payload or {}
+        acc_ids = []
+        raw = payload.get("account_ids") or []
+        if isinstance(raw, str):
+            raw = [part for part in raw.split(",") if part.strip()]
+        extras = [payload.get("account_id")] if payload.get("account_id") else []
+        for item in list(raw) + extras:
+            try:
+                acc_ids.append(int(item))
+            except (TypeError, ValueError):
+                continue
+        line_id = payload.get("line_id")
+        if line_id:
+            try:
+                line_id = int(line_id)
+            except (TypeError, ValueError):
+                line_id = 0
+            if line_id:
+                line = self.env["audited.financial.line"].browse(line_id)
+                if line.exists() and line.version_id == self:
+                    acc_ids.extend(self._line_leaf_account_ids(line) or [])
+        acc_ids = list(dict.fromkeys(int(a) for a in acc_ids if a))
+        if not acc_ids:
+            raise UserError(_("No ledger account mapped to this line."))
+        Report = self.env.get("tally.ledger.report")
+        if Report is None:
+            return self.afg_open_journal_items(payload)
+        section = payload.get("section") or "bs"
+        date_to = self.date_to_current or fields.Date.context_today(self)
+        if section in ("bs", "equity"):
+            date_from = fields.Date.from_string("2000-01-01")
+        else:
+            date_from = (
+                self.date_from_prior
+                or self.date_from_current
+                or fields.Date.from_string("2000-01-01")
+            )
+        company = self.company_id or self.env.company
+        try:
+            report = Report.sudo().create({
+                "company_id": company.id,
+                "date_from": date_from,
+                "date_to": date_to,
+            })
+            fold = payload.get("fold_mode") or "vouchers"
+            if fold not in ("vouchers", "monthly", "yearly"):
+                fold = "vouchers"
+            return report.action_open_ca_exp_voucher_register(
+                acc_ids,
+                date_from=fields.Date.to_string(date_from),
+                date_to=fields.Date.to_string(date_to),
+                fold_mode=fold,
+                branch_wise=bool(payload.get("branch_wise")),
+            )
+        except Exception:
+            _logger.exception("AFG voucher register fell back to journal items")
+            return self.afg_open_journal_items(payload)
 
     def afg_open_coa_form(self, payload=None):
         """Open Chart of Accounts form so the user can set AFG group."""
@@ -4553,7 +4665,7 @@ class AuditedFinancialVersion(models.Model):
             "audited_financial_cpa.view_audited_financial_group_line_reassign_tree",
             raise_if_not_found=False,
         )
-        views = [(view.id, "tree")] if view else [(False, "tree")]
+        views = [(view.id, "list")] if view else [(False, "list")]
         return {
             "type": "ir.actions.act_window",
             "name": _("Reassign ungrouped ledgers"),
@@ -4754,7 +4866,7 @@ class AuditedFinancialVersion(models.Model):
         """Account types treated as cost of revenue (Cost of Sales / Direct Costs)."""
         Type = self.env["account.account.type"]
         types = Type.browse()
-        ref = self.env.ref("account.data_account_type_direct_costs", raise_if_not_found=False)
+        ref = self.env.ref("cpabooks_account_compat.data_account_type_direct_costs", raise_if_not_found=False)
         if ref:
             types |= ref
         types |= Type.search([
@@ -5542,16 +5654,29 @@ class AuditedFinancialVersion(models.Model):
         low = (label or "").lower()
         if any(k in low for k in ("drawing", "dividend", "distribution", "withdraw")):
             return "current"
-        if any(k in low for k in ("statutory reserve", "legal reserve", "reserve account")):
-            return "reserve"
-        if "reserve" in low and "retained" not in low:
-            return "reserve"
         if any(k in low for k in (
-            "current account", "partner current", "owner current", "propriet",
+            "current account", "partner current", "owner current",
+            "shareholder current", "shareholders current", "propriet",
         )):
             return "current"
-        if any(k in low for k in ("capital", "share capital", "paid up", "paid-up")):
+        if any(k in low for k in ("statutory reserve", "legal reserve", "reserve account")):
+            return "reserve"
+        if "reserve" in low and "retained" not in low and "revaluation" not in low:
+            return "reserve"
+        if any(k in low for k in (
+            "current year", "undistributed", "unaffected", "previous year earning",
+            "retained", "accumulated",
+        )):
+            return "re"
+        if any(k in low for k in (
+            "share capital", "paid up", "paid-up", "share premium", "capital account",
+        )):
             return "capital"
+        if low.strip() in ("capital", "owner capital", "partners capital", "partnership capital"):
+            return "capital"
+        # Do not treat CoA group caption "Capital & Equities" as share capital.
+        if "capital & equit" in low or "capital and equit" in low:
+            return "re"
         return "re"
 
     def _afg_bs_present_equity_components(self, bs_roots):
@@ -5763,6 +5888,18 @@ class AuditedFinancialVersion(models.Model):
             node["co_prior"] = co_p
         if co_c is not None:
             node["co_curr"] = co_c
+        width = 0
+        for ch in children:
+            width = max(width, len(ch.get("period_amounts") or []))
+        if width:
+            pam = [0.0] * width
+            for ch in children:
+                for i, val in enumerate(ch.get("period_amounts") or []):
+                    if i < width:
+                        pam[i] += float(val or 0.0)
+            node["period_amounts"] = pam
+            node["prior"] = float(pam[0] or 0.0)
+            node["current"] = float(pam[-1] or 0.0)
 
     def _afg_present_as_equity_ledger(self, node):
         """Show Retained Earnings / Profit/(Loss) as L3 brown ledger-style face lines."""
@@ -6113,7 +6250,13 @@ class AuditedFinancialVersion(models.Model):
                 children.append(pruned)
         branch = dict(branch, children=children)
         lvl = branch.get("level") or 0
-        if lvl in (1, 2, 3, 4):
+        label_blob = " ".join([
+            str(branch.get("label") or ""),
+            str(branch.get("afg_caption") or ""),
+            str(branch.get("group_caption") or ""),
+        ]).lower()
+        is_ungroup = "ungroup" in label_blob or branch.get("is_ungrouped_review")
+        if lvl in (1, 2, 3, 4) and not is_ungroup:
             if not self._afg_branch_has_balance(
                 branch.get("prior"), branch.get("current"),
                 branch.get("co_prior"), branch.get("co_curr"),
@@ -6194,6 +6337,21 @@ class AuditedFinancialVersion(models.Model):
                 branch["prior"] = float(sum(branch.get("co_prior") or []) or 0.0)
                 branch["current"] = float(sum(branch.get("co_curr") or []) or 0.0)
             if line.level == 3 and acc_ids and cols:
+                Company = self.env["res.company"].sudo()
+                splits = []
+                for cid in cols:
+                    cid = int(cid)
+                    pv = self._sum_accounts_company_tb(tp, cid, acc_ids)
+                    cv = self._sum_accounts_company_tb(tc, cid, acc_ids)
+                    if abs(pv) < 0.0001 and abs(cv) < 0.0001:
+                        continue
+                    splits.append({
+                        "id": cid,
+                        "name": self._afg_company_column_header(Company.browse(cid)) or "",
+                        "prior": pv,
+                        "current": cv,
+                    })
+                branch["company_splits"] = splits
                 Account = self.env["account.account"].sudo()
                 leaf_companies = sorted({
                     int(acc.company_id.id)
@@ -6277,6 +6435,126 @@ class AuditedFinancialVersion(models.Model):
         _walk(n)
         return n
 
+    def _afg_node_is_corporate_tax(self, node):
+        blob = " ".join([
+            str(node.get("label") or ""),
+            str(node.get("ledger_caption") or ""),
+            str(node.get("group_caption") or ""),
+            str(node.get("afg_caption") or ""),
+        ]).lower()
+        return "corporate tax" in blob or "taxation" in blob
+
+    def _afg_amt_pack(self, node):
+        return {
+            "prior": float((node or {}).get("prior") or 0.0),
+            "current": float((node or {}).get("current") or 0.0),
+            "period_amounts": [float(v or 0.0) for v in ((node or {}).get("period_amounts") or [])],
+            "co_prior": [float(v or 0.0) for v in ((node or {}).get("co_prior") or [])],
+            "co_curr": [float(v or 0.0) for v in ((node or {}).get("co_curr") or [])],
+        }
+
+    def _afg_empty_pack(self):
+        return {"prior": 0.0, "current": 0.0, "period_amounts": [], "co_prior": [], "co_curr": []}
+
+    def _afg_add_pack(self, dst, src):
+        dst["prior"] += float(src.get("prior") or 0.0)
+        dst["current"] += float(src.get("current") or 0.0)
+        for key in ("period_amounts", "co_prior", "co_curr"):
+            extra = src.get(key) or []
+            if len(extra) > len(dst[key]):
+                dst[key].extend([0.0] * (len(extra) - len(dst[key])))
+            for i, val in enumerate(extra):
+                dst[key][i] += float(val or 0.0)
+        return dst
+
+    def _afg_sub_pack(self, node, pack):
+        node["prior"] = float(node.get("prior") or 0.0) - float(pack.get("prior") or 0.0)
+        node["current"] = float(node.get("current") or 0.0) - float(pack.get("current") or 0.0)
+        if node.get("period_amounts") is not None or pack.get("period_amounts"):
+            pam = [float(v or 0.0) for v in (node.get("period_amounts") or [])]
+            extra = pack.get("period_amounts") or []
+            if len(extra) > len(pam):
+                pam.extend([0.0] * (len(extra) - len(pam)))
+            for i, val in enumerate(extra):
+                pam[i] -= float(val or 0.0)
+            node["period_amounts"] = pam
+        for key in ("co_prior", "co_curr"):
+            if node.get(key) is None and not pack.get(key):
+                continue
+            vals = [float(v or 0.0) for v in (node.get(key) or [])]
+            extra = pack.get(key) or []
+            if len(extra) > len(vals):
+                vals.extend([0.0] * (len(extra) - len(vals)))
+            for i, val in enumerate(extra):
+                vals[i] -= float(val or 0.0)
+            node[key] = vals
+
+    def _afg_peel_corporate_tax(self, node, found):
+        """Lift corporate-tax branches out of operating expenses."""
+        removed = self._afg_empty_pack()
+        kept = []
+        for child in list(node.get("children") or []):
+            if self._afg_node_is_corporate_tax(child):
+                found.append(child)
+                self._afg_add_pack(removed, self._afg_amt_pack(child))
+                continue
+            self._afg_add_pack(removed, self._afg_peel_corporate_tax(child, found))
+            if (
+                child.get("children")
+                or abs(float(child.get("prior") or 0.0)) > 0.004
+                or abs(float(child.get("current") or 0.0)) > 0.004
+            ):
+                kept.append(child)
+        node["children"] = kept
+        self._afg_sub_pack(node, removed)
+        return removed
+
+    def _afg_pack_series(self, pack, key, width):
+        vals = list(pack.get(key) or [])
+        if width and len(vals) >= width:
+            return [float(v or 0.0) for v in vals[:width]]
+        out = [0.0] * width
+        if vals:
+            for i, val in enumerate(vals[:width]):
+                out[i] = float(val or 0.0)
+        elif width:
+            out[0] = float(pack.get("prior") or 0.0)
+            out[-1] = float(pack.get("current") or 0.0)
+        return out
+
+    def _afg_face_total_row(self, type_key, label, pack, children=None):
+        prior = float(pack.get("prior") or 0.0)
+        current = float(pack.get("current") or 0.0)
+        pam = list(pack.get("period_amounts") or [])
+        if pam:
+            prior = float(pam[0] or 0.0)
+            current = float(pam[-1] or 0.0)
+        row = {
+            "id": "type-pl-%s" % type_key,
+            "type_key": type_key,
+            "label": label,
+            "note": "",
+            "level": 0,
+            "prior": prior,
+            "current": current,
+            "sensitive": False,
+            "co_prior": list(pack.get("co_prior") or []) or [prior],
+            "co_curr": list(pack.get("co_curr") or []) or [current],
+            "group_code": "",
+            "group_caption": "",
+            "ledger_code": "",
+            "ledger_caption": "",
+            "drill_account_ids": [],
+            "report_section": "pl",
+            "group_id": False,
+            "is_computed": True,
+            "face_scale": 1.0,
+            "children": list(children or []),
+        }
+        if pam:
+            row["period_amounts"] = pam
+        return row
+
     def _afg_pl_face_amounts(self, roots):
         """Natural P&L: Sales/Revenue positive; costs & expenses positive; net = S − C − E.
 
@@ -6299,34 +6577,204 @@ class AuditedFinancialVersion(models.Model):
         cost = by_key.get("cost_of_revenue")
         exp = by_key.get("expenses")
         net = by_key.get("net_profit")
-        if net and (sales or cost or exp):
-            n_per = 0
-            for src in (sales, cost, exp):
-                if src and src.get("period_amounts"):
-                    n_per = max(n_per, len(src.get("period_amounts") or []))
-            if n_per:
-                pam = []
-                for i in range(n_per):
-                    s = float(((sales or {}).get("period_amounts") or [0.0] * n_per)[i] or 0.0)
-                    c = float(((cost or {}).get("period_amounts") or [0.0] * n_per)[i] or 0.0)
-                    e = float(((exp or {}).get("period_amounts") or [0.0] * n_per)[i] or 0.0)
-                    pam.append(s - c - e)
-                net["period_amounts"] = pam
-                net["prior"] = float(pam[0] if pam else 0.0)
-                net["current"] = float(pam[-1] if pam else 0.0)
-            else:
-                for field in ("prior", "current"):
-                    s = float((sales or {}).get(field) or 0.0)
-                    c = float((cost or {}).get(field) or 0.0)
-                    e = float((exp or {}).get(field) or 0.0)
-                    # Face net profit/(loss) = sales − materials − expenses
-                    net[field] = s - c - e
-            # Keep single-company columns aligned with face net
-            net["co_prior"] = [float(net.get("prior") or 0.0)]
-            net["co_curr"] = [float(net.get("current") or 0.0)]
+        tax_nodes = []
+        tax_pack = self._afg_empty_pack()
+        if exp:
+            tax_pack = self._afg_peel_corporate_tax(exp, tax_nodes)
+        packs = [self._afg_amt_pack(sales), self._afg_amt_pack(cost), self._afg_amt_pack(exp), tax_pack]
+        width = 0
+        for pack in packs:
+            width = max(width, len(pack.get("period_amounts") or []))
+        co_width = 0
+        for pack in packs:
+            co_width = max(co_width, len(pack.get("co_prior") or []), len(pack.get("co_curr") or []))
+
+        def series(pack, key, n):
+            return self._afg_pack_series(pack, key, n)
+
+        if width:
+            pbt_pam, net_pam, tax_pam = [], [], []
+            for i in range(width):
+                s = series(packs[0], "period_amounts", width)[i]
+                c = series(packs[1], "period_amounts", width)[i]
+                e = series(packs[2], "period_amounts", width)[i]
+                t = series(packs[3], "period_amounts", width)[i]
+                pbt_pam.append(s - c - e)
+                tax_pam.append(t)
+                net_pam.append(s - c - e - t)
+        else:
+            s_p, s_c = packs[0]["prior"], packs[0]["current"]
+            c_p, c_c = packs[1]["prior"], packs[1]["current"]
+            e_p, e_c = packs[2]["prior"], packs[2]["current"]
+            t_p, t_c = packs[3]["prior"], packs[3]["current"]
+            pbt_pam = [s_p - c_p - e_p, s_c - c_c - e_c]
+            tax_pam = [t_p, t_c]
+            net_pam = [pbt_pam[0] - t_p, pbt_pam[1] - t_c]
+        pbt_co_p, pbt_co_c, net_co_p, net_co_c = [], [], [], []
+        if co_width:
+            for i in range(co_width):
+                sp = series(packs[0], "co_prior", co_width)[i]
+                sc = series(packs[0], "co_curr", co_width)[i]
+                cp = series(packs[1], "co_prior", co_width)[i]
+                cc = series(packs[1], "co_curr", co_width)[i]
+                ep = series(packs[2], "co_prior", co_width)[i]
+                ec = series(packs[2], "co_curr", co_width)[i]
+                tp = series(packs[3], "co_prior", co_width)[i]
+                tc = series(packs[3], "co_curr", co_width)[i]
+                pbt_co_p.append(sp - cp - ep)
+                pbt_co_c.append(sc - cc - ec)
+                net_co_p.append(sp - cp - ep - tp)
+                net_co_c.append(sc - cc - ec - tc)
+        pbt_pack = {
+            "prior": pbt_pam[0],
+            "current": pbt_pam[-1],
+            "period_amounts": list(pbt_pam) if width else [],
+            "co_prior": pbt_co_p,
+            "co_curr": pbt_co_c,
+        }
+        shown_tax = {
+            "prior": tax_pam[0],
+            "current": tax_pam[-1],
+            "period_amounts": list(tax_pam) if width else [],
+            "co_prior": series(tax_pack, "co_prior", co_width) if co_width else [],
+            "co_curr": series(tax_pack, "co_curr", co_width) if co_width else [],
+        }
+        pbt_row = self._afg_face_total_row("profit_before_tax", _("Profit before tax"), pbt_pack)
+        tax_label = _("Corporate tax for the year")
+        tax_row = self._afg_face_total_row("tax_for_year", tax_label, shown_tax)
+        # Ledger only — the "Tax for the year" group header stays hidden.
+        tax_row["level"] = 3
+        tax_row["is_ledger"] = True
+        tax_row["is_computed"] = False
+        tax_row["ledger_caption"] = tax_label
+        tax_row["children"] = []
+        if net:
+            net["label"] = _("Profit for the Year")
+            if width:
+                net["period_amounts"] = list(net_pam)
+            net["prior"] = float(net_pam[0])
+            net["current"] = float(net_pam[-1])
+            net["co_prior"] = net_co_p or [float(net["prior"])]
+            net["co_curr"] = net_co_c or [float(net["current"])]
             net["face_scale"] = 1.0
             net["is_face_net"] = True
+            net["is_computed"] = True
+        body = [n for n in out if n.get("type_key") != "net_profit"]
+        out = body + [pbt_row, tax_row]
+        if net:
+            out.append(net)
         return out
+
+    def _afg_resum_tree_amounts(self, node):
+        """Recompute a branch from its children, including comparative columns."""
+        if not node:
+            return
+        kids = list(node.get("children") or [])
+        if not kids:
+            return
+        for ch in kids:
+            self._afg_resum_tree_amounts(ch)
+        width = 0
+        for ch in kids:
+            width = max(width, len(ch.get("period_amounts") or []))
+        if width:
+            pam = [0.0] * width
+            for ch in kids:
+                for i, val in enumerate(ch.get("period_amounts") or []):
+                    pam[i] += float(val or 0.0)
+            node["period_amounts"] = pam
+            node["prior"] = float(pam[0] or 0.0)
+            node["current"] = float(pam[-1] or 0.0)
+        else:
+            self._afg_refresh_branch_totals(node)
+
+    def _afg_bs_align_fixed_assets_to_ppe(self, bs_roots):
+        """Put every Fixed Assets ledger on Property, Plant & Equipment.
+
+        Odoo default Balance Sheet "Plus Fixed Assets" is that user type.
+        Name-only mapping left computer cost and accumulated depreciation off the PPE line.
+        """
+        if not bs_roots:
+            return bs_roots
+        cids = [int(c) for c in (self._tb_company_ids() or []) if c]
+        Account = self.env["account.account"].sudo()
+        domain = [("user_type_id.name", "ilike", "fixed asset")]
+        if cids:
+            domain.append(("company_id", "in", cids))
+        fa_ids = set(Account.search(domain).ids)
+        if not fa_ids:
+            return bs_roots
+
+        def _find_ppe(nodes):
+            for node in nodes or []:
+                code = (node.get("afg_code") or node.get("group_code") or "").strip()
+                lab = (node.get("label") or node.get("afg_caption") or "").lower()
+                if code == "AFG_PPE" or "property, plant" in lab:
+                    return node
+                found = _find_ppe(node.get("children") or [])
+                if found:
+                    return found
+            return None
+
+        ppe = _find_ppe(bs_roots)
+        if not ppe:
+            return bs_roots
+        moved = []
+
+        def _aid(node):
+            try:
+                return int(node.get("account_id") or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        def _is_fa_ledger(node):
+            aid = _aid(node)
+            if aid not in fa_ids:
+                return False
+            kids = node.get("children") or []
+            return bool(node.get("is_ledger") or not kids or int(node.get("level") or 0) >= 3)
+
+        def _detach(nodes):
+            kept = []
+            for node in list(nodes or []):
+                if node is ppe:
+                    kept.append(node)
+                    continue
+                if _is_fa_ledger(node):
+                    moved.append(node)
+                    continue
+                kids = list(node.get("children") or [])
+                if kids:
+                    node["children"] = _detach(kids)
+                kept.append(node)
+            return kept
+
+        out = []
+        for root in bs_roots:
+            if root is ppe:
+                out.append(root)
+                continue
+            if _is_fa_ledger(root):
+                moved.append(root)
+                continue
+            root["children"] = _detach(root.get("children") or [])
+            out.append(root)
+        if moved:
+            kids = list(ppe.get("children") or [])
+            have = {_aid(ch) for ch in kids if _aid(ch)}
+            for node in moved:
+                aid = _aid(node)
+                if aid and aid in have:
+                    continue
+                if aid:
+                    have.add(aid)
+                node["level"] = 3
+                node["is_ledger"] = True
+                kids.append(node)
+            ppe["children"] = kids
+        for root in out:
+            self._afg_resum_tree_amounts(root)
+        return self._afg_refresh_bs_type_shells(out)
 
     def _afg_bs_face_amounts(self, roots):
         """Natural SOFP: Assets +, Liabilities +, Equity +; Assets = Equity + Liabilities."""
@@ -6558,6 +7006,577 @@ class AuditedFinancialVersion(models.Model):
             ver.action_load_default_data()
         return True
 
+    def _afg_dashboard_pdf_face_journals(self, section):
+        """SOFP / P&L rows from the same journal buckets the PDF prints.
+
+        Face-line totals match the PDF. Each line's children are the ledgers.
+        """
+        self.ensure_one()
+        yc, yp = self._afg_excel_period_years()
+        # Prefer the companies the user ticked in the systray (same cids as default P&L).
+        # version.company_ids alone stayed on one company because Multco / cids never
+        # rewrote that field before the face query ran.
+        companies = list(self.env.context.get("afg_face_company_ids") or [])
+        if not companies:
+            companies = self._afg_allowed_company_ids_from_context()
+        if not companies:
+            companies = self._afg_excel_company_ids()
+        if not companies or not yc or not yp:
+            return []
+        self.env.cr.execute(
+            """
+            SELECT a.id, EXTRACT(YEAR FROM l.date)::int,
+                   COALESCE(SUM(l.debit), 0), COALESCE(SUM(l.credit), 0)
+              FROM account_move_line l
+              JOIN account_move m ON m.id = l.move_id
+              JOIN account_account a ON a.id = l.account_id
+             WHERE m.state = 'posted'
+               AND l.company_id IN %s
+               AND l.date <= %s
+             GROUP BY a.id, EXTRACT(YEAR FROM l.date)
+            """,
+            (tuple(companies), fields.Date.from_string("%s-12-31" % yc)),
+        )
+        recs = self.env.cr.fetchall()
+        accounts = {
+            acc.id: acc
+            for acc in self.env["account.account"].sudo().browse(
+                list({r[0] for r in recs if r[0]})
+            ).exists()
+        }
+        credit_faces = {
+            "Net Revenue", "Other Income", "Accounts Payable", "Accruals and Provisions",
+            "Share Capital", "Retained Earnings", "Shareholders' Current Account",
+        }
+        pl_faces = {
+            "Net Revenue", "Other Income", "Less : Cost of Revenue",
+            "General & Administration Expenses", "Employee costs", "Director Remuneration",
+            "Depreciation", "Financial Charge", "Corporate Tax Paid",
+        }
+        per_acc = {}
+        pl_stock = {"open": 0.0, "prior": 0.0, "current": 0.0}
+        for acc_id, year, debit, credit in recs:
+            acc = accounts.get(acc_id)
+            if not acc:
+                continue
+            year = int(year or 0)
+            if year < yp:
+                slot = "open"
+            elif year == yp:
+                slot = "prior"
+            elif year == yc:
+                slot = "current"
+            else:
+                continue
+            net = float(debit or 0.0) - float(credit or 0.0)
+            statement, face = self._afg_excel_face_bucket(acc)
+            box = per_acc.setdefault(acc_id, {
+                "face": face,
+                "statement": statement,
+                "open": 0.0,
+                "prior": 0.0,
+                "current": 0.0,
+            })
+            box[slot] += net
+            if face in pl_faces:
+                pl_stock[slot] += net
+
+        def _slice(box, which, is_pl):
+            if is_pl:
+                if which == "current":
+                    return box["current"]
+                if which == "prior":
+                    return box["prior"]
+                return 0.0
+            if which == "current":
+                return box["open"] + box["prior"] + box["current"]
+            if which == "prior":
+                return box["open"] + box["prior"]
+            return box["open"]
+
+        def _signed_pair(box, face):
+            is_pl = face in pl_faces
+            prior = _slice(box, "prior", is_pl)
+            current = _slice(box, "current", is_pl)
+            if face in credit_faces:
+                prior, current = -prior, -current
+            return prior, current
+
+        def _clean_ledger_name(name):
+            text = (name or "").replace("\u00a0", " ").strip()
+            while text[:1] in ("|", " "):
+                text = text[1:].lstrip()
+            return " ".join(text.split())
+
+        def _ledger_key(name):
+            return _clean_ledger_name(name).casefold()
+
+        grouped = {}
+        by_name = {}
+        for acc_id, box in per_acc.items():
+            face = box["face"]
+            if section == "bs" and box["statement"] != "BS":
+                continue
+            if section == "pl" and box["statement"] != "PL":
+                continue
+            prior, current = _signed_pair(box, face)
+            if abs(prior) < 0.005 and abs(current) < 0.005:
+                continue
+            acc = accounts[acc_id]
+            label = _clean_ledger_name(acc.name)
+            key = (face, _ledger_key(label))
+            existing = by_name.get(key)
+            if existing is None:
+                node = {
+                    "id": "face-acc-%s" % acc_id,
+                    "label": label,
+                    "ledger_caption": label,
+                    "ledger_code": acc.code or "",
+                    "level": 3,
+                    "is_ledger": True,
+                    "is_computed": False,
+                    "account_id": acc_id,
+                    "drill_account_ids": [acc_id],
+                    "prior": prior,
+                    "current": current,
+                    "period_amounts": [prior, current],
+                    "children": [],
+                    "report_section": section,
+                    "note": "",
+                }
+                by_name[key] = node
+                grouped.setdefault(face, []).append(node)
+                continue
+            existing["prior"] = float(existing.get("prior") or 0.0) + prior
+            existing["current"] = float(existing.get("current") or 0.0) + current
+            existing["period_amounts"] = [existing["prior"], existing["current"]]
+            ids = existing.get("drill_account_ids") or []
+            if acc_id not in ids:
+                ids.append(acc_id)
+            existing["drill_account_ids"] = ids
+            other_code = acc.code or ""
+            if existing.get("ledger_code") and other_code and existing["ledger_code"] != other_code:
+                existing["ledger_code"] = ""
+            existing["account_id"] = False
+            existing["id"] = "face-led-%s" % "-".join(str(i) for i in ids)
+        if section == "bs":
+            # Same unclosed P&L stock the PDF adds into Retained Earnings.
+            re_prior = -(pl_stock["open"] + pl_stock["prior"])
+            re_current = -(pl_stock["open"] + pl_stock["prior"] + pl_stock["current"])
+            if abs(re_prior) >= 0.005 or abs(re_current) >= 0.005:
+                grouped.setdefault("Retained Earnings", []).append({
+                    "id": "face-re-pl-stock",
+                    "label": "Profit / (Loss)",
+                    "ledger_caption": "Profit / (Loss)",
+                    "ledger_code": "",
+                    "level": 3,
+                    "is_ledger": True,
+                    "is_computed": True,
+                    "account_id": False,
+                    "drill_account_ids": [],
+                    "prior": re_prior,
+                    "current": re_current,
+                    "period_amounts": [re_prior, re_current],
+                    "children": [],
+                    "report_section": "bs",
+                    "note": "",
+                })
+
+        def _sum(nodes):
+            prior = sum(float(n.get("prior") or 0.0) for n in nodes)
+            current = sum(float(n.get("current") or 0.0) for n in nodes)
+            return prior, current
+
+        def _node(nid, label, note, prior, current, level, children=None, computed=False, type_key=""):
+            kids = children or []
+            ids = []
+            for kid in kids:
+                for acc_id in kid.get("drill_account_ids") or []:
+                    if acc_id not in ids:
+                        ids.append(acc_id)
+            return {
+                "id": nid,
+                "label": label,
+                "afg_caption": label,
+                "note": note or "",
+                "level": level,
+                "prior": prior,
+                "current": current,
+                "period_amounts": [prior, current],
+                "children": kids,
+                "is_ledger": False,
+                "is_computed": computed or level == 0,
+                "type_key": type_key,
+                "report_section": section,
+                "drill_account_ids": ids,
+                "group_code": "",
+                "group_caption": "",
+                "ledger_code": "",
+                "ledger_caption": "",
+                "account_id": False,
+                "group_id": False,
+            }
+
+        def _kids(name):
+            return sorted(
+                grouped.get(name) or [],
+                key=lambda n: ((n.get("ledger_code") or ""), (n.get("label") or "").lower()),
+            )
+
+        def _pair(name):
+            return _sum(_kids(name))
+
+        if section == "bs":
+            ppe_p, ppe_c = _pair("Property, Plant & Equipment")
+            inv_p, inv_c = _pair("Inventories")
+            ar_p, ar_c = _pair("Accounts Receivable")
+            cash_p, cash_c = _pair("Cash and Bank Balances")
+            dep_p, dep_c = _pair("Deposits, Advances & Prepayments")
+            ung_p, ung_c = _pair("Ungrouped Assets")
+            ap_p, ap_c = _pair("Accounts Payable")
+            acc_p, acc_c = _pair("Accruals and Provisions")
+            cap_p, cap_c = _pair("Share Capital")
+            re_p, re_c = _pair("Retained Earnings")
+            ca_p, ca_c = _pair("Shareholders' Current Account")
+            tnca_p, tnca_c = ppe_p, ppe_c
+            tca_p = inv_p + ar_p + cash_p + dep_p + ung_p
+            tca_c = inv_c + ar_c + cash_c + dep_c + ung_c
+            ta_p, ta_c = tnca_p + tca_p, tnca_c + tca_c
+            tcl_p, tcl_c = ap_p + acc_p, ap_c + acc_c
+            te_p, te_c = cap_p + re_p + ca_p, cap_c + re_c + ca_c
+            tle_p, tle_c = tcl_p + te_p, tcl_c + te_c
+            spec = [
+                ("sec", "ASSETS", "", 0, 0, None, ""),
+                ("sec", "Non-Current Assets", "", 0, 0, None, ""),
+                ("line", "Property, Plant & Equipment", "5", ppe_p, ppe_c, "Property, Plant & Equipment", ""),
+                ("tot", "Total Non-Current Assets", "", tnca_p, tnca_c, None, ""),
+                ("sec", "Current Assets", "", 0, 0, None, ""),
+                ("line", "Inventories", "5", inv_p, inv_c, "Inventories", ""),
+                ("line", "Accounts Receivable", "7", ar_p, ar_c, "Accounts Receivable", ""),
+                ("line", "Cash and Bank Balances", "6", cash_p, cash_c, "Cash and Bank Balances", ""),
+                ("line", "Deposits, Advances & Prepayments", "8", dep_p, dep_c, "Deposits, Advances & Prepayments", ""),
+                ("line", "Ungrouped Assets", "", ung_p, ung_c, "Ungrouped Assets", ""),
+                ("tot", "Total Current Assets", "", tca_p, tca_c, None, ""),
+                ("tot", "TOTAL ASSETS", "", ta_p, ta_c, None, "total_assets"),
+                ("sec", "LIABILITIES AND SHAREHOLDERS' EQUITY", "", 0, 0, None, ""),
+                ("sec", "Current Liabilities", "", 0, 0, None, ""),
+                ("line", "Accounts Payable", "9", ap_p, ap_c, "Accounts Payable", ""),
+                ("line", "Accruals and Provisions", "10", acc_p, acc_c, "Accruals and Provisions", ""),
+                ("tot", "Total Current Liabilities", "", tcl_p, tcl_c, None, ""),
+                ("tot", "TOTAL LIABILITIES", "", tcl_p, tcl_c, None, ""),
+                ("sec", "Shareholders' Equity", "", 0, 0, None, ""),
+                ("line", "Share Capital", "2", cap_p, cap_c, "Share Capital", ""),
+                ("line", "Retained Earnings", "11", re_p, re_c, "Retained Earnings", ""),
+                ("line", "Shareholders' Current Account", "12", ca_p, ca_c, "Shareholders' Current Account", ""),
+                ("tot", "Total Shareholders' Equity", "", te_p, te_c, None, ""),
+                ("tot", "TOTAL LIABILITIES AND SHAREHOLDERS' EQUITY", "", tle_p, tle_c, None, "total_equity_liabilities"),
+            ]
+        else:
+            rev_p, rev_c = _pair("Net Revenue")
+            cost_p, cost_c = _pair("Less : Cost of Revenue")
+            oi_p, oi_c = _pair("Other Income")
+            ga_p, ga_c = _pair("General & Administration Expenses")
+            pay_p, pay_c = _pair("Employee costs")
+            dir_p, dir_c = _pair("Director Remuneration")
+            depn_p, depn_c = _pair("Depreciation")
+            fin_p, fin_c = _pair("Financial Charge")
+            tax_p, tax_c = _pair("Corporate Tax Paid")
+            gross_p, gross_c = rev_p - cost_p, rev_c - cost_c
+            ebit_p = gross_p + oi_p - ga_p - pay_p - dir_p - depn_p
+            ebit_c = gross_c + oi_c - ga_c - pay_c - dir_c - depn_c
+            pbt_p, pbt_c = ebit_p - fin_p, ebit_c - fin_c
+            net_p, net_c = pbt_p - tax_p, pbt_c - tax_c
+            spec = [
+                ("sec", "REVENUE", "", 0, 0, None, ""),
+                ("line", "Net Revenue", "13", rev_p, rev_c, "Net Revenue", ""),
+                ("line", "Less : Cost of Revenue", "14", cost_p, cost_c, "Less : Cost of Revenue", ""),
+                ("tot", "Gross Profit", "", gross_p, gross_c, None, ""),
+                ("line", "Other Income", "", oi_p, oi_c, "Other Income", ""),
+                ("sec", "DEDUCT", "", 0, 0, None, ""),
+                ("line", "General & Administration Expenses", "15", ga_p, ga_c, "General & Administration Expenses", ""),
+                ("line", "Employee costs", "", pay_p, pay_c, "Employee costs", ""),
+                ("line", "Director Remuneration", "", dir_p, dir_c, "Director Remuneration", ""),
+                ("line", "Depreciation", "5", depn_p, depn_c, "Depreciation", ""),
+                ("tot", "EBIT", "", ebit_p, ebit_c, None, "ebit"),
+                ("line", "Financial Charge", "", fin_p, fin_c, "Financial Charge", ""),
+                ("tot", "Profit before tax", "", pbt_p, pbt_c, None, "profit_before_tax"),
+                ("line", "Tax for the year", "", tax_p, tax_c, "Corporate Tax Paid", "tax_for_year"),
+                ("tot", "Profit for the year", "", net_p, net_c, None, "net_profit"),
+            ]
+        rows = []
+        for kind, label, note, prior, current, key, type_key in spec:
+            slug = re.sub(r"[^a-z0-9]+", "-", (label or "x").lower()).strip("-")
+            nid = "face-%s-%s" % (section, slug)
+            if kind == "sec":
+                rows.append(_node(nid, label, "", 0.0, 0.0, 0, computed=True))
+                continue
+            if kind == "line":
+                kids = _kids(key)
+                if not kids and abs(prior) < 0.005 and abs(current) < 0.005:
+                    continue
+                rows.append(_node(
+                    nid, label, note, prior, current, 1,
+                    children=kids, type_key=type_key,
+                ))
+                continue
+            rows.append(_node(
+                nid, label, note, prior, current, 1, computed=True, type_key=type_key,
+            ))
+        return rows
+
+    def _afg_dashboard_pdf_face(self, section, roots):
+        """Screen SOFP / P&L in the same order and names as the printed PDF.
+
+        Each face line keeps the ledgers that feed it, so a click expands them.
+        Amounts are the same journal buckets the PDF prints.
+        """
+        self.ensure_one()
+        journal_rows = self._afg_dashboard_pdf_face_journals(section)
+        if journal_rows:
+            return journal_rows
+        leaves = []
+
+        def _walk(nodes):
+            for node in nodes or []:
+                if node.get("is_ledger") or node.get("account_id"):
+                    leaves.append(node)
+                    continue
+                kids = node.get("children") or []
+                if kids:
+                    _walk(kids)
+
+        _walk(roots)
+        if not leaves:
+            return roots
+
+        account_ids = []
+        for leaf in leaves:
+            aid = leaf.get("account_id") or ((leaf.get("drill_account_ids") or [None])[0])
+            if aid:
+                account_ids.append(int(aid))
+        accounts = {
+            acc.id: acc
+            for acc in self.env["account.account"].sudo().browse(account_ids).exists()
+        }
+        want = "BS" if section == "bs" else "PL"
+        fallback = (
+            "Ungrouped Assets" if section == "bs" else "General & Administration Expenses"
+        )
+        grouped = {}
+        seen = set()
+        width = 2
+
+        def _vec(node):
+            pam = node.get("period_amounts") or []
+            if pam:
+                return [float(v or 0.0) for v in pam]
+            return [
+                float(node.get("prior") or 0.0),
+                float(node.get("current") or 0.0),
+            ]
+
+        for leaf in leaves:
+            key = leaf.get("account_id") or leaf.get("id")
+            if key in seen:
+                continue
+            seen.add(key)
+            aid = leaf.get("account_id") or ((leaf.get("drill_account_ids") or [None])[0])
+            acc = accounts.get(int(aid)) if aid else None
+            face = fallback
+            if acc:
+                statement, face_name = self._afg_excel_face_bucket(acc)
+                face = face_name if statement == want else fallback
+            else:
+                label = " ".join([
+                    str(leaf.get("label") or ""),
+                    str(leaf.get("ledger_caption") or ""),
+                    str(leaf.get("afg_caption") or ""),
+                ]).lower()
+                if any(k in label for k in ("earning", "profit", "loss", "retained", "reserve")):
+                    face = "Retained Earnings" if section == "bs" else fallback
+                elif "current account" in label:
+                    face = "Shareholders' Current Account" if section == "bs" else fallback
+                elif "capital" in label:
+                    face = "Share Capital" if section == "bs" else fallback
+            child = dict(leaf)
+            child["children"] = []
+            child["level"] = 3
+            child["is_ledger"] = True
+            child["is_computed"] = False
+            grouped.setdefault(face, []).append(child)
+            width = max(width, len(_vec(child)))
+
+        def _zeros():
+            return [0.0] * width
+
+        def _add(left, right, sign=1.0):
+            size = max(len(left), len(right), width)
+            out = []
+            for i in range(size):
+                lv = left[i] if i < len(left) else 0.0
+                rv = right[i] if i < len(right) else 0.0
+                out.append(float(lv) + sign * float(rv))
+            return out
+
+        def _sum(nodes):
+            total = _zeros()
+            for node in nodes:
+                total = _add(total, _vec(node))
+            return total
+
+        buckets = {name: _sum(nodes) for name, nodes in grouped.items()}
+
+        def _bucket(name):
+            return list(buckets.get(name) or _zeros())
+
+        if section == "bs":
+            spec = [
+                ("sec", "ASSETS", "", None),
+                ("sec", "Non-Current Assets", "", None),
+                ("line", "Property, Plant & Equipment", "5", "Property, Plant & Equipment"),
+                ("sum", "Total Non-Current Assets", "", ("Property, Plant & Equipment",)),
+                ("sec", "Current Assets", "", None),
+                ("line", "Inventories", "5", "Inventories"),
+                ("line", "Accounts Receivable", "7", "Accounts Receivable"),
+                ("line", "Cash and Bank Balances", "6", "Cash and Bank Balances"),
+                ("line", "Deposits, Advances & Prepayments", "8", "Deposits, Advances & Prepayments"),
+                ("line", "Ungrouped Assets", "", "Ungrouped Assets"),
+                ("sum", "Total Current Assets", "", (
+                    "Inventories", "Accounts Receivable", "Cash and Bank Balances",
+                    "Deposits, Advances & Prepayments", "Ungrouped Assets",
+                )),
+                ("sum", "TOTAL ASSETS", "", (
+                    "Property, Plant & Equipment", "Inventories", "Accounts Receivable",
+                    "Cash and Bank Balances", "Deposits, Advances & Prepayments",
+                    "Ungrouped Assets",
+                )),
+                ("sec", "LIABILITIES AND SHAREHOLDERS' EQUITY", "", None),
+                ("sec", "Current Liabilities", "", None),
+                ("line", "Accounts Payable", "9", "Accounts Payable"),
+                ("line", "Accruals and Provisions", "10", "Accruals and Provisions"),
+                ("sum", "Total Current Liabilities", "", (
+                    "Accounts Payable", "Accruals and Provisions",
+                )),
+                ("sum", "TOTAL LIABILITIES", "", (
+                    "Accounts Payable", "Accruals and Provisions",
+                )),
+                ("sec", "Shareholders' Equity", "", None),
+                ("line", "Share Capital", "2", "Share Capital"),
+                ("line", "Retained Earnings", "11", "Retained Earnings"),
+                ("line", "Shareholders' Current Account", "12", "Shareholders' Current Account"),
+                ("sum", "Total Shareholders' Equity", "", (
+                    "Share Capital", "Retained Earnings", "Shareholders' Current Account",
+                )),
+                ("sum", "TOTAL LIABILITIES AND SHAREHOLDERS' EQUITY", "", (
+                    "Accounts Payable", "Accruals and Provisions",
+                    "Share Capital", "Retained Earnings", "Shareholders' Current Account",
+                )),
+            ]
+        else:
+            spec = [
+                ("sec", "REVENUE", "", None),
+                ("line", "Net Revenue", "13", "Net Revenue"),
+                ("line", "Less : Cost of Revenue", "14", "Less : Cost of Revenue"),
+                ("formula", "Gross Profit", "", "gross"),
+                ("line", "Other Income", "", "Other Income"),
+                ("sec", "DEDUCT", "", None),
+                ("line", "General & Administration Expenses", "15", "General & Administration Expenses"),
+                ("line", "Employee costs", "", "Employee costs"),
+                ("line", "Director Remuneration", "", "Director Remuneration"),
+                ("line", "Depreciation", "5", "Depreciation"),
+                ("line", "Financial Charge", "", "Financial Charge"),
+                ("formula", "Profit before tax", "", "pbt"),
+                ("line", "Tax for the year", "", "Corporate Tax Paid"),
+                ("formula", "Profit for the year", "", "net"),
+            ]
+
+        def _named(name):
+            return _bucket(name)
+
+        gross = _add(_named("Net Revenue"), _named("Less : Cost of Revenue"), -1.0)
+        pbt = _add(gross, _named("Other Income"))
+        for name in (
+            "General & Administration Expenses",
+            "Employee costs",
+            "Director Remuneration",
+            "Depreciation",
+            "Financial Charge",
+        ):
+            pbt = _add(pbt, _named(name), -1.0)
+        net = _add(pbt, _named("Corporate Tax Paid"), -1.0)
+        formulas = {"gross": gross, "pbt": pbt, "net": net}
+
+        def _node(nid, label, note, vec, level, children=None, computed=False, type_key=""):
+            kids = children or []
+            ids = []
+            for kid in kids:
+                for acc_id in kid.get("drill_account_ids") or []:
+                    if acc_id not in ids:
+                        ids.append(acc_id)
+                if kid.get("account_id") and kid.get("account_id") not in ids:
+                    ids.append(kid.get("account_id"))
+            prior = float(vec[0]) if vec else 0.0
+            current = float(vec[-1]) if vec else 0.0
+            row = {
+                "id": nid,
+                "label": label,
+                "afg_caption": label,
+                "note": note or "",
+                "level": level,
+                "prior": prior,
+                "current": current,
+                "period_amounts": list(vec or []),
+                "children": kids,
+                "is_ledger": False,
+                "is_computed": computed or level == 0,
+                "type_key": type_key,
+                "report_section": section,
+                "drill_account_ids": ids,
+                "group_code": "",
+                "group_caption": "",
+                "ledger_code": "",
+                "ledger_caption": "",
+                "account_id": False,
+                "group_id": False,
+            }
+            return row
+
+        rows = []
+        for kind, label, note, key in spec:
+            slug = re.sub(r"[^a-z0-9]+", "-", (label or "x").lower()).strip("-")
+            nid = "face-%s-%s" % (section, slug)
+            if kind == "sec":
+                rows.append(_node(nid, label, "", _zeros(), 0, computed=True))
+                continue
+            if kind == "line":
+                kids = sorted(
+                    grouped.get(key) or [],
+                    key=lambda n: (n.get("ledger_caption") or n.get("label") or "").lower(),
+                )
+                vec = _sum(kids)
+                if not kids and not any(abs(v) >= 0.005 for v in vec):
+                    continue
+                rows.append(_node(nid, label, note, vec, 1, children=kids))
+                continue
+            if kind == "sum":
+                vec = _zeros()
+                for name in key or []:
+                    vec = _add(vec, _named(name))
+                type_key = ""
+                if label == "TOTAL ASSETS":
+                    type_key = "total_assets"
+                elif label == "TOTAL LIABILITIES AND SHAREHOLDERS' EQUITY":
+                    type_key = "total_equity_liabilities"
+                rows.append(_node(
+                    nid, label, note, vec, 1, computed=True, type_key=type_key,
+                ))
+                continue
+            if kind == "formula":
+                rows.append(_node(
+                    nid, label, note, formulas.get(key) or _zeros(), 1, computed=True,
+                ))
+        return rows or roots
+
     @api.model
     def afg_dashboard_data(self, active_id=None):
         # COA Factory Reset can leave stale account ids; scrub before any name_get/browse
@@ -6617,9 +7636,8 @@ class AuditedFinancialVersion(models.Model):
             "version_id": ver_id or False,
             "error": msg,
             "empty_message": _(
-                "Audited Financials failed to load. Upgrade modules "
-                "audited_financial_cpa, project_dashboard_odoo, and "
-                "cpabooks_settings_company_setup (-u), then hard-refresh. Detail: %s"
+                "Audited Financials failed to load. Upgrade the audited_financials module, "
+                "restart Odoo, then hard-refresh the browser. Detail: %s"
             ) % msg,
             "sections": {},
             "statement_sections": {},
@@ -6632,7 +7650,182 @@ class AuditedFinancialVersion(models.Model):
             "schedules": {},
         }
 
+    AFG_CT_FREE_LIMIT = 375000.0
+    AFG_CT_RATE = 0.09
+    AFG_CT_TOLERANCE = 0.49  # 49 fils
+
+    def _afg_fils_amount(self, value):
+        try:
+            return Decimal(str(float(value or 0.0))).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP,
+            )
+        except (InvalidOperation, TypeError, ValueError):
+            return Decimal("0.00")
+
+    def _afg_fils_differ(self, left, right):
+        return self._afg_fils_amount(left) != self._afg_fils_amount(right)
+
+    def _afg_expected_corporate_tax(self, profit_before_tax):
+        """9% on profit before tax above 375,000. Below that, tax is zero."""
+        try:
+            profit = float(profit_before_tax or 0.0)
+        except (TypeError, ValueError):
+            profit = 0.0
+        if profit < self.AFG_CT_FREE_LIMIT:
+            return 0.0
+        return (profit - self.AFG_CT_FREE_LIMIT) * self.AFG_CT_RATE
+
+    def _afg_tax_cell_status(self, profit_before_tax, tax_amount):
+        """ok = within 49 fils; error = blank but a tax is due; bad = wrong amount."""
+        expected = self._afg_expected_corporate_tax(profit_before_tax)
+        try:
+            shown = float(tax_amount or 0.0)
+        except (TypeError, ValueError):
+            shown = 0.0
+        blank = abs(shown) < 0.005
+        if blank and expected > self.AFG_CT_TOLERANCE:
+            return "error"
+        if abs(shown - expected) <= self.AFG_CT_TOLERANCE:
+            return "ok"
+        return "bad"
+
+    def _afg_node_amount_series(self, node):
+        if not node:
+            return []
+        pam = list(node.get("period_amounts") or [])
+        if pam:
+            return [float(v or 0.0) for v in pam]
+        return [
+            float(node.get("prior") or 0.0),
+            float(node.get("current") or 0.0),
+        ]
+
+    def _afg_odoo_pl_net(self, date_from, date_to, company_ids):
+        """Odoo default P&L profit for the year. None when that report is not installed."""
+        if "account.financial.html.report" not in self.env:
+            return None
+        report = self.env["account.financial.html.report"]
+        fn = getattr(report, "_cpa_bs_pl_net_for_range", None)
+        if not fn or not date_from or not date_to:
+            return None
+        cids = [int(c) for c in (company_ids or []) if c]
+        if not cids:
+            return None
+        return float(fn(date_from, date_to, cids, True))
+
     @api.model
+    def afg_profit_for_year_range(self, date_from, date_to, company_ids):
+        """Face profit for the year (positive = profit) from posted income and expense."""
+        date_from = fields.Date.to_date(date_from) if date_from else None
+        date_to = fields.Date.to_date(date_to) if date_to else None
+        cids = [int(c) for c in (company_ids or []) if c]
+        if not date_from or not date_to or not cids:
+            return 0.0
+        self.env.cr.execute(
+            """
+            SELECT COALESCE(SUM(aml.balance), 0)
+              FROM account_move_line aml
+              JOIN account_move am ON am.id = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state = 'posted'
+               AND am.date >= %s AND am.date <= %s
+               AND aml.company_id IN %s
+               AND (aml.display_type IS NULL OR aml.display_type NOT IN ('line_section', 'line_note', 'line_subsection'))
+               AND aa.account_type IN (
+                    'income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost'
+               )
+            """,
+            [date_from, date_to, tuple(cids)],
+        )
+        balance = self.env.cr.fetchone()[0] or 0.0
+        return -float(balance)
+
+    def _afg_odoo_pl_measures(self, date_from, date_to, company_ids):
+        """Default P&L EBIT, EBAT, tax and net for the same dates and companies."""
+        if "account.financial.html.report" not in self.env:
+            return None
+        report = self.env["account.financial.html.report"]
+        fn = getattr(report, "_cpa_pl_measures_for_range", None)
+        if not fn or not date_from or not date_to:
+            return None
+        cids = [int(c) for c in (company_ids or []) if c]
+        if not cids:
+            return None
+        return fn(date_from, date_to, cids, True)
+
+    def _afg_annotate_pl_checkpoints(self, pl_roots, period_windows, company_ids):
+        """Red when booked tax ≠ 9% rule, or EBIT / EBAT / net ≠ default P&L."""
+        by_key = {n.get("type_key"): n for n in (pl_roots or []) if n.get("type_key")}
+        ebit = by_key.get("ebit")
+        pbt = by_key.get("profit_before_tax")
+        tax = by_key.get("tax_for_year")
+        net = by_key.get("net_profit")
+        windows = list(period_windows or [])
+        pbt_amts = self._afg_node_amount_series(pbt)
+        tax_amts = self._afg_node_amount_series(tax)
+        width = max(len(pbt_amts), len(tax_amts), len(windows))
+        ct_flags = []
+        for i in range(width):
+            pbt_v = pbt_amts[i] if i < len(pbt_amts) else 0.0
+            tax_v = tax_amts[i] if i < len(tax_amts) else 0.0
+            ct_flags.append(self._afg_tax_cell_status(pbt_v, tax_v))
+        if tax is not None and ct_flags:
+            tax["ct_check"] = ct_flags
+        series = {
+            "ebit": self._afg_node_amount_series(ebit),
+            "ebat": pbt_amts,
+            "net": self._afg_node_amount_series(net),
+        }
+        flags = {key: [] for key in series}
+        span = max([len(windows)] + [len(vals) for vals in series.values()])
+        for i in range(span):
+            measures = None
+            if i < len(windows):
+                window = windows[i] or {}
+                try:
+                    measures = self._afg_odoo_pl_measures(
+                        window.get("date_from"), window.get("date_to"), company_ids,
+                    )
+                except Exception:
+                    _logger.exception("AFG: Odoo P&L EBIT/EBAT check skipped")
+                    measures = None
+            for key, vals in series.items():
+                afg_v = vals[i] if i < len(vals) else 0.0
+                if not measures or key not in measures:
+                    flags[key].append("ok")
+                    continue
+                flags[key].append(
+                    "bad" if self._afg_fils_differ(afg_v, measures.get(key)) else "ok"
+                )
+        for i, flag in enumerate(flags["ebit"]):
+            if flag == "bad":
+                if i < len(flags["ebat"]):
+                    flags["ebat"][i] = "bad"
+                if i < len(flags["net"]):
+                    flags["net"][i] = "bad"
+        for i, flag in enumerate(flags["ebat"]):
+            if flag == "bad" and i < len(flags["net"]):
+                flags["net"][i] = "bad"
+        if ebit is not None and flags["ebit"]:
+            ebit["pl_match"] = flags["ebit"]
+        if pbt is not None and flags["ebat"]:
+            pbt["pl_match"] = flags["ebat"]
+        if net is not None and flags["net"]:
+            net["pl_match"] = flags["net"]
+        return pl_roots
+
+    def _afg_recover_version(self, ver_id):
+        """Roll back an aborted SQL transaction and re-read the version."""
+        try:
+            self.env.cr.rollback()
+        except Exception:
+            pass
+        self.env.clear()
+        if not ver_id:
+            return self.browse()
+        ver = self.browse(int(ver_id))
+        return ver if ver.exists() else self.browse()
+
     def _afg_dashboard_data_impl(self, active_id=None):
         if active_id:
             ver = self.browse(int(active_id))
@@ -6649,51 +7842,62 @@ class AuditedFinancialVersion(models.Model):
             if not ver.exists():
                 return {}
 
-        scope_cids = self._afg_allowed_company_ids_from_context()
-        if not scope_cids:
-            scope_cids = [primary_cid]
-
-        needs_sync = bool(ver.branch_company_id) or set(ver.company_ids.ids) != set(scope_cids)
-        if needs_sync:
+        # Opening the menu must keep the version's saved companies for TB line rebuild.
+        # Rewriting them from the systray (cids=1,2,3 vs saved 1–5) rebuilt
+        # every statement line (~80s on AHD) on each click.
+        # SOFP / P&L face journals still follow the systray (same as default P&L).
+        session_cids = self._afg_allowed_company_ids_from_context()
+        saved_cids = [
+            int(cid) for cid in ver.company_ids.ids if int(cid) in user_ok_set
+        ]
+        if saved_cids:
+            scope_cids = saved_cids
+        else:
+            scope_cids = list(session_cids) or [primary_cid]
+        face_cids = list(session_cids) if session_cids else list(scope_cids)
+        if ver.branch_company_id:
             try:
                 ver.with_context(skip_afg_col_sync=True).write({
                     "branch_company_id": False,
-                    "company_ids": [(6, 0, scope_cids)],
-                    "report_column_company_ids": [(6, 0, scope_cids)],
                 })
-                ver.invalidate_model()
             except Exception:
-                # Concurrent dashboard loads can DELETE the same M2M rows
-                # (could not serialize access). Skip sync this request.
-                _logger.warning("AFG company scope sync skipped", exc_info=True)
-                try:
-                    self.env.cr.rollback()
-                except Exception:
-                    pass
-                self.env.clear()
-                ver = self.browse(ver.id)
-                if not ver.exists():
-                    return {}
-                needs_sync = False
+                _logger.warning("AFG branch flag clear skipped", exc_info=True)
+        needs_sync = not ver.line_ids
 
         dash_ctx = dict(self.env.context, allowed_company_ids=scope_cids)
         if len(scope_cids) > 1:
             dash_ctx["afg_dashboard_consolidated_branch_columns"] = True
+        # Rebuild only when the company scope changed or there are no statement
+        # lines. Doing it on every open deleted thousands of rows (~80s on AHD)
+        # and a second click aborted the transaction (concurrent delete).
+        # Load Default Data / Reload to default periods still rebuild.
         if needs_sync or not ver.line_ids:
-            ver.with_context(**dash_ctx).action_load_default_data()
+            self.env.cr.execute(
+                "SELECT pg_advisory_xact_lock(%s)",
+                [870000000 + int(ver.id)],
+            )
+            ver.invalidate_recordset()
+            if needs_sync or not ver.line_ids:
+                try:
+                    ver.with_context(**dash_ctx).action_load_default_data()
+                    ver._afg_ensure_cost_of_sales_on_cor()
+                except Exception:
+                    _logger.exception("AFG default load skipped")
+                    ver = self._afg_recover_version(ver.id)
+                    if not ver:
+                        return {}
         ver = ver.with_context(**dash_ctx)
-        try:
-            ver._afg_ensure_cost_of_sales_on_cor()
-        except Exception:
-            _logger.exception("AFG Cost of Sales auto-map skipped")
-        if not self.env.context.get("afg_skip_hierarchy_rebuild"):
-            try:
-                ver._rebuild_line_hierarchy_from_tb()
-            except Exception:
-                _logger.exception("AFG statement rebuild failed")
 
         column_order = list(scope_cids)
-        company_columns = [{"id": scope_cids[0], "name": ""}]
+        company_columns = []
+        for cid in scope_cids:
+            comp = self.env["res.company"].sudo().browse(int(cid))
+            company_columns.append({
+                "id": int(cid),
+                "name": (comp.name or "") if comp.exists() else "",
+            })
+        if not company_columns:
+            company_columns = [{"id": scope_cids[0], "name": ""}]
         sections = set(ver.line_ids.mapped("report_section"))
         prior_bs, curr_bs = ver._tb_prior_curr_per_company(True)
         prior_pl, curr_pl = ver._tb_prior_curr_per_company(False)
@@ -6770,18 +7974,27 @@ class AuditedFinancialVersion(models.Model):
         if not alerts:
             alerts = ver._dashboard_placeholder_alerts()
         simple_print = bool(self.env.context.get("afg_simple_print"))
-        if simple_print:
+        # First menu open paints SOFP / P&L / CT only. Trial balance, schedules
+        # and validation load when those tabs are opened.
+        light = bool(self.env.context.get("afg_dashboard_light"))
+        skip_heavy = simple_print or light
+        if skip_heavy:
             tb = {}
+            schedules = {}
         else:
             tb = ver.with_context(afg_tb_column_ids=column_order)._trial_balance_rows_data()
-        schedules = ver._afg_schedules_data(tree_by_section)
+            schedules = ver._afg_schedules_data(tree_by_section)
         # Natural IFRS face amounts for statements (sales +, assets/liabilities +, net = S−C−E).
         # Schedules / TB keep Odoo signed figures above; only statement trees are flipped.
         face_sections = {}
         for sec, roots in tree_by_section.items():
             if sec in ("pl", "bs", "equity"):
+                src = roots
+                if sec == "bs":
+                    # Move Fixed Assets ledgers before the liability/equity sign flip.
+                    src = ver._afg_bs_align_fixed_assets_to_ppe(roots)
                 face_sections[sec] = ver._afg_prune_statement_roots(
-                    ver._afg_apply_statement_face_amounts(sec, roots)
+                    ver._afg_apply_statement_face_amounts(sec, src)
                 )
             else:
                 face_sections[sec] = ver._afg_prune_statement_roots(roots)
@@ -6802,7 +8015,7 @@ class AuditedFinancialVersion(models.Model):
         notes = ver._afg_resolve_statement_notes(notes)
         # Opening / Closing bookends are Trial Balance only (not SOFP/P&L/Equity).
         # AFG TB uses signed CoA amounts (like Accounting Trial Balance) so net can be nil.
-        if simple_print:
+        if skip_heavy:
             tb = {}
             tb2 = {}
             schedules["fs_tb_reconciliation"] = {}
@@ -6829,9 +8042,18 @@ class AuditedFinancialVersion(models.Model):
         face_sections["bs"] = ver._afg_bs_reclass_negative_cash(
             face_sections.get("bs") or []
         )
+        # Ledgers that survive only as a group drill-id (not a leaf) never hit the total.
+        face_sections["bs"] = ver._afg_bs_append_omitted_stock(
+            face_sections.get("bs") or [],
+            period_windows,
+            column_order,
+        )
+        face_sections["bs"] = ver._afg_bs_drop_duplicate_ledger_slices(
+            face_sections.get("bs") or []
+        )
+        validations = []
         if simple_print:
             face_sections["fta"] = []
-            validations = []
         else:
             try:
                 face_sections["fta"] = ver._afg_fta_corporate_tax_filing_tree(
@@ -6844,7 +8066,7 @@ class AuditedFinancialVersion(models.Model):
         comparative = ver._afg_comparative_presentation(face_sections, schedules)
         if len(period_windows) <= 1:
             comparative = dict(comparative or {}, hide_comparative=True, first_period=True)
-        if not simple_print:
+        if not skip_heavy:
             validations = ver._afg_validation_checks(
                 face_sections, schedules, tb2, comparative=comparative
             )
@@ -6893,6 +8115,31 @@ class AuditedFinancialVersion(models.Model):
                         "after IFRS Retained Earnings rollover. Review Ungrouped / mis-classified ledgers."
                     ) % {"d": float(diff_line.get("current") or 0.0)},
                 }]
+        # On-screen SOFP / P&L use the same line names as the printed PDF.
+        # Ledgers stay underneath each face line for click-to-expand.
+        # CT filing is left on its CTFG tree (built above, before this).
+        try:
+            face_ctx = dict(dash_ctx)
+            if face_cids:
+                face_ctx["afg_face_company_ids"] = list(face_cids)
+                face_ctx["allowed_company_ids"] = list(face_cids)
+            face_ver = ver.with_context(**face_ctx)
+            face_sections["bs"] = face_ver._afg_dashboard_pdf_face(
+                "bs", face_sections.get("bs") or []
+            )
+            face_sections["pl"] = face_ver._afg_dashboard_pdf_face(
+                "pl", face_sections.get("pl") or []
+            )
+        except Exception:
+            _logger.exception("AFG dashboard PDF face skipped")
+        try:
+            ver._afg_annotate_pl_checkpoints(
+                face_sections.get("pl") or [],
+                period_windows,
+                face_cids,
+            )
+        except Exception:
+            _logger.exception("AFG P&L tax / Odoo result check skipped")
         return {
             "version_id": ver.id,
             "name": ver.name,
@@ -6906,8 +8153,9 @@ class AuditedFinancialVersion(models.Model):
             "period_label_current": ver._afg_period_label_current(),
             "period_presets": _afg_period_presets_catalog(version=ver),
             "period_span": period_span,
-            "period_span_label": _afg_period_span_label(period_span),
-            "period_spans": _afg_period_span_catalog(),
+            "period_span_label": _afg_period_span_label(period_span, self.env),
+            "period_spans": _afg_period_span_catalog(self.env),
+            "print_financials": ver._afg_print_financials_on(),
             "period_labels": period_labels,
             "period_windows": [
                 {
@@ -6927,6 +8175,7 @@ class AuditedFinancialVersion(models.Model):
             "data_state": ver.data_state,
             "empty_message": empty_msg,
             "sections": face_sections,
+            "light": light,
             "alerts": alerts,
             "internal_action_notes": ver.internal_action_notes or "",
             "notes": notes,
@@ -8327,6 +9576,32 @@ class AuditedFinancialVersion(models.Model):
     def _afg_stat_line(self, label, note, current, prior, cls=""):
         return {"label": label, "cls": cls, "cells": self._afg_stat_pair(note, current, prior)}
 
+    def _afg_stat_drop_blank_lines(self, rows):
+        """Drop a face line when every amount column prints as a dash."""
+        kept = []
+        for row in rows or []:
+            label = (row.get("label") or "").strip()
+            cls = row.get("cls") or ""
+            if (
+                not label
+                or cls == "sec"
+                or "single" in cls
+                or "double" in cls
+            ):
+                kept.append(row)
+                continue
+            has_amount = False
+            for cell in row.get("cells") or []:
+                if (cell.get("cls") or "") != "num":
+                    continue
+                text = (cell.get("text") or "").strip()
+                if text not in ("", "-", "—", "–"):
+                    has_amount = True
+                    break
+            if has_amount:
+                kept.append(row)
+        return kept
+
     def _afg_stat_section(self, label):
         return {"label": label, "cls": "sec", "cells": self._afg_stat_pair("", None, None)}
 
@@ -8389,7 +9664,7 @@ class AuditedFinancialVersion(models.Model):
         }
         pl_faces = {
             "Net Revenue", "Other Income", "Less : Cost of Revenue",
-            "General & Administration Expenses", "Director Remuneration",
+            "General & Administration Expenses", "Employee costs", "Director Remuneration",
             "Depreciation", "Financial Charge", "Corporate Tax Paid",
         }
 
@@ -8415,10 +9690,26 @@ class AuditedFinancialVersion(models.Model):
                 amount = _slice(box, which, is_pl)
                 if face_name in credit_faces:
                     amount = -amount
-                if face_name == "Retained Earnings":
-                    for pl_face in pl_faces:
-                        amount -= _slice(raw.get(pl_face), which, False)
                 signed[face_name][which] = amount
+
+        def _pl_stock(which):
+            """Signed debit-credit stock of all P&L face buckets (unclosed earnings)."""
+            total = 0.0
+            for pl_face in pl_faces:
+                box = raw.get(pl_face) or {"open": 0.0, "prior": 0.0, "current": 0.0}
+                if which == "current":
+                    total += box["open"] + box["prior"] + box["current"]
+                elif which == "prior":
+                    total += box["open"] + box["prior"]
+                else:
+                    total += box["open"]
+            return total
+
+        # Unclosed P&L sits in equity on Odoo BS. Add it to RE (credit-positive face).
+        # Do not subtract P&L faces from RE stock — that wiped Note 11.
+        re_box = signed.setdefault("Retained Earnings", {"current": 0.0, "prior": 0.0, "open": 0.0})
+        for which in ("current", "prior", "open"):
+            re_box[which] = float(re_box.get(which) or 0.0) + (-_pl_stock(which))
         for face_name in list(credit_faces) + list(pl_faces):
             signed.setdefault(face_name, {"current": 0.0, "prior": 0.0, "open": 0.0})
         signed["_ppe"] = ppe
@@ -8435,6 +9726,9 @@ class AuditedFinancialVersion(models.Model):
         self.ensure_one()
         if self.env.context.get("afg_skip_statutory_face"):
             return list(chapters or [])
+        # Corporate Tax Print/PDF/Excel must stay the CT filing grid, not the L1 pack.
+        if self._afg_print_scope() == "fta":
+            return list(chapters or [])
         by_key = {}
         for ch in chapters or []:
             key = ch.get("key") or ""
@@ -8442,14 +9736,14 @@ class AuditedFinancialVersion(models.Model):
                 by_key[key] = ch
         company = self.company_id
         city = (company.city or (company.state_id.name if company.state_id else "") or "").strip().upper()
-        place = ("%s - U.A.E." % city) if city else "U.A.E."
+        place = self._afg_print_place(city)
         company_name = self._afg_print_company_display()
         yc, yp = self._afg_excel_period_years()
         dt_c = self.date_to_current
         ended = dt_c.strftime("%B %d, %Y").upper() if dt_c else ("DECEMBER 31, %s" % yc)
         dmy_c = "31.12.%s" % yc
         dmy_p = "31.12.%s" % yp
-        unit = "(In Arab Emirates Dirhams)"
+        unit = self._afg_print_unit()
         heads_year = [
             {"label": "Note", "cls": "note"},
             {"label": str(yc or ""), "cls": "num"},
@@ -8485,12 +9779,16 @@ class AuditedFinancialVersion(models.Model):
         oi_p, oi_c = pair("Other Income")
         cost_p, cost_c = pair("Less : Cost of Revenue")
         ga_p, ga_c = pair("General & Administration Expenses")
+        pay_p, pay_c = pair("Employee costs")
         dir_p, dir_c = pair("Director Remuneration")
         dep_p, dep_c = pair("Depreciation")
         fin_p, fin_c = pair("Financial Charge")
         gross_p, gross_c = (rev_p or 0.0) - (cost_p or 0.0), (rev_c or 0.0) - (cost_c or 0.0)
-        net_p = (gross_p or 0.0) + (oi_p or 0.0) - (ga_p or 0.0) - (dir_p or 0.0) - (dep_p or 0.0) - (fin_p or 0.0)
-        net_c = (gross_c or 0.0) + (oi_c or 0.0) - (ga_c or 0.0) - (dir_c or 0.0) - (dep_c or 0.0) - (fin_c or 0.0)
+        tax_p, tax_c = pair("Corporate Tax Paid")
+        pbt_p = (gross_p or 0.0) + (oi_p or 0.0) - (ga_p or 0.0) - (pay_p or 0.0) - (dir_p or 0.0) - (dep_p or 0.0) - (fin_p or 0.0)
+        pbt_c = (gross_c or 0.0) + (oi_c or 0.0) - (ga_c or 0.0) - (pay_c or 0.0) - (dir_c or 0.0) - (dep_c or 0.0) - (fin_c or 0.0)
+        net_p = pbt_p - (tax_p or 0.0)
+        net_c = pbt_c - (tax_c or 0.0)
         ppe_p, ppe_c = pair("Property, Plant & Equipment")
         cash_p, cash_c = pair("Cash and Bank Balances")
         ar_p, ar_c = pair("Accounts Receivable")
@@ -8518,11 +9816,10 @@ class AuditedFinancialVersion(models.Model):
             L("Property, Plant & Equipment", "5", ppe_c, ppe_p),
             L("Total Non-Current Assets", "", tnca_c, tnca_p, "single"),
             S("Current Assets"),
-            L("Cash and Bank Balances", "6", cash_c, cash_p),
+            L("Inventories", "5", inv_c, inv_p),
             L("Accounts Receivable", "7", ar_c, ar_p),
-            L("Inventories", "", inv_c, inv_p),
+            L("Cash and Bank Balances", "6", cash_c, cash_p),
             L("Deposits, Advances & Prepayments", "8", dep_adv_c, dep_adv_p),
-            L("Ungrouped Assets", "", ung_c, ung_p),
             L("Total Current Assets", "", tca_c, tca_p, "single"),
             L("TOTAL ASSETS", "", ta_c, ta_p, "double"),
             S("LIABILITIES AND SHAREHOLDERS' EQUITY"),
@@ -8538,6 +9835,20 @@ class AuditedFinancialVersion(models.Model):
             L("Total Shareholders' Equity", "", te_c, te_p, "single"),
             L("TOTAL LIABILITIES AND SHAREHOLDERS' EQUITY", "", tle_c, tle_p, "double"),
         ]
+        ung_vals = (ung_c,) if self._afg_print_span_is_one() else (ung_c, ung_p)
+        if any(abs(float(self._afg_round_amt(v or 0.0))) >= 0.5 for v in ung_vals):
+            insert_at = next(
+                (
+                    i for i, row in enumerate(bs_rows)
+                    if (row.get("label") or "") == "Total Current Assets"
+                ),
+                None,
+            )
+            ung_row = L("Ungrouped Assets", "", ung_c, ung_p)
+            if insert_at is None:
+                bs_rows.append(ung_row)
+            else:
+                bs_rows.insert(insert_at, ung_row)
         pl_rows = [
             S("REVENUE"),
             L("Net Revenue", "13", rev_c, rev_p),
@@ -8547,12 +9858,16 @@ class AuditedFinancialVersion(models.Model):
             L("", "", gross_c, gross_p, "single"),
             S("DEDUCT"),
             L("General & Administration Expenses", "15", ga_c, ga_p),
+            L("Employee costs", "", pay_c, pay_p),
             L("Director Remuneration", "", dir_c, dir_p),
             L("Depreciation", "5", dep_c, dep_p),
             L("Financial Charge", "", fin_c, fin_p),
-            L("", "", (ga_c or 0) + (dir_c or 0) + (dep_c or 0) + (fin_c or 0), (ga_p or 0) + (dir_p or 0) + (dep_p or 0) + (fin_p or 0), "single"),
-            L("Net Profit / (Loss) for the year", "", net_c, net_p, "double"),
+            L("", "", (ga_c or 0) + (pay_c or 0) + (dir_c or 0) + (dep_c or 0) + (fin_c or 0), (ga_p or 0) + (pay_p or 0) + (dir_p or 0) + (dep_p or 0) + (fin_p or 0), "single"),
+            L("Profit before tax", "", pbt_c, pbt_p, "single"),
+            L("Tax for the year", "", tax_c, tax_p),
+            L("Profit for the year", "", net_c, net_p, "double"),
         ]
+        pl_rows = self._afg_stat_drop_blank_lines(pl_rows)
         blank4 = [{"text": "", "cls": "num"} for _ in range(4)]
 
         def eq_row(label, capital, retained, current_ac, cls=""):
@@ -8650,13 +9965,364 @@ class AuditedFinancialVersion(models.Model):
             {"label": "Motor Vehicle", "cls": "num"},
             {"label": "Total", "cls": "num"},
         ]
-        return [
+        statements = [
             page("bs", "STATEMENT OF FINANCIAL POSITION", "AS AT %s" % ended, heads_year, bs_rows, "-3-"),
             page("pl", "STATEMENT OF COMPREHENSIVE INCOME", "FOR THE YEAR ENDED %s" % ended, heads_dmy, pl_rows, "-4-"),
             page("equity", "STATEMENT OF CHANGES IN SHAREHOLDERS' EQUITY", "FOR THE YEAR ENDED %s" % ended, eq_heads, eq_rows, "-5-"),
             page("cashflow", "STATEMENT OF CASH FLOW", "FOR THE YEAR ENDED %s" % ended, heads_dmy, cf_rows, "-6-"),
             page("fixed_assets", "NOTES TO THE FINANCIAL STATEMENTS ( Continued)", "FOR THE YEAR ENDED %s" % ended, ppe_heads, ppe_rows, "-12-"),
         ]
+        front, notes = self._afg_statutory_narrative(company_name, place, ended, yc, cap_c)
+        schedules = self._afg_statutory_schedule_pages(
+            company_name, place, ended, bs_rows + pl_rows, heads_year,
+        )
+        pages = self._afg_overlay_report_text(front + statements + notes + schedules)
+        if self._afg_print_span_is_one():
+            pages = self._afg_statutory_one_year(pages, yp, yc)
+        return pages
+
+
+    def _afg_face_ledger_rows(self):
+        """Ledgers under each statutory face, with the same sign as the statement."""
+        self.ensure_one()
+        yc, yp = self._afg_excel_period_years()
+        companies = self._afg_excel_company_ids()
+        if not companies:
+            return {}
+        self.env.cr.execute(
+            """
+            SELECT a.id, EXTRACT(YEAR FROM l.date)::int,
+                   COALESCE(SUM(l.debit), 0), COALESCE(SUM(l.credit), 0)
+              FROM account_move_line l
+              JOIN account_move m ON m.id = l.move_id
+              JOIN account_account a ON a.id = l.account_id
+             WHERE m.state = 'posted'
+               AND l.company_id IN %s
+               AND l.date <= %s
+             GROUP BY a.id, EXTRACT(YEAR FROM l.date)
+            """,
+            (tuple(companies), fields.Date.from_string("%s-12-31" % yc)),
+        )
+        recs = self.env.cr.fetchall()
+        accounts = {a.id: a for a in self._afg_account_sudo().browse(list({r[0] for r in recs if r[0]}))}
+        Version = self.env["audited.financial.version"]
+        buckets = {}
+        for acc_id, year, debit, credit in recs:
+            acc = accounts.get(acc_id)
+            if not acc:
+                continue
+            year = int(year or 0)
+            if year < int(yp or 0):
+                slot = "open"
+            elif year == int(yp or 0):
+                slot = "prior"
+            elif year == int(yc or 0):
+                slot = "current"
+            else:
+                continue
+            statement, face = self._afg_excel_face_bucket(acc)
+            box = buckets.setdefault(face, {}).setdefault(acc.id, {
+                "name": Version._afg_pl_unique_ledger_key(acc) or (acc.name or ""),
+                "open": 0.0, "prior": 0.0, "current": 0.0, "statement": statement,
+            })
+            box[slot] += float(debit or 0.0) - float(credit or 0.0)
+        credit = {
+            "Net Revenue", "Other Income", "Accounts Payable", "Accruals and Provisions",
+            "Share Capital", "Retained Earnings", "Shareholders' Current Account",
+        }
+        out = {}
+        for face, accs in buckets.items():
+            rows = []
+            seen = {}
+            for info in accs.values():
+                key = (info["name"] or "").strip().lower()
+                if info["statement"] == "PL":
+                    pri, cur = info["prior"], info["current"]
+                else:
+                    pri = info["open"] + info["prior"]
+                    cur = pri + info["current"]
+                if face in credit:
+                    pri, cur = -pri, -cur
+                slot = seen.setdefault(key, {"name": info["name"], "cur": 0.0, "pri": 0.0})
+                slot["cur"] += cur
+                slot["pri"] += pri
+            for slot in seen.values():
+                if abs(slot["cur"]) < 0.005 and abs(slot["pri"]) < 0.005:
+                    continue
+                rows.append(slot)
+            rows.sort(key=lambda r: (r["name"] or "").lower())
+            out[face] = rows
+        return out
+
+    def _afg_statutory_schedule_pages(self, company_name, place, ended, statement_rows, heads):
+        """One notes schedule per face line that already has a note number."""
+        self.ensure_one()
+        ledgers = self._afg_face_ledger_rows()
+        pages = []
+        used = set()
+        page_no = 13
+        L = self._afg_stat_line
+        for row in statement_rows or []:
+            cells = row.get("cells") or []
+            note = ""
+            if cells and (cells[0].get("cls") or "") == "note":
+                note = (cells[0].get("text") or "").strip()
+            label = (row.get("label") or "").strip()
+            if not note or not label or label in used:
+                continue
+            lines = ledgers.get(label) or []
+            if not lines:
+                continue
+            used.add(label)
+            rows = [L(slot["name"].title() if slot["name"] else label, "", slot["cur"], slot["pri"]) for slot in lines]
+            cur = sum(slot["cur"] for slot in lines)
+            pri = sum(slot["pri"] for slot in lines)
+            rows.append(L("Total", "", cur, pri, "double"))
+            pages.append({
+                "key": "sched_%s" % note,
+                "kind": "statutory_page",
+                "schedule": True,
+                "company": company_name,
+                "place": place,
+                "title": "NOTES TO THE FINANCIAL STATEMENTS ( Continued)",
+                "period": "FOR THE YEAR ENDED %s" % ended,
+                "unit": self._afg_print_unit(),
+                "heads": heads,
+                "rows": [L("%s. %s" % (note, label), "", None, None, "sec")] + rows,
+                "page": "-%s-" % page_no,
+            })
+            page_no += 1
+        return pages
+
+    def _afg_report_text_param(self):
+        return "cpabooks_afg.report_text.%s" % self.id
+
+
+    def _afg_put_companies_on_cover(self, pages):
+        """Keep the selected companies, full names, centered on the cover."""
+        companies = self._afg_included_company_lines()
+        for page in pages or []:
+            if page.get("key") != "cover_fs":
+                continue
+            labels = [row.get("label") or "" for row in (page.get("rows") or [])]
+            cleaned = []
+            skipping = False
+            for label in labels:
+                text = (label or "").strip()
+                if text == "Companies Included":
+                    skipping = True
+                    continue
+                if skipping:
+                    head = text.split(".", 1)[0]
+                    if head.isdigit():
+                        continue
+                    skipping = False
+                if text:
+                    cleaned.append(label)
+            merged = list(companies)
+            if cleaned:
+                merged.append("")
+                merged.extend(cleaned)
+            page["rows"] = [{"label": line, "cls": "", "cells": []} for line in merged]
+            page["narrative"] = True
+        return pages
+
+    def _afg_overlay_report_text(self, pages):
+        raw = self.env["ir.config_parameter"].sudo().get_param(self._afg_report_text_param()) or ""
+        if not raw:
+            return pages
+        try:
+            saved = json.loads(raw)
+        except Exception:
+            return pages
+        by_key = {item.get("key"): item for item in saved if item.get("key")}
+        for page in pages:
+            hit = by_key.get(page.get("key"))
+            if not hit:
+                continue
+            for fld in ("title", "period", "page", "company", "place"):
+                if hit.get(fld) not in (None, ""):
+                    page[fld] = hit.get(fld)
+            if page.get("narrative") and hit.get("lines") is not None:
+                page["rows"] = [
+                    {"label": line, "cls": "", "cells": []}
+                    for line in hit.get("lines") or []
+                ]
+        self._afg_put_companies_on_cover(pages)
+        return pages
+
+    def afg_report_text_load(self):
+        self.ensure_one()
+        pages = self._afg_apply_statutory_face([])
+        out = []
+        for page in pages:
+            narrative = bool(page.get("narrative"))
+            out.append({
+                "key": page.get("key") or "",
+                "title": page.get("title") or "",
+                "period": page.get("period") or "",
+                "page": page.get("page") or "",
+                "company": page.get("company") or "",
+                "place": page.get("place") or "",
+                "narrative": narrative,
+                "schedule": bool(page.get("schedule")),
+                "lines": [row.get("label") or "" for row in (page.get("rows") or [])] if narrative else [],
+            })
+        return out
+
+    def afg_report_text_save(self, pages):
+        self.ensure_one()
+        clean = []
+        for page in pages or []:
+            if not page.get("key"):
+                continue
+            clean.append({
+                "key": page.get("key"),
+                "title": page.get("title") or "",
+                "period": page.get("period") or "",
+                "page": page.get("page") or "",
+                "company": page.get("company") or "",
+                "place": page.get("place") or "",
+                "lines": page.get("lines") or [],
+            })
+        self.env["ir.config_parameter"].sudo().set_param(
+            self._afg_report_text_param(), json.dumps(clean)
+        )
+        return True
+
+
+    def _afg_included_company_lines(self):
+        """Full names of the companies selected for this report."""
+        self.ensure_one()
+        Company = self.env["res.company"].sudo()
+        cids = self._tb_company_ids() if hasattr(self, "_tb_company_ids") else []
+        recs = Company.browse(cids).exists() if cids else self.env["res.company"]
+        if not recs:
+            recs = self.company_id
+        lines = ["Companies Included"]
+        for index, company in enumerate(recs, start=1):
+            lines.append("%s. %s" % (index, company.name or company.display_name or ""))
+        return lines
+
+    def _afg_statutory_narrative(self, company_name, place, ended, year, share_capital):
+        """Cover, index, auditor's report and policy notes. PDF and Word only."""
+        self.ensure_one()
+        company_name = company_name or "THE COMPANY"
+        place = place or self._afg_print_place()
+        year = int(year or 0) or ""
+        capital = self._afg_fmt_amt(share_capital)
+
+        def text_page(key, title, period, lines, page_no):
+            return {
+                "key": key,
+                "kind": "statutory_page",
+                "narrative": True,
+                "company": company_name,
+                "place": place,
+                "title": title,
+                "period": period,
+                "unit": "",
+                "heads": [],
+                "rows": [{"label": self._afg_localize_text(line), "cls": "sec" if line[:2].isdigit() or line.startswith("INDEX") or line.endswith(":") else "", "cells": []} for line in lines],
+                "page": page_no,
+            }
+
+        cover = text_page(
+            "cover_fs",
+            "FINANCIAL STATEMENTS AND INDEPENDENT AUDITOR'S REPORT",
+            "FOR THE YEAR ENDED %s" % ended,
+            self._afg_included_company_lines(),
+            "",
+        )
+        index = text_page("index_fs", "INDEX", "FOR THE YEAR ENDED %s" % ended, [
+            "INDEX",
+            "INDEPENDENT AUDITOR'S REPORT                                          1 - 2",
+            "STATEMENT OF FINANCIAL POSITION                                       3",
+            "STATEMENT OF COMPREHENSIVE INCOME                                     4",
+            "STATEMENT OF CHANGES IN EQUITY                                        5",
+            "STATEMENT OF CASH FLOW                                                6",
+            "NOTES TO THE FINANCIAL STATEMENTS                                     7 onwards",
+        ], "")
+        audit_1 = text_page("audit_1", "INDEPENDENT AUDITOR'S REPORT", "", [
+            "To",
+            company_name,
+            place,
+            "We have audited the financial statements of %s (the Company) which comprise the statement of financial position as at %s and the statements of comprehensive income, changes in equity and cash flows for the year then ended, and notes to the financial statements, including a summary of significant accounting policies." % (company_name, ended.title()),
+            "In our opinion, the accompanying financial statements give a true and fair view of the financial position of %s as at %s and of its financial performance and its cash flows for the year then ended in accordance with International Financial Reporting Standards (IFRSs)." % (company_name, ended.title()),
+            "Basis for Opinion",
+            "We conducted our audit in accordance with International Standards on Auditing (ISAs). Our responsibilities under those standards are further described in the Auditor's Responsibilities for the Audit of the Financial Statements section of our report. We are independent of the Company in accordance with the International Ethics Standards Board for Accountants' Code of Ethics for Professional Accountants (IESBA Code) and we have fulfilled our other ethical responsibilities in accordance with these requirements and the IESBA Code. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our opinion.",
+            "Responsibilities of the Management and the Board of Directors for the financial statements",
+            "The Management and the Board of Directors are responsible for the preparation of financial statements that give a true and fair view in accordance with International Financial Reporting Standards issued by the IASB, and for such internal control as the Board of Directors determines is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error.",
+            "In preparing the financial statements, the Management and the Board of Directors are responsible for assessing the Company's ability to continue as a going concern, disclosing, as applicable, matters related to going concern and using the going concern basis of accounting unless the Board of Directors either intends to liquidate the Company or to cease operations, or has no realistic alternative but to do so.",
+            "Auditor's Responsibilities for the Audit of the Financial Statements",
+            "Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditor's report that includes our opinion. Reasonable assurance is a high level of assurance, but is not a guarantee that an audit conducted in accordance with ISAs will always detect a material misstatement when it exists.",
+            "Key audit matters",
+            "Key audit matters are those matters that, in our professional judgment, were of most significance in our audit of the financial statements of the current year. These matters were addressed in the context of our audit of the financial statements as a whole, and in forming our opinion thereon, and we do not provide a separate opinion on these matters.",
+        ], "-1-")
+        audit_2 = text_page("audit_2", "Report on the Audit of the Financial Statements (continued)", "", [
+            "As part of an audit in accordance with ISAs, we exercise professional judgment and maintain professional skepticism throughout the audit. We also:",
+            "Identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, design and perform audit procedures responsive to those risks, and obtain audit evidence that is sufficient and appropriate to provide a basis for our opinion.",
+            "Obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the Company's internal control.",
+            "Evaluate the appropriateness of accounting policies used and the reasonableness of accounting estimates and related disclosures made by the Management and the Board of Directors.",
+            "Conclude on the appropriateness of the Management and the Board of Directors' use of the going concern basis of accounting and, based on the audit evidence obtained, whether a material uncertainty exists related to events or conditions that may cast significant doubt on the Company's ability to continue as a going concern.",
+            "Evaluate the overall presentation, structure and content of the financial statements, including the disclosures, and whether the financial statements represent the underlying transactions and events in a manner that achieves a true and fair view.",
+            "We communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit and significant audit findings, including any significant deficiencies in internal control that we identify during our audit.",
+            "Report on Other Legal and Regulatory Requirements",
+            "Further, as required by the UAE Commercial Companies Law, we report that:",
+            "i. We have obtained all the information we considered necessary for the purpose of our audit.",
+            "ii. The financial statements have been prepared and comply, in all material respects, with the applicable provisions of the UAE Federal Law.",
+            "iii. The Company has maintained proper books of account.",
+            "iv. Based on the information that has been made available to us, nothing has come to our attention which causes us to believe that the Company has contravened during the financial year ended %s any of the applicable provisions of the UAE Federal Law or of its Memorandum and Articles of Association which would materially affect its activities or its financial position." % ended.title(),
+            *self._afg_print_company()._afg_auditor_lines(),
+        ], "-2-")
+        note_1 = text_page("note_legal", "NOTES TO THE FINANCIAL STATEMENTS", "FOR THE YEAR ENDED %s" % ended, [
+            "1  Legal Status and business activity:",
+            "1.1  %s, %s (the Company)." % (company_name, place),
+            "1.2  The main activities of the Company are those set out in its commercial license.",
+            "1.3  These financial statements incorporate the operating result of the Company.",
+            "1.4  The registered office of the Company is located at %s." % place,
+            "1.5  The management and control of the Company are vested with its directors.",
+            "2  Share Capital:",
+            "Authorized, issued and paid-up share capital of the Company is Dhs. %s. The breakup of the shareholding is as set out in the Memorandum of Association." % capital,
+        ], "-7-")
+        note_3 = text_page("note_ifrs", "NOTES TO THE FINANCIAL STATEMENTS ( Continued)", "FOR THE YEAR ENDED %s" % ended, [
+            "3  Adoption of new and revised International Financial Reporting Standards (IFRSs):",
+            "a) New standards, interpretations and amendments effective for the current year",
+            "The following new and revised IFRSs, which became effective for annual periods beginning on or after 1 January 2020, have been adopted in these financial statements. The application of these revised IFRSs has not had any material impact on the amounts reported for the current and prior years but may affect the accounting for future transactions or arrangements.",
+            "Definition of Material – Amendments to IAS 1 Presentation of Financial Statements and IAS 8 Accounting Policies, Changes in Accounting Estimates and Errors.",
+            "Definition of a Business – Amendments to IFRS 3 Business Combinations.",
+            "Amendments to References to the Conceptual Framework in IFRS Standards. The standards which are amended include IFRS 2, IFRS 3, IFRS 6, IFRS 14, IAS 1, IAS 8, IAS 34, IAS 37, IAS 38, IFRIC 12, IFRIC 19, IFRIC 20, IFRIC 22 and SIC 32.",
+            "Amendments relating to Interest Rate Benchmark Reform to IFRS 7 Financial Instruments.",
+            "Amendment to IFRS 16 Leases to provide lessees with an exemption from assessing whether a COVID-19-related rent concession is a lease modification. The effective date is 1 June 2020.",
+            "b) New standards, interpretations and amendments in issue but not yet effective",
+            "Standards, amendments and interpretations issued but not yet effective at the date of authorization of these financial statements are listed below. The Company intends to adopt those standards when they become effective.",
+            "Amendments to IFRS 9, IAS 39, IFRS 7, IFRS 4 and IFRS 16 relating to phase 2 of interest rate benchmark reforms. Effective 1 January 2021.",
+            "Amendments to IAS 16 Property, Plant and Equipment relating to proceeds before intended use. Effective 1 January 2022.",
+            "Amendment to IAS 37 Provisions, Contingent Liabilities and Contingent Assets relating to onerous contracts. Effective 1 January 2022.",
+            "Annual improvements to IFRS Standards 2018–2020. Effective 1 January 2022.",
+            "Amendments to IAS 1 Presentation of Financial Statements relating to classification of liabilities as current or non-current. Effective 1 January 2023.",
+            "IFRS 17 Insurance Contracts. Effective 1 January 2023.",
+            "The management believes that the adoption of the above amendments is not likely to have any significant impact on the financial statements of the Company for future years.",
+        ], "-8-")
+        note_4 = text_page("note_policies", "NOTES TO THE FINANCIAL STATEMENTS ( Continued)", "FOR THE YEAR ENDED %s" % ended, [
+            "4  Summary of significant accounting policies:",
+            "The financial statements have been prepared in accordance with International Financial Reporting Standards (IFRS) issued by the International Accounting Standards Board (IASB), interpretations issued by the International Financial Reporting Interpretations Committee (IFRIC), and applicable requirements of U.A.E. law. A summary of the significant accounting policies, which have been applied consistently, is set out below.",
+            "a) Accounting convention. These financial statements have been prepared under the historical cost convention.",
+            "b) Accrual accounting. The accrual method of accounting is followed for the recognition of revenue and expenses.",
+            "c) Property, plant and equipment. Property, plant and equipment are stated at cost less accumulated depreciation and identified impairment loss, if any. Cost comprises purchase price, levies, duties and any directly attributable costs of bringing the asset to working condition. Depreciation is charged using the diminishing balance method over the estimated useful lives: Furniture, fixtures and office equipment — 5 years; Motor vehicles — 5 years.",
+            "d) Employees' terminal benefits. Staff statutory benefits are accounted upon payment.",
+            "e) Revenue recognition. Revenue is recognized when the significant risks and rewards associated with the goods or services are transferred to the customer.",
+            "f) Financial expenses. Financial expenses are accounted in the statement of income in the period in which they are incurred.",
+            "g) Provisions. Provisions are recognized when the Company has a present obligation as a result of a past event, it is probable that an outflow of economic benefits will result, and the amount can be reasonably estimated.",
+            "h) Financial instruments. Financial instruments comprise financial assets and financial liabilities. They are recognized when the Company becomes a party to the contractual provisions of the instrument.",
+            "i) Foreign currencies. Foreign currency transactions are converted into UAE Dirhams at the rate of exchange prevailing on the date of the transaction. Exchange gains and losses are treated as income or expenses.",
+            "j) Trade receivables. Invoices made on credit are included in trade receivables at the balance due, reduced by allowances for estimated doubtful amounts. Bad debts are written off as they arise.",
+            "k) Trade payables. Trade payables are stated at their nominal value.",
+            "l) Comparative figures. Previous year's figures have been regrouped or reclassified wherever necessary to conform to the presentation adopted in the current year.",
+            "m) Cash and cash equivalents. For the statement of cash flows, cash and cash equivalents comprise cash on hand and balances with banks.",
+            "n) General. Figures are rounded to the nearest UAE Dirham. Inventories are stated as a separate line on the statement of financial position.",
+        ], "-9-")
+        return [cover, index, audit_1, audit_2], [note_1, note_3, note_4]
 
     def _afg_statutory_ppe_rows(self, ppe, year_prior, year_current):
         """Note 5 in the sample column set. Amounts land in the matching asset class."""
@@ -9266,25 +10932,45 @@ class AuditedFinancialVersion(models.Model):
         if not cids:
             cids = self._tb_company_ids()
         mapped = set()
-        for sec in ("pl", "bs", "equity", "fixed_assets"):
+        for sec in ("pl", "bs", "equity"):
             mapped |= self._afg_tb_collect_mapped_account_ids(tree_by_section.get(sec) or [])
-        # Also ids stored on AFG lines (covers pruned zeros)
+        # A cash-flow or P&L mapping must not hide a balance-sheet ledger from SOFP.
+        # Otherwise Assets ≠ Equity + Liabilities by exactly those omitted stocks.
+        Line = self.env["audited.financial.group.line"].with_context(afg_skip_collapse=True)
+        ungrp_codes = tuple(Line._afg_ungrouped_codes())
+        by_key = self._afg_build_pl_ledger_key_map(cids)
+
+        def _section_covers_group(section, internal_group):
+            ig = internal_group or ""
+            sec = section or ""
+            if ig in ("asset", "liability", "equity"):
+                return sec in ("bs", "equity")
+            if ig in ("income", "expense"):
+                return sec == "pl"
+            return sec in ("pl", "bs", "equity")
+
         for line in self.line_ids:
-            if line.account_id:
-                mapped.add(int(line.account_id.id))
+            if not line.account_id:
+                continue
+            if not _section_covers_group(line.report_section, line.account_id.internal_group):
+                continue
+            mapped.add(int(line.account_id.id))
             for tok in (line.merged_leaf_account_ids or "").split(","):
                 tok = (tok or "").strip()
                 if tok.isdigit():
                     mapped.add(int(tok))
-        Line = self.env["audited.financial.group.line"].with_context(afg_skip_collapse=True)
-        ungrp_codes = tuple(Line._afg_ungrouped_codes())
-        by_key = self._afg_build_pl_ledger_key_map(cids)
         for gl in Line.search([("account_id", "!=", False)]):
             if not gl.group_id or (gl.group_id.code or "") in ungrp_codes:
+                continue
+            if not _section_covers_group(
+                gl.group_id.report_section, gl.account_id.internal_group
+            ):
                 continue
             k = self._afg_pl_unique_ledger_key(gl.account_id)
             if k:
                 mapped.update(int(i) for i in (by_key.get(k) or []) if i)
+            else:
+                mapped.add(int(gl.account_id.id))
 
         yp, yc = self.year_prior, self.year_current
         df_p = fields.Date.to_string(self.date_from_prior) if self.date_from_prior else "%s-01-01" % yp
@@ -9405,6 +11091,18 @@ class AuditedFinancialVersion(models.Model):
     def _afg_refresh_bs_type_shells(self, bs_roots):
         """Recompute asset/liability/equity totals and total_* shells from children."""
         by_key = {n.get("type_key"): n for n in (bs_roots or []) if n.get("type_key")}
+        def _sum_pam(nodes):
+            width = 0
+            for node in nodes or []:
+                width = max(width, len(node.get("period_amounts") or []))
+            if not width:
+                return None
+            pam = [0.0] * width
+            for node in nodes:
+                for i, val in enumerate(node.get("period_amounts") or []):
+                    pam[i] += float(val or 0.0)
+            return pam
+
         for tk in ("asset", "liability", "equity"):
             shell = by_key.get(tk)
             if not shell:
@@ -9414,13 +11112,24 @@ class AuditedFinancialVersion(models.Model):
                 sp, sc, cp, cc = self._afg_sum_branch_nodes(kids)
                 shell["prior"], shell["current"] = sp, sc
                 shell["co_prior"], shell["co_curr"] = cp, cc
+                pam = _sum_pam(kids)
+                if pam:
+                    shell["period_amounts"] = pam
+                    shell["prior"] = float(pam[0] or 0.0)
+                    shell["current"] = float(pam[-1] or 0.0)
         out = []
         for type_key, meta in AFG_BS_COA_TYPES.items():
             computed_from = meta.get("computed_from")
             if computed_from:
                 src = [by_key[k] for k in computed_from if k in by_key]
                 if src:
-                    out.append(self._afg_computed_type_shell("bs", type_key, meta, src))
+                    shell = self._afg_computed_type_shell("bs", type_key, meta, src)
+                    pam = _sum_pam(src)
+                    if pam:
+                        shell["period_amounts"] = pam
+                        shell["prior"] = float(pam[0] or 0.0)
+                        shell["current"] = float(pam[-1] or 0.0)
+                    out.append(shell)
             elif type_key in by_key:
                 out.append(by_key[type_key])
         return out or list(bs_roots or [])
@@ -9898,8 +11607,13 @@ class AuditedFinancialVersion(models.Model):
                 od["id"] = "bs-bank-od-%s" % (leaf.get("id") or leaf.get("account_id") or id(leaf))
                 od["label"] = _("Bank overdraft — %s") % (leaf.get("label") or _("Bank"))
                 od["ledger_caption"] = od["label"]
+                pam = [abs(float(v or 0.0)) for v in (leaf.get("period_amounts") or [])]
                 od["prior"] = abs(float(leaf.get("prior") or 0.0))
                 od["current"] = abs(float(leaf.get("current") or 0.0))
+                if pam:
+                    od["period_amounts"] = pam
+                    od["prior"] = float(pam[0] or 0.0)
+                    od["current"] = float(pam[-1] or 0.0)
                 od["co_prior"] = [od["prior"]]
                 od["co_curr"] = [od["current"]]
                 od_children.append(od)
@@ -9913,6 +11627,17 @@ class AuditedFinancialVersion(models.Model):
                 "prior": sum(float(c.get("prior") or 0.0) for c in od_children),
                 "current": sum(float(c.get("current") or 0.0) for c in od_children),
             }
+            width = 0
+            for child in od_children:
+                width = max(width, len(child.get("period_amounts") or []))
+            if width:
+                gpam = [0.0] * width
+                for child in od_children:
+                    for i, val in enumerate(child.get("period_amounts") or []):
+                        gpam[i] += float(val or 0.0)
+                group["period_amounts"] = gpam
+                group["prior"] = float(gpam[0] or 0.0)
+                group["current"] = float(gpam[-1] or 0.0)
             group["co_prior"] = [group["prior"]]
             group["co_curr"] = [group["current"]]
             kids = list(liability.get("children") or [])
@@ -9924,6 +11649,224 @@ class AuditedFinancialVersion(models.Model):
         if asset.get("children"):
             self._afg_refresh_branch_totals(asset)
         return self._afg_refresh_bs_type_shells(bs_roots)
+
+    def _afg_bs_append_omitted_stock(self, bs_roots, windows, cids):
+        """Put asset/liability stock that is not on any SOFP leaf into Ungrouped.
+
+        Equity is already clubbed (Capital / Reserve / Retained / Profit) and must
+        not be added again. Liability face amounts are the credit balance.
+        """
+        windows = list(windows or [])
+        if not bs_roots or not windows:
+            return bs_roots
+        cids = [int(c) for c in (cids or []) if c]
+        if not cids:
+            return bs_roots
+        leaf_aids = set()
+        all_aids = set()
+
+        def _collect_ids(node):
+            found = []
+            if node.get("account_id"):
+                try:
+                    found.append(int(node["account_id"]))
+                except (TypeError, ValueError):
+                    pass
+            for raw in node.get("drill_account_ids") or []:
+                try:
+                    found.append(int(raw))
+                except (TypeError, ValueError):
+                    pass
+            return found
+
+        def _walk(nodes):
+            for node in nodes or []:
+                ids = _collect_ids(node)
+                kids = node.get("children") or []
+                if kids:
+                    all_aids.update(ids)
+                    _walk(kids)
+                else:
+                    leaf_aids.update(ids)
+                    all_aids.update(ids)
+
+        _walk(bs_roots)
+        stocks = [
+            self._fetch_tb_coa_stock(
+                w.get("date_to"), cids, fy_anchor_date=w.get("date_from"),
+            )
+            for w in windows
+        ]
+        aids = set()
+        for stock in stocks:
+            aids.update(int(a) for a in (stock or {}))
+        Account = self.env["account.account"].sudo()
+        buckets = {"asset": [], "liability": []}
+        # Only stock that is not already on a leaf. Group headers often keep
+        # drill ids after their ledger rows were collapsed — those must come back.
+        # Do not re-add every equity ledger; those are already clubbed.
+        # Header drill-ids whose ledger row was collapsed, plus stock that
+        # never appears on any node. Accounts already on a leaf are skipped.
+        candidate_ids = ((all_aids - leaf_aids) | (set(aids) - all_aids)) & set(aids)
+        for aid in candidate_ids:
+            acc = Account.browse(aid)
+            if not acc.exists():
+                continue
+            ig = acc.internal_group or ""
+            if ig not in buckets:
+                continue
+            pam = []
+            for stock in stocks:
+                bal = float((stock or {}).get(aid, 0.0) or 0.0)
+                if ig == "liability":
+                    bal = -bal
+                pam.append(bal)
+            if all(abs(v) < 0.005 for v in pam):
+                continue
+            code = (acc.code or "").strip()
+            name = (acc.name or "").strip()
+            label = ("%s %s" % (code, name)).strip() if code else name
+            buckets[ig].append({
+                "id": "fs-omitted-%s" % aid,
+                "account_id": aid,
+                "label": label,
+                "ledger_caption": label,
+                "level": 3,
+                "kind": "ledger",
+                "is_ledger": True,
+                "is_unmapped_coa": True,
+                "period_amounts": pam,
+                "prior": float(pam[0]),
+                "current": float(pam[-1]),
+                "drill_account_ids": [aid],
+                "children": [],
+                "report_section": "bs",
+            })
+        if not any(buckets.values()):
+            return bs_roots
+        by_key = {n.get("type_key"): n for n in bs_roots if n.get("type_key")}
+        for ig, ledgers in buckets.items():
+            if not ledgers:
+                continue
+            shell = by_key.get(ig)
+            if not shell:
+                continue
+            width = len(ledgers[0].get("period_amounts") or [])
+            gpam = [0.0] * width
+            for led in ledgers:
+                for i, val in enumerate(led.get("period_amounts") or []):
+                    if i < width:
+                        gpam[i] += float(val or 0.0)
+            group = {
+                "id": "fs-omitted-group-%s" % ig,
+                "label": _("Ungrouped (CoA — needs mapping)"),
+                "afg_caption": _("Ungrouped (CoA — needs mapping)"),
+                "level": 1,
+                "kind": "group",
+                "is_unmapped_coa": True,
+                "is_ungrouped_review": True,
+                "children": ledgers,
+                "period_amounts": gpam,
+                "prior": float(gpam[0] if gpam else 0.0),
+                "current": float(gpam[-1] if gpam else 0.0),
+                "drill_account_ids": [int(l["account_id"]) for l in ledgers],
+            }
+            kids = list(shell.get("children") or [])
+            kids.append(group)
+            shell["children"] = kids
+        return self._afg_refresh_bs_type_shells(bs_roots)
+
+    def _afg_bs_drop_duplicate_ledger_slices(self, bs_roots):
+        """Drop a ledger already included in a wider ledger, and drop an
+        asset/liability row that has an amount but no account (that amount is
+        already inside the merged ledger).
+        """
+        if not bs_roots:
+            return bs_roots
+
+        def _ids(node):
+            found = []
+            if node.get("account_id"):
+                try:
+                    found.append(int(node["account_id"]))
+                except (TypeError, ValueError):
+                    pass
+            for raw in node.get("drill_account_ids") or []:
+                try:
+                    found.append(int(raw))
+                except (TypeError, ValueError):
+                    pass
+            return set(found)
+
+        leaves = []
+
+        def _gather(nodes):
+            for node in nodes or []:
+                kids = node.get("children") or []
+                if kids:
+                    _gather(kids)
+                    continue
+                ids = _ids(node)
+                if ids:
+                    leaves.append((node, ids))
+
+        _gather(bs_roots)
+        drop_ids = set()
+        for i, (left, left_ids) in enumerate(leaves):
+            for j, (right, right_ids) in enumerate(leaves):
+                if i == j:
+                    continue
+                if left_ids < right_ids:
+                    drop_ids.add(id(left))
+                    break
+
+        def _gather_noid(nodes, shell):
+            for node in nodes or []:
+                tk = node.get("type_key") or shell
+                if tk in ("total_assets", "total_liabilities", "total_equity_liabilities"):
+                    continue
+                kids = node.get("children") or []
+                if kids:
+                    _gather_noid(kids, tk)
+                    continue
+                if tk not in ("asset", "liability"):
+                    continue
+                if _ids(node):
+                    continue
+                pam = list(node.get("period_amounts") or [])
+                if not pam:
+                    pam = [node.get("prior"), node.get("current")]
+                if any(abs(float(v or 0.0)) > 0.005 for v in pam):
+                    drop_ids.add(id(node))
+
+        _gather_noid(bs_roots, None)
+        if not drop_ids:
+            return bs_roots
+
+        def _prune(nodes):
+            kept = []
+            for node in nodes or []:
+                if id(node) in drop_ids:
+                    continue
+                kids = node.get("children") or []
+                if kids:
+                    node["children"] = _prune(kids)
+                kept.append(node)
+            return kept
+
+        pruned = _prune(bs_roots)
+        # Removing a duplicate ledger leaves its group with a stale amount and
+        # no children. Drop that shell too, then refresh.
+        while True:
+            before = len(drop_ids)
+            _gather_noid(pruned, None)
+            if len(drop_ids) == before:
+                break
+            pruned = _prune(pruned)
+        for node in pruned:
+            if node.get("children"):
+                self._afg_refresh_branch_totals(node)
+        return self._afg_refresh_bs_type_shells(pruned)
 
     def _afg_validation_checks(self, face_sections, schedules, tb_payload, comparative=None):
         """PASS/FAIL/WARN cross-checks for management packs (not an audit).
@@ -11008,6 +12951,7 @@ class AuditedFinancialVersion(models.Model):
     def action_print_afg_simple_pdf(self, max_level=None):
         """Quick Financial Statements PDF (L1 labels, dashboard amounts)."""
         self.ensure_one()
+        self._afg_store_print_financials_flag()
         self._afg_set_print_scope("audit")
         cids = [int(c) for c in (self._tb_company_ids() or []) if c]
         if cids:
@@ -11016,11 +12960,11 @@ class AuditedFinancialVersion(models.Model):
                 "report_column_company_ids": [(6, 0, cids)],
             })
         report = self.env.ref(
-            "project_dashboard_odoo.action_report_afg_simple_fs_pdf",
+            "audited_financial_cpa.action_report_afg_simple_fs_pdf",
             raise_if_not_found=False,
         )
         if not report:
-            raise UserError(_("Simple Financial Statements print is not installed. Upgrade project_dashboard_odoo."))
+            raise UserError(_("Simple Financial Statements print is not installed. Upgrade audited_financial_cpa."))
         report_name = report.report_name or report.report_file
         return {
             "type": "ir.actions.act_url",
@@ -11028,9 +12972,109 @@ class AuditedFinancialVersion(models.Model):
             "target": "new",
         }
 
+    def _afg_print_financials_param(self):
+        return "cpabooks_afg.print_financials.%s" % self.id
+
+    def _afg_store_print_financials_flag(self):
+        """Remember the Print financials tick for the PDF request that follows."""
+        if "afg_print_financials" not in self.env.context:
+            return self._afg_print_financials_on()
+        raw = self.env.context.get("afg_print_financials")
+        enabled = raw in (True, 1, "1", "true", "True")
+        self.env["ir.config_parameter"].sudo().set_param(
+            self._afg_print_financials_param(), "1" if enabled else "0"
+        )
+        return enabled
+
+    def _afg_print_financials_on(self):
+        raw = self.env["ir.config_parameter"].sudo().get_param(self._afg_print_financials_param()) or ""
+        if not str(raw).strip():
+            return True
+        return raw in ("1", "true", "True")
+
+
+    def _afg_fill_index_table(self, chapters):
+        """Index rows: serial, statement name, and the page number actually printed."""
+        index = None
+        for chapter in chapters or []:
+            if (chapter.get("key") or "") == "index_fs":
+                index = chapter
+                break
+        if not index:
+            return chapters
+        grouped = []
+        for chapter in chapters or []:
+            key = chapter.get("key") or ""
+            if key in ("cover_fs", "index_fs"):
+                continue
+            title = (chapter.get("title") or "Page").strip()
+            upper = title.upper()
+            if upper.startswith("NOTES TO THE FINANCIAL"):
+                title = "NOTES TO THE FINANCIAL STATEMENTS"
+            else:
+                title = upper
+            sheet_no = int(chapter.get("_sheet_no") or 0)
+            if grouped and grouped[-1]["title"] == title:
+                grouped[-1]["end"] = sheet_no
+            else:
+                grouped.append({"title": title, "start": sheet_no, "end": sheet_no})
+        rows = []
+        for serial, item in enumerate(grouped, start=1):
+            if item["start"] == item["end"]:
+                page = str(item["start"])
+            else:
+                page = "%s - %s" % (item["start"], item["end"])
+            rows.append({
+                "label": str(serial),
+                "cls": "",
+                "cells": [
+                    {"text": item["title"], "cls": "idxname"},
+                    {"text": page, "cls": "pgno"},
+                ],
+            })
+        index["rows"] = rows
+        index["narrative"] = True
+        return chapters
+
+    def _afg_financials_only_chapters(self, chapters):
+        """Cover plus numbered financial pages. Word-file narrative stays out."""
+        word_keys = {
+            "audit_1", "audit_2",
+            "note_legal", "note_ifrs", "note_policies",
+        }
+        kept = []
+        for chapter in chapters or []:
+            key = chapter.get("key") or ""
+            if key == "cover_fs":
+                chapter = dict(chapter)
+                title = chapter.get("title") or ""
+                title = title.replace(" AND INDEPENDENT AUDITOR'S REPORT", "")
+                title = title.replace("AND INDEPENDENT AUDITOR'S REPORT", "")
+                chapter["title"] = " ".join(title.split())
+                chapter["page"] = ""
+                kept.append(chapter)
+                continue
+            if key == "index_fs":
+                kept.append(dict(chapter))
+                continue
+            if key in word_keys or chapter.get("narrative"):
+                continue
+            kept.append(dict(chapter))
+        number = 1
+        for chapter in kept:
+            chapter["_sheet_no"] = number
+            if (chapter.get("key") or "") in ("cover_fs", "index_fs"):
+                chapter["page"] = ""
+            else:
+                chapter["page"] = "-%s-" % number
+            number += 1
+        self._afg_fill_index_table(kept)
+        return kept
+
     def action_print_audit_report_pdf(self, max_level=None):
         """Open PDF in a new browser tab without replacing the AFG dashboard client action."""
         self.ensure_one()
+        self._afg_store_print_financials_flag()
         if self._afg_print_scope() != "fta":
             self._afg_set_print_scope("audit")
         pack = self._afg_resolve_export_report_pack(max_level)
@@ -11045,7 +13089,7 @@ class AuditedFinancialVersion(models.Model):
             })
         self._afg_persist_print_options(pack)
         self._afg_sync_paperformat_margins()
-        report = self.env.ref("project_dashboard_odoo.action_report_afg_audit_pdf")
+        report = self.env.ref("audited_financial_cpa.action_report_afg_audit_pdf")
         report_name = report.report_name or report.report_file
         return {
             "type": "ir.actions.act_url",
@@ -11071,7 +13115,7 @@ class AuditedFinancialVersion(models.Model):
         dpi = max(50, min(160, dpi))
         self.env["ir.config_parameter"].sudo().set_param("cpabooks_afg.print_dpi", str(dpi))
         pf = self.env.ref(
-            "project_dashboard_odoo.paperformat_afg_audit",
+            "audited_financial_cpa.paperformat_afg_audit",
             raise_if_not_found=False,
         )
         if pf:
@@ -11086,71 +13130,273 @@ class AuditedFinancialVersion(models.Model):
         return self._afg_saved_print_dpi()
 
     def _afg_dpi_pt(self, base):
-        """90 dpi is the current PDF size. A higher dpi makes Word/Excel type smaller."""
-        return max(7, int(round(float(base) * 90.0 / float(self._afg_export_dpi()))))
+        """90 dpi is the current PDF size. A higher dpi makes Word/Excel/PDF type smaller."""
+        return max(6, int(round(float(base) * 90.0 / float(self._afg_export_dpi()))))
+
+    # --- Country-aware print labels ---
+    # The statutory texts are written for the U.A.E. The company currency decides
+    # the country: NGN prints FGN, AED keeps U.A.E., a currency used by exactly one
+    # country prints that country. Anything else, including a blank Odoo company
+    # whose address is United States, defaults to Nigeria / FGN.
+    # The company address is never used.
+    def _afg_print_company(self):
+        return self[:1].company_id or self.env.company
+
+    def _afg_print_country(self):
+        """Country the statements follow, taken from the company currency."""
+        company = self._afg_print_company()
+        currency = company.currency_id
+        code = (currency.name or "").upper()
+        Country = self.env["res.country"].sudo()
+        nigeria = Country.search([("code", "=", "NG")], limit=1)
+        forced = {"NGN": "NG", "AED": "AE"}.get(code)
+        if forced:
+            found = Country.search([("code", "=", forced)], limit=1)
+            if found:
+                return found
+        if currency and code:
+            countries = Country.search([("currency_id", "=", currency.id)])
+            if len(countries) == 1:
+                return countries
+        return nigeria
+
+    def _afg_is_uae(self):
+        return (self._afg_print_country().code or "") == "AE"
+
+    def _afg_is_ng(self):
+        return (self._afg_print_country().code or "") == "NG"
+
+    def _afg_currency_label(self):
+        currency = self._afg_print_company().currency_id
+        label = (currency.full_name or currency.name or "").strip()
+        return " ".join(word[:1].upper() + word[1:] for word in label.split())
+
+    def _afg_print_place(self, city=""):
+        if self._afg_is_uae():
+            return ("%s - U.A.E." % city) if city else "U.A.E."
+        if self._afg_is_ng():
+            return "FGN"
+        country = (self._afg_print_country().name or "NIGERIA").upper()
+        if city and country:
+            return "%s - %s" % (city, country)
+        return city or country
+
+    def _afg_print_unit(self):
+        if self._afg_is_uae():
+            return "(In Arab Emirates Dirhams)"
+        label = self._afg_currency_label()
+        return "(In %s)" % label if label else ""
+
+    def _afg_country_text(self):
+        if self._afg_is_uae():
+            return "United Arab Emirates"
+        if self._afg_is_ng():
+            return "Nigeria"
+        return self._afg_print_country().name or "Nigeria"
+
+    def _afg_localize_pairs(self):
+        country = self._afg_country_text()
+        currency = self._afg_currency_label()
+        code = self._afg_print_company().currency_id.name or ""
+        law = "Nigerian law" if self._afg_is_ng() else "the laws of %s" % country
+        return [
+            ("(In Arab Emirates Dirhams)", self._afg_print_unit()),
+            ("United Arab Emirates", country),
+            ("UAE Commercial Companies Law", "applicable companies law of %s" % country),
+            ("UAE Federal Law", "laws of %s" % country),
+            ("U.A.E. law", law),
+            ("UAE Dirhams", currency),
+            ("UAE Dirham", currency),
+            ("Dhs. ", "%s " % code if code else ""),
+            ("U.A.E.", self._afg_print_place()),
+        ]
+
+    def _afg_localize_text(self, text):
+        if not text or not isinstance(text, str) or self._afg_is_uae():
+            return text
+        for old, new in self._afg_localize_pairs():
+            text = text.replace(old, new)
+        return text
+
+    def _afg_pdf_type_pts(self):
+        """Point sizes for the audit PDF. wkhtmltopdf ignores paperformat DPI for pt text."""
+        self.ensure_one()
+        pt = self._afg_dpi_pt
+        return {
+            "dpi": self._afg_saved_print_dpi(),
+            "body": pt(10),
+            "stat": pt(11),
+            "title": pt(12),
+            "num2": pt(9),
+            "num4": pt(9),
+            "amt": pt(8),
+        }
 
     def _afg_excel_face_bucket(self, acc):
-        """Club one ledger into the statutory face line it feeds."""
+        """Club one ledger into the statutory face line it feeds.
+
+        Equity classification uses the ledger name. Do not use the CoA group
+        name here — ``Capital & Equities`` would send every equity ledger to
+        Share Capital.
+        """
         afg = ""
         if "afg_group_id" in acc._fields and acc.afg_group_id:
             afg = acc.afg_group_id.name or ""
-        blob = " ".join([
-            acc.name or "",
-            afg,
-            acc.group_id.name or "" if acc.group_id else "",
-            acc.user_type_id.name or "" if acc.user_type_id else "",
-        ]).lower()
-        ig = acc.internal_group or ""
+        ledger = " ".join((acc.name or "").lower().split())
+        afg_l = (afg or "").lower()
         ut = acc.user_type_id
         ut_type = (ut.type or "") if ut else ""
         ut_name = (ut.name or "").lower() if ut else ""
-        ledger = (acc.name or "").lower()
+        ig = acc.internal_group or ""
+        # P&L / BS asset-liability may use afg + type; equity uses ledger only.
+        blob = " ".join([ledger, afg_l, ut_name]).lower()
         if ig == "income":
             if "other income" in ledger or ledger.strip().startswith("other"):
                 return "PL", "Other Income"
             return "PL", "Net Revenue"
         if ig == "expense":
+            afg_code = ""
+            if "afg_group_id" in acc._fields and acc.afg_group_id:
+                afg_code = (acc.afg_group_id.code or "").strip().upper()
+            # The saved AFG group decides the face line.
+            if afg_code == "AFG_COR":
+                return "PL", "Less : Cost of Revenue"
+            if afg_code == "AFG_GNA":
+                return "PL", "General & Administration Expenses"
+            if afg_code == "AFG_PAYROLL":
+                return "PL", "Employee costs"
+            if afg_code == "AFG_DEPR_PL":
+                return "PL", "Depreciation"
             if "corporate tax" in blob or "tax paid" in blob or "taxation" in blob:
                 return "PL", "Corporate Tax Paid"
             if "depreci" in blob or "amort" in blob:
                 return "PL", "Depreciation"
-            if "financ" in blob or "interest" in blob or "bank charge" in blob:
+            # "finance" alone matches Finance Controller. Only real finance costs.
+            if (
+                "financial" in blob
+                or "finance charge" in blob
+                or "finance cost" in blob
+                or "interest" in blob
+                or "bank charge" in blob
+            ):
                 return "PL", "Financial Charge"
-            if "director" in blob or "remuner" in blob:
-                return "PL", "Director Remuneration"
             if "cost of" in blob or "cogs" in blob or "material" in blob or "purchase" in blob:
                 return "PL", "Less : Cost of Revenue"
             return "PL", "General & Administration Expenses"
+        # Equity — ledger name only (never CoA group "Capital & Equities").
+        if ig == "equity":
+            if any(k in ledger for k in (
+                "current year", "undistributed", "unaffected", "previous year earning",
+                "prior year earning", "profit and loss", "p&l",
+            )):
+                return "BS", "Retained Earnings"
+            if "retained" in ledger or "accumulated loss" in ledger or "accumulated profit" in ledger:
+                return "BS", "Retained Earnings"
+            if any(k in ledger for k in (
+                "statutory reserve", "legal reserve", "reserve account",
+            )) or ("reserve" in ledger and "revaluation" not in ledger):
+                return "BS", "Retained Earnings"
+            if any(k in ledger for k in (
+                "current account", "partner current", "owner current",
+                "shareholder current", "shareholders current",
+            )):
+                return "BS", "Shareholders' Current Account"
+            if any(k in ledger for k in (
+                "share capital", "paid up", "paid-up", "share premium", "capital account",
+            )):
+                return "BS", "Share Capital"
+            if ledger.strip() in ("capital", "owner capital", "partners capital", "partnership capital"):
+                return "BS", "Share Capital"
+            return "BS", "Retained Earnings"
         # Ledger type only. The journal name is never used.
-        if ut_type == "receivable" or "receiv" in ledger:
+        if "tax" in ledger and ig == "liability":
+            return "BS", "Accruals and Provisions"
+        if ut_type == "receivable" or ("receiv" in ledger and "tax" not in ledger):
             return "BS", "Accounts Receivable"
+        if any(k in ledger for k in (
+            "end of service", "gratuity", "eos ", "accrual", "accrued", "provision",
+            "salary & wages payable", "salaries payable", "leave salary",
+        )):
+            return "BS", "Accruals and Provisions"
         if ut_type == "payable" or "payable" in ledger or "creditor" in ledger:
             return "BS", "Accounts Payable"
         if ut_type == "liquidity" or ut_name in ("bank and cash", "cash", "bank"):
             return "BS", "Cash and Bank Balances"
-        if any(k in ledger for k in ("property", "plant", "equipment", "fixed asset", "furniture", "vehicle", "motor")):
+        # Same accounts as Odoo default Balance Sheet "Plus Fixed Assets".
+        if "fixed asset" in ut_name:
             return "BS", "Property, Plant & Equipment"
-        if "inventor" in ledger or ledger.startswith("stock"):
+        if "inventor" in blob or "afg_inv" in blob or ledger.startswith("stock"):
             return "BS", "Inventories"
+        # Employee / tenant security deposits on the liability side are not prepaid assets.
+        if ig == "liability" and "deposit" in ledger:
+            return "BS", "Accruals and Provisions"
         if any(k in blob for k in ("deposit", "prepay", "advance")):
             return "BS", "Deposits, Advances & Prepayments"
         if "payable" in blob or "creditor" in blob:
             return "BS", "Accounts Payable"
         if "accrual" in blob or "provision" in blob or "end of service" in blob:
             return "BS", "Accruals and Provisions"
-        if "share capital" in blob or "capital" in blob:
+        if any(k in ledger for k in (
+            "share capital", "paid up", "paid-up", "share premium",
+        )):
             return "BS", "Share Capital"
-        if "retained" in blob or "profit" in blob:
+        if any(k in ledger for k in (
+            "statutory reserve", "legal reserve", "reserve account",
+        )) or ("reserve" in ledger and "revaluation" not in ledger):
             return "BS", "Retained Earnings"
-        if "current account" in blob or "shareholder" in blob:
-            return "BS", "Shareholders' Current Account"
         if ig in ("liability",):
             return "BS", "Accounts Payable"
-        if ig in ("equity",):
-            return "BS", "Retained Earnings"
         if ig in ("asset",):
             return "BS", "Ungrouped Assets"
         return "BS", "Ungrouped Assets"
+
+    def _afg_print_span_is_one(self):
+        """Show periods = 1 year or 1 month. Print that window only."""
+        span = (self._afg_global_period_span_pref() or "").strip().lower()
+        return span in ("1y", "1m")
+
+    def _afg_statutory_one_year(self, pages, year_prior, year_current):
+        """Drop the comparative year column. Equity keeps the current-year roll-forward."""
+        prior_mark = "december 31, %s" % int(year_prior or 0)
+        current_mark = "december 31, %s" % int(year_current or 0)
+        out = []
+        for page in pages or []:
+            page = dict(page)
+            key = page.get("key") or ""
+            rows = list(page.get("rows") or [])
+            if key == "equity":
+                start = 0
+                for index, row in enumerate(rows):
+                    if prior_mark in (row.get("label") or "").lower():
+                        start = index
+                        break
+                page["rows"] = rows[start:]
+                out.append(page)
+                continue
+            if key == "fixed_assets":
+                page["rows"] = [
+                    row for row in rows
+                    if not (
+                        (row.get("cls") or "") == "double"
+                        and prior_mark in (row.get("label") or "").lower()
+                        and current_mark not in (row.get("label") or "").lower()
+                    )
+                ]
+                out.append(page)
+                continue
+            heads = list(page.get("heads") or [])
+            if len(heads) >= 3 and (heads[0].get("label") or "").strip().lower() == "note":
+                page["heads"] = heads[:2]
+                trimmed = []
+                for row in rows:
+                    row = dict(row)
+                    cells = list(row.get("cells") or [])
+                    if len(cells) >= 3:
+                        row["cells"] = cells[:2]
+                    trimmed.append(row)
+                page["rows"] = trimmed
+            out.append(page)
+        return out
 
     def _afg_excel_period_years(self):
         """Two different years. If the version stored the same year twice, prior is the year before."""
@@ -11182,14 +13428,15 @@ class AuditedFinancialVersion(models.Model):
             "Other Income",
             "Less : Cost of Revenue",
             "General & Administration Expenses",
+            "Employee costs",
             "Depreciation",
             "Director Remuneration",
             "Financial Charge",
             "Corporate Tax Paid",
             "Property, Plant & Equipment",
+            "Inventories",
             "Ungrouped Assets",
             "Cash and Bank Balances",
-            "Inventories",
             "Accounts Receivable",
             "Deposits, Advances & Prepayments",
             "Accounts Payable",
@@ -11371,8 +13618,601 @@ class AuditedFinancialVersion(models.Model):
             _logger.exception("AFG pivot table was not attached")
             return data
 
+    def _afg_excel_company_year_amounts(self, yc, yp, company_ids):
+        """Signed debit-credit by account and company.
+
+        Balance-sheet ledgers are the balance at 31 December.
+        Income and expense ledgers are the movement of that calendar year.
+        This trial balance does not read the Journal Items sheet.
+        """
+        if not company_ids:
+            return {}
+        yc_start = "%s-01-01" % int(yc)
+        yc_end = "%s-12-31" % int(yc)
+        yp_start = "%s-01-01" % int(yp)
+        yp_end = "%s-12-31" % int(yp)
+        self.env.cr.execute(
+            """
+            SELECT l.account_id,
+                   l.company_id,
+                   COALESCE(split_part(a.account_type, '_', 1), ''),
+                   SUM(CASE WHEN l.date <= %s THEN l.debit - l.credit ELSE 0 END),
+                   SUM(CASE WHEN l.date <= %s THEN l.debit - l.credit ELSE 0 END),
+                   SUM(CASE WHEN l.date >= %s AND l.date <= %s THEN l.debit - l.credit ELSE 0 END),
+                   SUM(CASE WHEN l.date >= %s AND l.date <= %s THEN l.debit - l.credit ELSE 0 END)
+              FROM account_move_line l
+              JOIN account_move m ON m.id = l.move_id
+              JOIN account_account a ON a.id = l.account_id
+             WHERE m.state = 'posted'
+               AND l.company_id IN %s
+               AND l.date <= %s
+             GROUP BY l.account_id, l.company_id, split_part(a.account_type, '_', 1)
+            """,
+            (yc_end, yp_end, yc_start, yc_end, yp_start, yp_end, tuple(company_ids), yc_end),
+        )
+        out = {}
+        for acc_id, company_id, group, bal_c, bal_p, mov_c, mov_p in self.env.cr.fetchall():
+            if group in ("income", "expense"):
+                amounts = {int(yc): float(mov_c or 0.0), int(yp): float(mov_p or 0.0)}
+            else:
+                amounts = {int(yc): float(bal_c or 0.0), int(yp): float(bal_p or 0.0)}
+            out[(int(acc_id), int(company_id))] = amounts
+        return out
+
+    def _afg_excel_col(self, index):
+        index += 1
+        letters = ""
+        while index:
+            index, rem = divmod(index - 1, 26)
+            letters = chr(65 + rem) + letters
+        return letters
+
+    def _afg_excel_write_company_trial_balance(self, wb, yc, yp):
+        """Sheet Trial Balance: companies across, each year in its own block below."""
+        company_ids = self._afg_excel_company_ids()
+        companies = self.env["res.company"].browse(company_ids).exists()
+        companies = sorted(
+            companies,
+            key=lambda c: company_ids.index(int(c.id)) if int(c.id) in company_ids else 99,
+        )
+        pt = self._afg_dpi_pt
+        fmt_head = wb.add_format({
+            "bold": True, "font_name": "Times New Roman", "font_size": pt(10),
+            "bottom": 1, "align": "center", "valign": "vcenter", "text_wrap": True,
+        })
+        fmt_title = wb.add_format({"bold": True, "font_name": "Times New Roman", "font_size": pt(12)})
+        fmt_lbl = wb.add_format({"font_name": "Times New Roman", "font_size": pt(11)})
+        fmt_sec = wb.add_format({
+            "bold": True, "underline": 1, "font_name": "Times New Roman", "font_size": pt(11),
+        })
+        num_fmt = '#,##0;(#,##0);"-"'
+        fmt_num = wb.add_format({
+            "font_name": "Times New Roman", "font_size": pt(11), "align": "right",
+            "num_format": num_fmt,
+        })
+        fmt_double = wb.add_format({
+            "font_name": "Times New Roman", "font_size": pt(11), "align": "right",
+            "top": 1, "bottom": 6, "num_format": num_fmt,
+        })
+        ws = wb.add_worksheet("Trial Balance")
+        nco = max(len(companies), 1)
+        first_amt = 3
+        total_col = first_amt + nco
+        ws.set_column(0, 0, 16)
+        ws.set_column(1, 1, 42)
+        ws.set_column(2, 2, 36)
+        ws.set_column(first_amt, total_col, 18)
+        amounts = self._afg_excel_company_year_amounts(yc, yp, [int(c.id) for c in companies])
+        accounts = self._afg_account_sudo().browse(sorted({acc_id for acc_id, _cid in amounts}))
+        face_by_id = {}
+        for acc in accounts:
+            statement, face = self._afg_excel_face_bucket(acc)
+            face_by_id[int(acc.id)] = {
+                "code": acc.code or "",
+                "name": acc.name or "",
+                "statement": "Statement of Comprehensive Income" if statement == "PL" else "Statement of Financial Position",
+                "face": face,
+            }
+        ordered = sorted(face_by_id.items(), key=lambda kv: (
+            0 if kv[1]["statement"].startswith("Statement of Comp") else 1,
+            self._afg_excel_face_rank(kv[1]["face"]),
+            (kv[1]["name"] or "").strip().lower(),
+            kv[1]["code"],
+        ))
+        # One row per ledger name inside a face line. Same name in several companies is clubbed.
+        grouped = []
+        index = {}
+        for acc_id, line in ordered:
+            key = ((line["name"] or "").strip().lower(), line["face"], line["statement"])
+            slot = index.get(key)
+            if slot is None:
+                slot = {
+                    "code": line["code"],
+                    "name": line["name"],
+                    "statement": line["statement"],
+                    "face": line["face"],
+                    "ids": [],
+                }
+                index[key] = slot
+                grouped.append(slot)
+            slot["ids"].append(acc_id)
+        # Income and expense rows on this sheet are one year's movement.
+        # Profit earned before that year is still unclosed, so the position
+        # sheet has to add it into Retained Earnings or the two sides differ.
+        brought_face = "Prior unclosed earnings"
+        self.env.cr.execute(
+            """
+            SELECT l.company_id,
+                   COALESCE(SUM(CASE WHEN l.date < %s THEN l.debit - l.credit ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN l.date >= %s AND l.date <= %s THEN l.debit - l.credit ELSE 0 END), 0)
+              FROM account_move_line l
+              JOIN account_move m ON m.id = l.move_id
+              JOIN account_account a ON a.id = l.account_id
+             WHERE m.state = 'posted'
+               AND l.company_id IN %s
+               AND l.date <= %s
+               AND COALESCE(split_part(a.account_type, '_', 1), '') IN ('income', 'expense')
+             GROUP BY l.company_id
+            """,
+            (
+                "%s-01-01" % int(yp),
+                "%s-01-01" % int(yp),
+                "%s-12-31" % int(yp),
+                tuple(int(c.id) for c in companies) or (0,),
+                "%s-12-31" % int(yc),
+            ),
+        )
+        for company_id, opening, prior_move in self.env.cr.fetchall():
+            amounts[(-1, int(company_id))] = {
+                int(yp): float(opening or 0.0),
+                int(yc): float(opening or 0.0) + float(prior_move or 0.0),
+            }
+        grouped.append({
+            "code": "",
+            "name": "Profit / (Loss) brought forward",
+            "statement": "Statement of Comprehensive Income",
+            "face": brought_face,
+            "ids": [-1],
+        })
+        blocks = {
+            "companies": [(int(c.id), c.name or ("Co%s" % (i + 1))) for i, c in enumerate(companies)],
+        }
+        row = 0
+        years = (int(yc), int(yp))
+        year_slots = [None] * nco
+        shown_years = list(years[:nco])
+        for offset, year in enumerate(shown_years):
+            year_slots[nco - len(shown_years) + offset] = year
+
+        def _predict_tb_block(start_row):
+            cursor = start_row
+            cursor += 1
+            cursor += 1
+            cursor += 2
+            cursor += 1
+            positions = []
+            last_statement = None
+            last_face = None
+            for line in grouped:
+                if line["statement"] != last_statement:
+                    cursor += 1
+                    last_statement = line["statement"]
+                    last_face = None
+                if line["face"] != last_face:
+                    cursor += 1
+                    last_face = line["face"]
+                positions.append(cursor)
+                cursor += 1
+            cursor += 1
+            cursor += 3
+            return positions, cursor
+
+        cons_positions, row_after_cons = _predict_tb_block(row)
+        year_positions = {}
+        cursor = row_after_cons
+        for year in years:
+            year_positions[year], cursor = _predict_tb_block(cursor)
+        ws.write(row, 0, "TRIAL BALANCE", fmt_title)
+        row += 1
+        ws.write(row, 0, "CONSOLIDATED", fmt_title)
+        row += 1
+        ws.write(row, 0, self._afg_print_unit(), fmt_lbl)
+        row += 2
+        ws.set_row(row, 36)
+        ws.write(row, 0, "", fmt_head)
+        ws.write(row, 1, "Ledger", fmt_head)
+        ws.write(row, 2, "Face line", fmt_head)
+        for i, year in enumerate(year_slots):
+            ws.write(row, first_amt + i, str(year) if year else "", fmt_head)
+        ws.write(row, total_col, "Variance", fmt_head)
+        row += 1
+        last_statement = None
+        last_face = None
+        pos_i = 0
+        for line in grouped:
+            if line["statement"] != last_statement:
+                ws.write(row, 1, line["statement"], fmt_sec)
+                last_statement = line["statement"]
+                last_face = None
+                row += 1
+            if line["face"] != last_face:
+                ws.write(row, 1, line["face"], fmt_sec)
+                last_face = line["face"]
+                row += 1
+            ws.write(row, 0, line["code"], fmt_lbl)
+            ws.write(row, 1, line["name"], fmt_lbl)
+            ws.write(row, 2, line["face"], fmt_lbl)
+            year_cells = {}
+            for i, year in enumerate(year_slots):
+                if not year:
+                    continue
+                src_row = year_positions[year][pos_i]
+                letter = self._afg_excel_col(total_col)
+                ws.write_formula(row, first_amt + i, "=%s%d" % (letter, src_row + 1), fmt_num)
+                year_cells[year] = "%s%d" % (self._afg_excel_col(first_amt + i), row + 1)
+            if years[0] in year_cells and years[1] in year_cells:
+                ws.write_formula(
+                    row, total_col,
+                    "=%s-%s" % (year_cells[years[0]], year_cells[years[1]]),
+                    fmt_num,
+                )
+            row += 1
+            pos_i += 1
+        row += 4
+        for year in years:
+            ws.write(row, 0, "TRIAL BALANCE", fmt_title)
+            row += 1
+            ws.write(row, 0, "AS AT DECEMBER 31, %s" % year, fmt_title)
+            row += 1
+            ws.write(row, 0, self._afg_print_unit(), fmt_lbl)
+            row += 2
+            ws.set_row(row, 36)
+            ws.write(row, 0, "", fmt_head)
+            ws.write(row, 1, "Ledger", fmt_head)
+            ws.write(row, 2, "Face line", fmt_head)
+            for i, (_cid, name) in enumerate(blocks["companies"]):
+                ws.write(row, first_amt + i, name, fmt_head)
+            if not blocks["companies"]:
+                ws.write(row, first_amt, "Co1", fmt_head)
+            ws.write(row, total_col, "Total", fmt_head)
+            row += 1
+            data_start = row
+            last_statement = None
+            last_face = None
+            for line in grouped:
+                if line["statement"] != last_statement:
+                    ws.write(row, 1, line["statement"], fmt_sec)
+                    last_statement = line["statement"]
+                    last_face = None
+                    row += 1
+                if line["face"] != last_face:
+                    ws.write(row, 1, line["face"], fmt_sec)
+                    last_face = line["face"]
+                    row += 1
+                ws.write(row, 0, line["code"], fmt_lbl)
+                ws.write(row, 1, line["name"], fmt_lbl)
+                ws.write(row, 2, line["face"], fmt_lbl)
+                for i, (cid, _name) in enumerate(blocks["companies"]):
+                    value = 0.0
+                    for acc_id in line["ids"]:
+                        value += (amounts.get((acc_id, cid)) or {}).get(year) or 0.0
+                    ws.write_number(row, first_amt + i, value, fmt_num)
+                letters = [self._afg_excel_col(first_amt + i) for i in range(nco)]
+                excel_n = row + 1
+                ws.write_formula(
+                    row, total_col,
+                    "=" + "+".join("%s%d" % (col, excel_n) for col in letters),
+                    fmt_num,
+                )
+                row += 1
+            data_end = row - 1
+            row += 1
+            ws.write(row, 1, "Net", fmt_sec)
+            for i in range(nco + 1):
+                col = first_amt + i
+                letter = self._afg_excel_col(col)
+                ws.write_formula(
+                    row, col,
+                    "=SUM(%s%d:%s%d)" % (letter, data_start + 1, letter, data_end + 1),
+                    fmt_double,
+                )
+            face_a = data_start + 1
+            face_b = max(data_end + 1, face_a)
+            company_ranges = []
+            for i in range(nco):
+                letter = self._afg_excel_col(first_amt + i)
+                company_ranges.append("$%s$%d:$%s$%d" % (letter, face_a, letter, face_b))
+            blocks[int(year)] = {
+                "face": "$C$%d:$C$%d" % (face_a, face_b),
+                "companies": company_ranges,
+            }
+            row += 3
+        return blocks
+
+    def _afg_excel_write_stacked_statement(self, wb, ws, page, tb_blocks, yc, yp):
+        """Financial position and income statement: companies across, years one under the other."""
+        pt = self._afg_dpi_pt
+        book = wb
+        fmt_co = book.add_format({"bold": True, "font_name": "Times New Roman", "font_size": pt(12)})
+        fmt_place = book.add_format({"font_name": "Times New Roman", "font_size": pt(11)})
+        fmt_title = book.add_format({"bold": True, "font_name": "Times New Roman", "font_size": pt(12)})
+        fmt_head = book.add_format({
+            "bold": True, "font_name": "Times New Roman", "font_size": pt(10),
+            "bottom": 1, "align": "center", "valign": "vcenter", "text_wrap": True,
+        })
+        fmt_lbl = book.add_format({"font_name": "Times New Roman", "font_size": pt(11)})
+        fmt_sec = book.add_format({
+            "bold": True, "underline": 1, "font_name": "Times New Roman", "font_size": pt(11),
+        })
+        num_fmt = '#,##0;(#,##0);"-"'
+        fmt_num = book.add_format({
+            "font_name": "Times New Roman", "font_size": pt(11), "align": "right", "num_format": num_fmt,
+        })
+        fmt_single = book.add_format({
+            "font_name": "Times New Roman", "font_size": pt(11), "align": "right", "top": 1, "num_format": num_fmt,
+        })
+        fmt_double = book.add_format({
+            "font_name": "Times New Roman", "font_size": pt(11), "align": "right", "top": 1, "bottom": 6, "num_format": num_fmt,
+        })
+        companies = list((tb_blocks or {}).get("companies") or [])
+        nco = max(len(companies), 1)
+        key = page.get("key") or ""
+        credit_faces = {
+            "Net Revenue", "Other Income", "Accounts Payable", "Accruals and Provisions",
+            "Share Capital", "Retained Earnings", "Shareholders' Current Account",
+        }
+        pl_faces = [
+            "Net Revenue", "Other Income", "Less : Cost of Revenue",
+            "General & Administration Expenses", "Employee costs", "Director Remuneration",
+            "Depreciation", "Financial Charge", "Corporate Tax Paid",
+        ]
+        face_lines = set(pl_faces + [
+            "Property, Plant & Equipment", "Cash and Bank Balances", "Accounts Receivable",
+            "Deposits, Advances & Prepayments", "Accounts Payable", "Accruals and Provisions",
+            "Share Capital", "Retained Earnings", "Shareholders' Current Account", "Inventories",
+            "Ungrouped Assets",
+        ])
+        ws.set_column(0, 0, 62)
+        ws.set_column(1, 1 + nco, 18)
+        sheet = "'Trial Balance'"
+
+        def sumif(face, year, company_index):
+            block = (tb_blocks or {}).get(int(year)) or {}
+            face_range = block.get("face") or "$C$1:$C$1"
+            ranges = block.get("companies") or ["$D$1:$D$1"]
+            value_range = ranges[company_index] if company_index < len(ranges) else ranges[-1]
+            safe = (face or "").replace('"', '""')
+            bit = "SUMIF(%s!%s,\"%s\",%s!%s)" % (sheet, face_range, safe, sheet, value_range)
+            if face in credit_faces:
+                bit = "-" + bit
+            parts = [bit]
+            if face == "Retained Earnings":
+                for pl_face in list(pl_faces) + ["Prior unclosed earnings"]:
+                    pl_safe = pl_face.replace('"', '""')
+                    parts.append(
+                        "-SUMIF(%s!%s,\"%s\",%s!%s)" % (sheet, face_range, pl_safe, sheet, value_range)
+                    )
+            return "=" + "+".join(parts)
+
+        row = 0
+        ws.write(row, 0, page.get("company") or "", fmt_co)
+        row += 1
+        ws.write(row, 0, page.get("place") or "", fmt_place)
+        years = (int(yc), int(yp))
+        src_rows = list(page.get("rows") or [])
+        total_col = 2 + nco
+        total_letter = self._afg_excel_col(total_col)
+        # Years sit in the right-hand amount columns so Variance lines up with Total.
+        # Columns to the left of the years stay empty.
+        year_slots = [None] * nco
+        shown_years = list(years[:nco])
+        for offset, year in enumerate(shown_years):
+            year_slots[nco - len(shown_years) + offset] = year
+
+        def _predict_statement_block(start_row):
+            cursor = start_row + 2
+            cursor += 1
+            cursor += 1
+            cursor += 2
+            cursor += 1
+            labels = {}
+            for src in src_rows:
+                label = src.get("label") or ""
+                if label:
+                    labels[label] = cursor
+                cursor += 1
+            return labels, cursor
+
+        cons_labels, row_after_cons = _predict_statement_block(row)
+        year_label_rows = {}
+        cursor = row_after_cons
+        for year in years:
+            year_label_rows[year], cursor = _predict_statement_block(cursor)
+
+        row += 2
+        title = page.get("title") or ""
+        if "CONSOLIDATED" not in title.upper():
+            title = (title + " (CONSOLIDATED)").strip()
+        ws.write(row, 0, title, fmt_title)
+        row += 1
+        ws.write(row, 0, "CONSOLIDATED", fmt_title)
+        row += 1
+        ws.write(row, 0, page.get("unit") or "", fmt_place)
+        row += 2
+        ws.set_row(row, 36)
+        ws.write(row, 0, "", fmt_head)
+        ws.write(row, 1, "Note", fmt_head)
+        for i, year in enumerate(year_slots):
+            ws.write(row, 2 + i, str(year) if year else "", fmt_head)
+        ws.write(row, total_col, "Variance", fmt_head)
+        row += 1
+        for src in src_rows:
+            cls = src.get("cls") or ""
+            label = src.get("label") or ""
+            lf = fmt_sec if "sec" in cls else fmt_lbl
+            ws.write(row, 0, label, lf)
+            cells = src.get("cells") or []
+            if cells and (cells[0].get("cls") or "") == "note":
+                ws.write(row, 1, cells[0].get("text") or "", fmt_lbl)
+            if "double" in cls:
+                nf = fmt_double
+            elif "single" in cls:
+                nf = fmt_single
+            else:
+                nf = fmt_num
+            if "sec" in cls or not label:
+                row += 1
+                continue
+            year_cells = {}
+            wrote = False
+            for i, year in enumerate(year_slots):
+                if not year:
+                    continue
+                src_row = (year_label_rows.get(year) or {}).get(label)
+                if src_row is None:
+                    continue
+                ws.write_formula(row, 2 + i, "=%s%d" % (total_letter, src_row + 1), nf)
+                year_cells[year] = "%s%d" % (self._afg_excel_col(2 + i), row + 1)
+                wrote = True
+            if wrote and years[0] in year_cells and years[1] in year_cells:
+                ws.write_formula(
+                    row, total_col,
+                    "=%s-%s" % (year_cells[years[0]], year_cells[years[1]]),
+                    nf,
+                )
+            row += 1
+        for _year_i, year in enumerate(years):
+            row += 2
+            ws.write(row, 0, page.get("title") or "", fmt_title)
+            row += 1
+            if key == "pl":
+                period = "FOR THE YEAR ENDED DECEMBER 31, %s" % year
+            else:
+                period = "AS AT DECEMBER 31, %s" % year
+            ws.write(row, 0, period, fmt_title)
+            row += 1
+            ws.write(row, 0, page.get("unit") or "", fmt_place)
+            row += 2
+            ws.set_row(row, 36)
+            ws.write(row, 0, "", fmt_head)
+            ws.write(row, 1, "Note", fmt_head)
+            for i, (_cid, name) in enumerate(companies):
+                ws.write(row, 2 + i, name or ("Co%s" % (i + 1)), fmt_head)
+            if not companies:
+                ws.write(row, 2, "Co1", fmt_head)
+            total_col = 2 + nco
+            ws.write(row, total_col, "Total", fmt_head)
+            row += 1
+            label_rows = {}
+            for src in page.get("rows") or []:
+                cls = src.get("cls") or ""
+                label = src.get("label") or ""
+                lf = fmt_sec if "sec" in cls else fmt_lbl
+                ws.write(row, 0, label, lf)
+                if label:
+                    label_rows[label] = row
+                cells = src.get("cells") or []
+                if cells and (cells[0].get("cls") or "") == "note":
+                    ws.write(row, 1, cells[0].get("text") or "", fmt_lbl)
+                if "double" in cls:
+                    nf = fmt_double
+                elif "single" in cls:
+                    nf = fmt_single
+                else:
+                    nf = fmt_num
+                if "sec" in cls or not label:
+                    row += 1
+                    continue
+                wrote = False
+                for i in range(nco):
+                    col = 2 + i
+                    letter = self._afg_excel_col(col)
+                    if label == "Gross Profit":
+                        a = label_rows.get("Net Revenue")
+                        b = label_rows.get("Less : Cost of Revenue")
+                        if a is not None and b is not None:
+                            ws.write_formula(row, col, "=%s%d-%s%d" % (letter, a + 1, letter, b + 1), nf)
+                            wrote = True
+                        continue
+                    if label == "Tax for the year":
+                        ws.write_formula(row, col, sumif("Corporate Tax Paid", year, i), nf)
+                        wrote = True
+                        continue
+                    if label in ("Profit before tax", "Profit for the year"):
+                        plus = [label_rows[n] for n in ("Gross Profit", "Other Income") if n in label_rows]
+                        minus_names = (
+                            "General & Administration Expenses",
+                            "Employee costs",
+                            "Director Remuneration",
+                            "Depreciation",
+                            "Financial Charge",
+                        )
+                        if label == "Profit for the year":
+                            minus_names = minus_names + ("Tax for the year",)
+                        minus = [label_rows[n] for n in minus_names if n in label_rows]
+                        if plus:
+                            expr = "=" + "+".join("%s%d" % (letter, r + 1) for r in plus)
+                            if minus:
+                                expr += "-" + "-".join("%s%d" % (letter, r + 1) for r in minus)
+                            ws.write_formula(row, col, expr, nf)
+                            wrote = True
+                        continue
+                    if label == "Net Profit / (Loss) for the year":
+                        refs = [label_rows.get(n) for n in (
+                            "Gross Profit", "Other Income", "General & Administration Expenses",
+                            "Director Remuneration", "Depreciation", "Financial Charge",
+                        )]
+                        refs = [r for r in refs if r is not None]
+                        if refs:
+                            plus = "+".join("%s%d" % (letter, r + 1) for r in refs[:2])
+                            minus = "-".join("%s%d" % (letter, r + 1) for r in refs[2:])
+                            expr = "=%s-%s" % (plus, minus) if minus else "=%s" % plus
+                            ws.write_formula(row, col, expr, nf)
+                            wrote = True
+                        continue
+                    parts = []
+                    if label == "Total Non-Current Assets":
+                        parts = ["Property, Plant & Equipment"]
+                    elif label == "Total Current Assets":
+                        parts = ["Cash and Bank Balances", "Accounts Receivable", "Deposits, Advances & Prepayments", "Inventories", "Ungrouped Assets"]
+                    elif label == "TOTAL ASSETS":
+                        parts = ["Total Non-Current Assets", "Total Current Assets"]
+                    elif label == "Total Current Liabilities":
+                        parts = ["Accounts Payable", "Accruals and Provisions"]
+                    elif label == "TOTAL LIABILITIES":
+                        parts = ["Total Current Liabilities"]
+                    elif label == "Total Shareholders' Equity":
+                        parts = ["Share Capital", "Retained Earnings", "Shareholders' Current Account"]
+                    elif label == "TOTAL LIABILITIES AND SHAREHOLDERS' EQUITY":
+                        parts = ["TOTAL LIABILITIES", "Total Shareholders' Equity"]
+                    if parts:
+                        refs = [label_rows[p] for p in parts if p in label_rows]
+                        if refs:
+                            ws.write_formula(row, col, "=" + "+".join("%s%d" % (letter, r + 1) for r in refs), nf)
+                            wrote = True
+                        continue
+                    if label in face_lines:
+                        ws.write_formula(row, col, sumif(label, year, i), nf)
+                        wrote = True
+                if wrote:
+                    excel_n = row + 1
+                    letters = [self._afg_excel_col(2 + i) for i in range(nco)]
+                    ws.write_formula(
+                        row, total_col,
+                        "=" + "+".join("%s%d" % (col, excel_n) for col in letters),
+                        nf,
+                    )
+                row += 1
+        row += 2
+        ws.write(row, 0, "(Managing Director)", fmt_lbl)
+        row += 2
+        ws.write(row, 0, page.get("page") or "", fmt_lbl)
+
     def _afg_statutory_xlsx_action(self, doc):
-        pages = [c for c in (doc.get("chapters") or []) if (c.get("kind") or "") == "statutory_page"]
+        pages = [
+            c for c in (doc.get("chapters") or [])
+            if (c.get("kind") or "") == "statutory_page"
+        ]
         if not pages:
             return False
         import xlsxwriter
@@ -11410,11 +14250,11 @@ class AuditedFinancialVersion(models.Model):
         # Journal items are typed, including statement and face line.
         # The trial balance picks those columns up. Its year columns sum every line once, so the net is nil.
         yc_label, yp_label = self._afg_excel_period_years()
+        cids = tuple(self._afg_excel_company_ids())
+        wb.add_worksheet("Pivot Table")
         self.env.cr.execute(
             """
-            SELECT l.date, m.name, COALESCE(j.name, ''), COALESCE(a.code, ''),
-                   COALESCE(a.name, ''), COALESCE(rc.name, ''),
-                   l.debit, l.credit, a.id
+            SELECT l.date, m.name, j.id, l.debit, l.credit, a.id, rc.id
               FROM account_move_line l
               JOIN account_move m ON m.id = l.move_id
               JOIN account_account a ON a.id = l.account_id
@@ -11423,23 +14263,50 @@ class AuditedFinancialVersion(models.Model):
              WHERE m.state = 'posted'
                AND l.company_id IN %s
                AND l.date <= %s
-             ORDER BY l.date, m.name, a.code, l.id
+               AND (l.display_type IS NULL OR l.display_type NOT IN ('line_section', 'line_note', 'line_subsection'))
+             ORDER BY l.date, m.name, a.id, l.id
             """,
-            (tuple(self._afg_excel_company_ids()), fields.Date.from_string("%s-12-31" % yc_label)),
+            (cids, fields.Date.from_string("%s-12-31" % yc_label)),
         )
-        ji_recs = self.env.cr.fetchall()
-        accounts = self._afg_account_sudo().browse(list({r[8] for r in ji_recs if r[8]}))
-        face_by_id = {}
-        for acc in accounts:
+        # Account code/name and journal/company names are translated or company-dependent
+        # in Odoo 19, so resolve them through the ORM instead of SQL columns.
+        ji_raw = self.env.cr.fetchall()
+        Account = self._afg_account_sudo()
+        Journal = self.env["account.journal"].sudo()
+        Company = self.env["res.company"].sudo()
+        ji_accounts = Account.browse(list({r[5] for r in ji_raw if r[5]})).exists()
+        acc_by_id = {acc.id: acc for acc in ji_accounts}
+        journal_by_id = {
+            journal.id: journal
+            for journal in Journal.browse(list({r[2] for r in ji_raw if r[2]})).exists()
+        }
+        company_by_id = {
+            company.id: company
+            for company in Company.browse(list({r[6] for r in ji_raw if r[6]})).exists()
+        }
+        ji_recs = []
+        for dt, move_name, journal_id, debit, credit, acc_id, company_id in ji_raw:
+            acc = acc_by_id.get(acc_id)
+            journal = journal_by_id.get(journal_id)
+            company = company_by_id.get(company_id)
+            ji_recs.append((
+                dt,
+                move_name or "",
+                journal.display_name if journal else "",
+                (acc.code or "") if acc else "",
+                (acc.name or "") if acc else "",
+                (company.name or "") if company else "",
+                debit,
+                credit,
+                acc_id,
+            ))
+        ji_face = {}
+        for acc in ji_accounts:
             statement, face = self._afg_excel_face_bucket(acc)
-            face_by_id[acc.id] = {
-                "code": acc.code or "",
-                "name": acc.name or "",
-                "company": (acc.company_id.display_name if int(acc.company_id.id or 0) in set(self._afg_excel_company_ids()) else self.company_id.display_name) or "",
+            ji_face[acc.id] = {
                 "statement": "Statement of Comprehensive Income" if statement == "PL" else "Statement of Financial Position",
                 "face": face,
             }
-        wb.add_worksheet("Pivot Table")
         ji = wb.add_worksheet("Journal Items")
         ji.set_column(0, 0, 14)
         ji.set_column(1, 2, 22)
@@ -11461,7 +14328,7 @@ class AuditedFinancialVersion(models.Model):
         })
         ji_row = 1
         for rec in ji_recs:
-            meta = face_by_id.get(rec[8]) or {
+            meta = ji_face.get(rec[8]) or {
                 "statement": "Statement of Financial Position",
                 "face": "Ungrouped Assets",
             }
@@ -11479,14 +14346,49 @@ class AuditedFinancialVersion(models.Model):
             ji.write_number(ji_row, 10, int(rec[8] or 0), fmt_lbl)
             excel_n = ji_row + 1
             ji.write_formula(ji_row, 11, "=I%d-J%d" % (excel_n, excel_n), fmt_src)
-            ji.write_formula(ji_row, 12, "=IF(A%d=\"\",\"\",MONTH(A%d))" % (excel_n, excel_n), fmt_lbl)
-            ji.write_formula(ji_row, 13, "=IF(A%d=\"\",\"\",YEAR(A%d))" % (excel_n, excel_n), fmt_lbl)
+            ji.write_formula(ji_row, 12, '=IF(A%d="","",MONTH(A%d))' % (excel_n, excel_n), fmt_lbl)
+            ji.write_formula(ji_row, 13, '=IF(A%d="","",YEAR(A%d))' % (excel_n, excel_n), fmt_lbl)
             ji.write(ji_row, 14, "%02d" % self._afg_excel_face_rank(meta.get("face") or ""), fmt_lbl)
             ji_row += 1
         ji_last = max(ji_row - 1, 1)
         ji.autofilter(0, 0, ji_last, 13)
         ji_end = ji_last + 1
-        tb = wb.add_worksheet("Trial Balance (Journal Items)")
+        cids = tuple(self._afg_excel_company_ids())
+        date_yp = fields.Date.from_string("%s-01-01" % yp_label)
+        date_yc = fields.Date.from_string("%s-01-01" % yc_label)
+        date_end = fields.Date.from_string("%s-12-31" % yc_label)
+        self.env.cr.execute(
+            """
+            SELECT a.id,
+                   COALESCE(SUM(CASE WHEN l.date < %s THEN l.debit - l.credit ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN l.date >= %s AND l.date < %s THEN l.debit - l.credit ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN l.date >= %s AND l.date <= %s THEN l.debit - l.credit ELSE 0 END), 0)
+              FROM account_move_line l
+              JOIN account_move m ON m.id = l.move_id
+              JOIN account_account a ON a.id = l.account_id
+             WHERE m.state = 'posted'
+               AND l.company_id IN %s
+               AND l.date <= %s
+             GROUP BY a.id
+            """,
+            (date_yp, date_yp, date_yc, date_yc, date_end, cids, date_end),
+        )
+        bal_rows = self.env.cr.fetchall()
+        accounts = self._afg_account_sudo().browse([r[0] for r in bal_rows if r[0]])
+        face_by_id = {}
+        amounts = {}
+        for acc_id, opening, mov_p, mov_c in bal_rows:
+            amounts[acc_id] = (float(opening or 0.0), float(mov_p or 0.0), float(mov_c or 0.0))
+        for acc in accounts:
+            statement, face = self._afg_excel_face_bucket(acc)
+            face_by_id[acc.id] = {
+                "code": acc.code or "",
+                "name": acc.name or "",
+                "company": (acc.company_id.display_name if int(acc.company_id.id or 0) in set(cids) else self.company_id.display_name) or "",
+                "statement": "Statement of Comprehensive Income" if statement == "PL" else "Statement of Financial Position",
+                "face": face,
+            }
+        tb = wb.add_worksheet("TB (JV items)")
         tb.set_column(0, 0, 16)
         tb.set_column(1, 1, 42)
         tb.set_column(2, 2, 36)
@@ -11523,8 +14425,13 @@ class AuditedFinancialVersion(models.Model):
             tb.write(excel_row, 1, line["name"], fmt_lbl)
             tb.write(excel_row, 2, line["company"], fmt_lbl)
             acct_cell = "$J%d" % (excel_row + 1)
-            tb.write_formula(excel_row, 3, "=IFERROR(INDEX('Journal Items'!$G$2:$G$%s,MATCH(%s,'Journal Items'!$K$2:$K$%s,0)),\"\")" % (ji_end, acct_cell, ji_end), fmt_lbl)
-            tb.write_formula(excel_row, 4, "=IFERROR(INDEX('Journal Items'!$H$2:$H$%s,MATCH(%s,'Journal Items'!$K$2:$K$%s,0)),\"\")" % (ji_end, acct_cell, ji_end), fmt_lbl)
+            tb.write_formula(excel_row, 3, '=IFERROR(INDEX(\'Journal Items\'!$G$2:$G$%s,MATCH(%s,\'Journal Items\'!$K$2:$K$%s,0)),"")' % (ji_end, acct_cell, ji_end), fmt_lbl)
+            tb.write_formula(excel_row, 4, '=IFERROR(INDEX(\'Journal Items\'!$H$2:$H$%s,MATCH(%s,\'Journal Items\'!$K$2:$K$%s,0)),"")' % (ji_end, acct_cell, ji_end), fmt_lbl)
+            excel_n = excel_row + 1
+            tb.write_formula(excel_row, 5, '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,"<"&%s)' % (ji_end, ji_end, acct_cell, ji_end, yp_label), fmt_src)
+            tb.write_formula(excel_row, 6, '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,%s)' % (ji_end, ji_end, acct_cell, ji_end, yp_label), fmt_src)
+            tb.write_formula(excel_row, 7, '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,%s)' % (ji_end, ji_end, acct_cell, ji_end, yc_label), fmt_src)
+            tb.write_formula(excel_row, 8, "=F%d+G%d+H%d" % (excel_n, excel_n, excel_n), fmt_src)
             ledger_l = (line["name"] or "").lower()
             if line["face"] == "Property, Plant & Equipment":
                 if "decor" in ledger_l:
@@ -11540,17 +14447,6 @@ class AuditedFinancialVersion(models.Model):
             tb.write(excel_row, 10, ppe_class, fmt_lbl)
             tb.write(excel_row, 11, ppe_kind, fmt_lbl)
             tb.write_number(excel_row, 9, int(acc_id), fmt_lbl)
-            excel_n = excel_row + 1
-            tb.write_formula(excel_row, 5, (
-                '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,"<"&%s)'
-            ) % (ji_end, ji_end, acct_cell, ji_end, yp_label), fmt_src)
-            tb.write_formula(excel_row, 6, (
-                '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,%s)'
-            ) % (ji_end, ji_end, acct_cell, ji_end, yp_label), fmt_src)
-            tb.write_formula(excel_row, 7, (
-                '=SUMIFS(\'Journal Items\'!$L$2:$L$%s,\'Journal Items\'!$K$2:$K$%s,%s,\'Journal Items\'!$N$2:$N$%s,%s)'
-            ) % (ji_end, ji_end, acct_cell, ji_end, yc_label), fmt_src)
-            tb.write_formula(excel_row, 8, "=F%d+G%d+H%d" % (excel_n, excel_n, excel_n), fmt_src)
         data_last = max(excel_row, tb_first)
         excel_row += 2
         tb.write(excel_row, 1, "Net", fmt_sec)
@@ -11558,13 +14454,14 @@ class AuditedFinancialVersion(models.Model):
             tb.write_formula(excel_row, col_i, "=SUM(%s2:%s%d)" % (coln, coln, data_last + 1), fmt_double)
         tb_last = data_last
         tb.autofilter(0, 0, tb_last, 8)
-        face_range = "'Trial Balance (Journal Items)'!$E$%s:$E$%s" % (tb_first, tb_last + 1)
-        open_range = "'Trial Balance (Journal Items)'!$F$%s:$F$%s" % (tb_first, tb_last + 1)
-        mov_p_range = "'Trial Balance (Journal Items)'!$G$%s:$G$%s" % (tb_first, tb_last + 1)
-        mov_c_range = "'Trial Balance (Journal Items)'!$H$%s:$H$%s" % (tb_first, tb_last + 1)
-        close_range = "'Trial Balance (Journal Items)'!$I$%s:$I$%s" % (tb_first, tb_last + 1)
-        class_range = "'Trial Balance (Journal Items)'!$K$%s:$K$%s" % (tb_first, tb_last + 1)
-        kind_range = "'Trial Balance (Journal Items)'!$L$%s:$L$%s" % (tb_first, tb_last + 1)
+        tb_blocks = self._afg_excel_write_company_trial_balance(wb, int(yc_label), int(yp_label))
+        face_range = "'TB (JV items)'!$E$%s:$E$%s" % (tb_first, tb_last + 1)
+        open_range = "'TB (JV items)'!$F$%s:$F$%s" % (tb_first, tb_last + 1)
+        mov_p_range = "'TB (JV items)'!$G$%s:$G$%s" % (tb_first, tb_last + 1)
+        mov_c_range = "'TB (JV items)'!$H$%s:$H$%s" % (tb_first, tb_last + 1)
+        close_range = "'TB (JV items)'!$I$%s:$I$%s" % (tb_first, tb_last + 1)
+        class_range = "'TB (JV items)'!$K$%s:$K$%s" % (tb_first, tb_last + 1)
+        kind_range = "'TB (JV items)'!$L$%s:$L$%s" % (tb_first, tb_last + 1)
 
         credit_faces = {
             "Net Revenue", "Other Income", "Accounts Payable", "Accruals and Provisions",
@@ -11573,7 +14470,7 @@ class AuditedFinancialVersion(models.Model):
 
         pl_faces = {
             "Net Revenue", "Other Income", "Less : Cost of Revenue",
-            "General & Administration Expenses", "Director Remuneration",
+            "General & Administration Expenses", "Employee costs", "Director Remuneration",
             "Depreciation", "Financial Charge", "Corporate Tax Paid",
         }
 
@@ -11604,7 +14501,17 @@ class AuditedFinancialVersion(models.Model):
 
         used = set()
         anchors = {}
-        for idx, page in enumerate(pages, start=1):
+        face_pages = []
+        notes_pages = []
+        for page in pages:
+            if page.get("narrative"):
+                continue
+            key = page.get("key") or ""
+            if key == "fixed_assets" or key.startswith("sched_") or page.get("schedule"):
+                notes_pages.append(page)
+            else:
+                face_pages.append(page)
+        for idx, page in enumerate(face_pages, start=1):
             raw = (page.get("title") or "Sheet")[:24]
             name = re.sub(r"[\\/*?:\[\]]", "", raw) or "Sheet"
             candidate = ("%02d %s" % (idx, name))[:31]
@@ -11615,6 +14522,9 @@ class AuditedFinancialVersion(models.Model):
             used.add(candidate.lower())
             ws = wb.add_worksheet(candidate)
             sheet_ref = "'%s'" % candidate.replace("'", "''")
+            if (page.get("key") or "") in ("bs", "pl"):
+                self._afg_excel_write_stacked_statement(wb, ws, page, tb_blocks, int(yc_label), int(yp_label))
+                continue
             ws.set_column(0, 0, 62)
             ws.set_column(1, 6, 18)
             ws.write(0, 0, page.get("company") or "", fmt_co)
@@ -11769,6 +14679,21 @@ class AuditedFinancialVersion(models.Model):
                     if key == "cashflow" and c in (2, 3):
                         newer = "current" if c == 2 else "prior"
                         older = "prior" if c == 2 else "open"
+                        if label == "Net Profit / (Loss) for the year":
+                            plus = ("Net Revenue", "Other Income")
+                            minus = (
+                                "Less : Cost of Revenue",
+                                "General & Administration Expenses",
+                                "Employee costs",
+                                "Director Remuneration",
+                                "Depreciation",
+                                "Financial Charge",
+                                "Corporate Tax Paid",
+                            )
+                            expr = "=" + "+".join("(%s)" % _sumif(name, newer)[1:] for name in plus)
+                            expr += "".join("-(%s)" % _sumif(name, newer)[1:] for name in minus)
+                            ws.write_formula(row_i, c, expr, nf)
+                            continue
                         asset_moves = {
                             "(Increase)/Decrease in Accounts Receivable": "Accounts Receivable",
                             "(Increase)/Decrease in Deposits, Advances & Prepayments": "Deposits, Advances & Prepayments",
@@ -11854,7 +14779,7 @@ class AuditedFinancialVersion(models.Model):
                         continue
                     if label in (
                         "Net Revenue", "Less : Cost of Revenue", "Other Income",
-                        "General & Administration Expenses", "Director Remuneration",
+                        "General & Administration Expenses", "Employee costs", "Director Remuneration",
                         "Depreciation", "Financial Charge",
                         "Property, Plant & Equipment", "Cash and Bank Balances",
                         "Accounts Receivable", "Deposits, Advances & Prepayments",
@@ -11892,10 +14817,11 @@ class AuditedFinancialVersion(models.Model):
                             gross = label_rows.get("Gross Profit")
                             other = label_rows.get("Other Income")
                             ga = label_rows.get("General & Administration Expenses")
+                            pay = label_rows.get("Employee costs")
                             director = label_rows.get("Director Remuneration")
                             dep = label_rows.get("Depreciation")
                             fin = label_rows.get("Financial Charge")
-                            refs = [r for r in (gross, other, ga, director, dep, fin) if r is not None]
+                            refs = [r for r in (gross, other, ga, pay, director, dep, fin) if r is not None]
                             if refs:
                                 plus = "+".join("%s%s" % (col, r + 1) for r in refs[:2])
                                 minus = "-".join("%s%s" % (col, r + 1) for r in refs[2:])
@@ -11927,6 +14853,67 @@ class AuditedFinancialVersion(models.Model):
             ws.write(row_i, 0, "(Managing Director)", fmt_lbl)
             row_i += 2
             ws.write(row_i, 0, page.get("page") or "", fmt_lbl)
+        if notes_pages:
+            note_idx = len(face_pages) + 1
+            note_name = ("%02d NOTES" % note_idx)[:31]
+            ws = wb.add_worksheet(note_name)
+            ws.set_column(0, 0, 62)
+            ws.set_column(1, 8, 18)
+            row_i = 0
+            for npi, page in enumerate(notes_pages):
+                if npi:
+                    row_i += 3
+                ws.write(row_i, 0, page.get("company") or "", fmt_co)
+                row_i += 1
+                ws.write(row_i, 0, page.get("place") or "", fmt_place)
+                row_i += 1
+                ws.write(row_i, 0, page.get("title") or "", fmt_title)
+                row_i += 1
+                ws.write(row_i, 0, page.get("period") or "", fmt_title)
+                row_i += 1
+                if page.get("unit"):
+                    ws.write(row_i, 0, page.get("unit") or "", fmt_place)
+                    row_i += 1
+                heads = list(page.get("heads") or [])
+                row_i += 1
+                ws.write(row_i, 0, "", fmt_head)
+                for c, head in enumerate(heads, start=1):
+                    ws.write(row_i, c, head.get("label") or "", fmt_head)
+                row_i += 1
+                for row in page.get("rows") or []:
+                    cls = row.get("cls") or ""
+                    label = row.get("label") or ""
+                    lf = fmt_sec if "sec" in cls else fmt_lbl
+                    ws.write(row_i, 0, label, lf)
+                    col = 1
+                    for cell in row.get("cells") or []:
+                        raw = cell.get("text")
+                        ccls = cell.get("cls") or ""
+                        if "num" in ccls and raw not in (None, "", "-"):
+                            token = str(raw).replace(",", "").replace(" ", "")
+                            negative = token.startswith("(") and token.endswith(")")
+                            if negative:
+                                token = token[1:-1]
+                            try:
+                                num = float(token)
+                                if negative:
+                                    num = -num
+                                if "double" in cls:
+                                    nf = fmt_double
+                                elif "single" in cls:
+                                    nf = fmt_single
+                                else:
+                                    nf = fmt_num
+                                ws.write_number(row_i, col, num, nf)
+                            except (TypeError, ValueError):
+                                ws.write(row_i, col, raw or "", fmt_lbl)
+                        else:
+                            ws.write(row_i, col, "" if raw is None else raw, fmt_lbl)
+                        col += 1
+                    row_i += 1
+                row_i += 1
+                ws.write(row_i, 0, page.get("page") or "", fmt_lbl)
+                row_i += 1
         wb.close()
         data = self._afg_excel_attach_pivot(output.getvalue(), ji_end)
         att = self.env["ir.attachment"].create({
@@ -11952,6 +14939,19 @@ class AuditedFinancialVersion(models.Model):
                 "<th class='%s'>%s</th>" % (esc(h.get("cls") or ""), esc(h.get("label") or ""))
                 for h in (page.get("heads") or [])
             )
+            if page.get("narrative"):
+                paras = "".join("<p class='%s'>%s</p>" % (esc(row.get("cls") or ""), esc(row.get("label") or "")) for row in (page.get("rows") or []) if row.get("label"))
+                blocks.append(
+                    "<div class='page%s'><div class='co'>%s</div><div class='place'>%s</div>"
+                    "<div class='title'>%s</div><div class='period'>%s</div>%s<div class='pg'>%s</div></div>"
+                    % (
+                        "" if i == 0 else " break",
+                        esc(page.get("company")), esc(page.get("place")),
+                        esc(page.get("title")), esc(page.get("period")),
+                        paras, esc(page.get("page")),
+                    )
+                )
+                continue
             body = []
             for row in page.get("rows") or []:
                 cells = "".join(
@@ -11986,7 +14986,8 @@ class AuditedFinancialVersion(models.Model):
             "th { border-bottom: 1px solid #000; text-align: center; }"
             "td.num, th.num { text-align: right; }"
             "td.note, th.note { text-align: center; }"
-            "tr.sec td.lbl { font-weight: bold; text-decoration: underline; }"
+            "tr.sec td.lbl, p.sec { font-weight: bold; }"
+            "p { margin: 6pt 0; }"
             "tr.single td.num { border-top: 1px solid #000; }"
             "tr.double td.num { border-top: 1px solid #000; border-bottom: 3px double #000; }"
             ".page.break { page-break-before: always; }"
@@ -12004,6 +15005,15 @@ class AuditedFinancialVersion(models.Model):
         })
         return {"type": "ir.actions.act_url", "url": "/web/content/%s?download=true" % att.id, "target": "self"}
 
+    def action_export_fta_xlsx(self, max_level=None):
+        """Corporate Tax Filing Excel — the CT grid, not the L1 statutory pack."""
+        self.ensure_one()
+        self._afg_set_print_scope("fta")
+        return self.with_context(
+            afg_print_scope="fta",
+            afg_skip_statutory_face=True,
+        ).action_export_audit_xlsx(max_level)
+
     def action_export_audit_xlsx(self, max_level=None):
         self.ensure_one()
         try:
@@ -12011,7 +15021,10 @@ class AuditedFinancialVersion(models.Model):
         except ImportError:
             raise UserError(_("Excel export requires the xlsxwriter Python package on the server."))
 
-        self._afg_set_print_scope("audit")
+        if self.env.context.get("afg_print_scope") == "fta":
+            self._afg_set_print_scope("fta")
+        else:
+            self._afg_set_print_scope("audit")
         export_pack = self._afg_resolve_export_report_pack(max_level)
         gate = self._afg_assert_l1_print_allowed(export_pack, export_kind="xlsx")
         if gate:
@@ -12020,7 +15033,11 @@ class AuditedFinancialVersion(models.Model):
         doc = self.with_context(
             afg_export_max_level=export_pack,
             afg_years_descending=self._afg_years_descending(),
-            afg_skip_statutory_face=bool(self.env.context.get("afg_return_xlsx_bytes")),
+            afg_skip_statutory_face=bool(
+                self.env.context.get("afg_return_xlsx_bytes")
+                or self.env.context.get("afg_skip_statutory_face")
+                or self._afg_print_scope() == "fta"
+            ),
         )._afg_build_print_chapters()
         # CT master and the older working-paper files keep the previous workbook.
         # Only the Export Audit (Excel) button uses the journal-item statements.
@@ -12526,6 +15543,7 @@ class AuditedFinancialVersion(models.Model):
 
     def action_export_audit_docx(self, max_level=None):
         self.ensure_one()
+        self._afg_store_print_financials_flag()
         self._afg_set_print_scope("audit")
         export_pack = self._afg_resolve_export_report_pack(max_level)
         gate = self._afg_assert_l1_print_allowed(export_pack, export_kind="docx")

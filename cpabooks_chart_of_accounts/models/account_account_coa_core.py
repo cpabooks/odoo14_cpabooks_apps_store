@@ -76,16 +76,18 @@ class Account(models.Model):
         )
 
     def _get_duplicate_code_records(self):
-        self.env.cr.execute("""
-            SELECT array_agg(id ORDER BY company_id, code, id)
-            FROM account_account
-            WHERE code IS NOT NULL AND code != '' AND company_id IS NOT NULL
-            GROUP BY company_id, code
-            HAVING count(*) > 1
-        """)
+        # Odoo 18+: code is company dependent (code_store jsonb), group in Python
+        seen = {}
+        accounts = self.sudo().with_context(active_test=False).search([])
+        for company in accounts.mapped('company_ids'):
+            for account in accounts.filtered(lambda a: company in a.company_ids).with_company(company):
+                code = (account.code or '').strip()
+                if code:
+                    seen.setdefault((company.id, code), []).append(account.id)
         duplicate_ids = []
-        for row in self.env.cr.fetchall():
-            duplicate_ids.extend(row[0] or [])
+        for ids in seen.values():
+            if len(ids) > 1:
+                duplicate_ids.extend(sorted(ids))
         return self.browse(duplicate_ids)
 
     def _generate_unique_duplicate_code(self, account, sequence):
@@ -1185,26 +1187,17 @@ class Account(models.Model):
     def _cpabooks_scrub_dangling_account_refs(self, company=None):
         """Clear leftover M2O / property pointers after accounts were deleted."""
         cr = self.env.cr
-        # ir.property → account.account,ID
-        cr.execute(
-            """
-            UPDATE ir_property
-               SET value_reference = NULL
-             WHERE value_reference LIKE 'account.account,%%'
-               AND split_part(value_reference, ',', 2) ~ '^[0-9]+$'
-               AND split_part(value_reference, ',', 2)::int
-                   NOT IN (SELECT id FROM account_account)
-            """
-        )
-        cr.execute(
-            """
-            DELETE FROM ir_property
-             WHERE res_id LIKE 'account.account,%%'
-               AND split_part(res_id, ',', 2) ~ '^[0-9]+$'
-               AND split_part(res_id, ',', 2)::int
-                   NOT IN (SELECT id FROM account_account)
-            """
-        )
+        # Odoo 18+: company-dependent account values (jsonb) pointing to deleted accounts
+        from .account_jsonb_property import company_dependent_account_columns, reassign_company_dependent_accounts
+        existing = set(self.sudo().with_context(active_test=False).search([]).ids)
+        dangling = set()
+        for table, column in company_dependent_account_columns(self.env):
+            cr.execute(
+                f'SELECT DISTINCT (e.value #>> \'{{}}\')::int FROM "{table}" t, jsonb_each(t."{column}") e '
+                f'WHERE t."{column}" IS NOT NULL AND jsonb_typeof(e.value) = \'number\''
+            )
+            dangling |= {row[0] for row in cr.fetchall()} - existing
+        reassign_company_dependent_accounts(self.env, list(dangling))
         # AFG mapping orphans (if FK did not cascade)
         cr.execute(
             """
@@ -1244,32 +1237,7 @@ class Account(models.Model):
 
     @api.model
     def _cpabooks_recompute_account_roots(self, company=None):
-        """Refresh stored account.root_id so Chart of Accounts searchpanel never hits Missing Record.
-
-        ``account.root`` is a SQL view derived from current codes. After Factory Reset / code
-        changes, stale root_id values (e.g. 50048) remain on account.account while the view
-        row is gone → Missing Record account.root(…).
-        """
-        cr = self.env.cr
-        domain_sql = ""
-        params = []
-        if company:
-            domain_sql = " AND company_id = %s"
-            params.append(company.id)
-        # Match account.account._compute_account_root: ASCII(c0)*1000 + ASCII(c1 or \\x00)
-        cr.execute(
-            """
-            UPDATE account_account
-               SET root_id = CASE
-                    WHEN code IS NULL OR code = '' THEN NULL
-                    WHEN length(code) = 1 THEN ascii(substr(code, 1, 1)) * 1000
-                    ELSE ascii(substr(code, 1, 1)) * 1000 + ascii(substr(code, 2, 1))
-               END
-             WHERE TRUE
-            """ + domain_sql,
-            params or None,
-        )
-        self.invalidate_model(['root_id'])
+        """Odoo 19: account.root_id is computed on the fly from the code (not stored)."""
         return True
 
     @api.model
@@ -1324,7 +1292,7 @@ class Account(models.Model):
     @api.model
     def _cpabooks_unaffected_earnings_type(self):
         """Odoo TB/GL requires at least one Current Year Earnings account per company."""
-        ue_type = self.env.ref('account.data_unaffected_earnings', raise_if_not_found=False)
+        ue_type = self.env.ref('cpabooks_account_compat.data_unaffected_earnings', raise_if_not_found=False)
         if ue_type:
             return ue_type
         return self.env['account.account.type'].sudo().search([
@@ -1352,15 +1320,13 @@ class Account(models.Model):
         existing = Account.search([
             ('company_id', '=', company.id),
             ('user_type_id', '=', ue_type.id),
-            ('deprecated', '=', False),
-        ], limit=1)
+            ], limit=1)
         if existing:
             return existing
 
         # Prefer CPABooks seeded / renamed Undistributed Profits ledger
         candidates = Account.search([
-            ('company_id', '=', company.id),
-            ('deprecated', '=', False),
+            ('company_ids', 'in', company.id),
             '|', '|', '|',
             ('identity_code', '=', '999999'),
             ('cpabooks_default_seed_key', '=', 'qid:65'),
@@ -2068,16 +2034,6 @@ class Account(models.Model):
 
     def action_show_code_true(self):
         self.env['account.account'].sudo().search([]).is_show_code = True
-
-    def name_get(self):
-        result = []
-        for rec in self:
-            if rec.is_show_code:
-                result.append((rec.id, '%s - %s' % (rec.code, rec.name)))
-
-            else:
-                result.append((rec.id, '%s' % (rec.name)))
-        return result
 
     def action_update_selected(self):
         csv_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'coa_seed', 'account_group_type.csv'))

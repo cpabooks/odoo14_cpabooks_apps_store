@@ -1,97 +1,83 @@
-odoo.define("cafm_cpa.ui_theme", function (require) {
-    "use strict";
+/** @odoo-module **/
+/** CAFM UI theme (Default / Dark), kept in the browser (localStorage). */
+const $ = window.jQuery;
 
-    var THEME_KEY = "cpa_cafm_ui_theme";
-    var LEGACY_KEY = "cpa_cafm_dashboard_theme";
-    var LAYOUT_KEY = "cpa_cafm_nav_layout";
-    var NAV_CLASS = "o_cpa_cafm_navbar_theme";
+export const THEME_KEY = "cpa_cafm_ui_theme";
+const LEGACY_KEY = "cpa_cafm_dashboard_theme";
+export const LAYOUT_KEY = "cpa_cafm_nav_layout";
+const NAV_CLASS = "o_cpa_cafm_navbar_theme";
 
-    function readTheme() {
-        try {
-            var session = require("web.session");
-            if (session.cpabooks_leftsidebar_enabled) {
-                return session.cpabooks_leftsidebar_color_mode === "dark" ? "dark" : "default";
-            }
-        } catch (sessErr) { /* ignore */ }
-        try {
-            var t = window.localStorage.getItem(THEME_KEY);
-            if (t === "dark" || t === "default") {
-                return t;
-            }
-            t = window.localStorage.getItem(LEGACY_KEY);
-            if (t === "dark" || t === "default") {
-                window.localStorage.setItem(THEME_KEY, t);
-                return t;
-            }
-        } catch (e) { /* ignore */ }
-        return "default";
-    }
-
-    function readLayout() {
-        try {
-            var session = require("web.session");
-            if (session.cpabooks_leftsidebar_nav_layout === "topbar" ||
-                    session.cpabooks_leftsidebar_nav_layout === "sidebar") {
-                return session.cpabooks_leftsidebar_nav_layout;
-            }
-        } catch (e) { /* ignore */ }
-        return "topbar";
-    }
-
-    function setLayout(layout) {
-        try {
-            var nav = require("cpabooks_leftsidebar_view.shell");
-            if (nav && nav.requestSyncSidebar) {
-                nav.requestSyncSidebar(true);
-            }
-        } catch (e) { /* ignore */ }
-        return layout === "sidebar" ? "sidebar" : "topbar";
-    }
-
-    function applyUiTheme(theme) {
-        theme = theme === "dark" ? "dark" : "default";
-        var body = document.body;
-        if (!body) {
-            return theme;
+export function readTheme() {
+    try {
+        let t = window.localStorage.getItem(THEME_KEY);
+        if (t === "dark" || t === "default") {
+            return t;
         }
-        body.classList.remove("o_cafm_ui_default", "o_cafm_ui_dark");
-        body.classList.add(theme === "dark" ? "o_cafm_ui_dark" : "o_cafm_ui_default");
-        try {
-            window.localStorage.setItem(THEME_KEY, theme);
-            window.localStorage.setItem(LEGACY_KEY, theme);
-        } catch (e) { /* ignore */ }
-
-        var $root = $(".cfd_root, .o_cfd_dashboard_main");
-        if ($root.length) {
-            $root.removeClass("cpa-cafm-theme-default cpa-cafm-theme-dark")
-                .addClass(theme === "dark" ? "cpa-cafm-theme-dark" : "cpa-cafm-theme-default");
+        t = window.localStorage.getItem(LEGACY_KEY);
+        if (t === "dark" || t === "default") {
+            window.localStorage.setItem(THEME_KEY, t);
+            return t;
         }
+    } catch {
+        // ignore
+    }
+    return "default";
+}
+
+export function readLayout() {
+    try {
+        const layout = window.localStorage.getItem(LAYOUT_KEY);
+        if (layout === "topbar" || layout === "sidebar") {
+            return layout;
+        }
+    } catch {
+        // ignore
+    }
+    return "topbar";
+}
+
+export function setLayout(layout) {
+    const value = layout === "sidebar" ? "sidebar" : "topbar";
+    try {
+        window.localStorage.setItem(LAYOUT_KEY, value);
+    } catch {
+        // ignore
+    }
+    return value;
+}
+
+export function applyUiTheme(theme) {
+    theme = theme === "dark" ? "dark" : "default";
+    const body = document.body;
+    if (!body) {
         return theme;
     }
-
-    function injectNavbarThemeToggle() {
-        // Navbar Dark/Default moved to cpabooks_leftsidebar_view control-panel buttons.
-        $(".o_main_navbar ." + NAV_CLASS).remove();
+    body.classList.remove("o_cafm_ui_default", "o_cafm_ui_dark");
+    body.classList.add(theme === "dark" ? "o_cafm_ui_dark" : "o_cafm_ui_default");
+    try {
+        window.localStorage.setItem(THEME_KEY, theme);
+        window.localStorage.setItem(LEGACY_KEY, theme);
+    } catch {
+        // ignore
     }
-
-    function syncNavbarToggleState() {
-        return readTheme();
+    const $root = $(".cfd_root, .o_cfd_dashboard_main");
+    if ($root.length) {
+        $root
+            .removeClass("cpa-cafm-theme-default cpa-cafm-theme-dark")
+            .addClass(theme === "dark" ? "cpa-cafm-theme-dark" : "cpa-cafm-theme-default");
     }
+    return theme;
+}
 
-    function syncShellTheme() {
-        injectNavbarThemeToggle();
-        return applyUiTheme(readTheme());
-    }
+export function injectNavbarThemeToggle() {
+    $(".o_main_navbar ." + NAV_CLASS).remove();
+}
 
-    return {
-        THEME_KEY: THEME_KEY,
-        LAYOUT_KEY: LAYOUT_KEY,
-        readTheme: readTheme,
-        readLayout: readLayout,
-        setLayout: setLayout,
-        applyUiTheme: applyUiTheme,
-        injectNavbarThemeToggle: injectNavbarThemeToggle,
-        syncShellTheme: syncShellTheme,
-        syncNavbarToggleState: syncNavbarToggleState,
-    };
-});
+export function syncNavbarToggleState() {
+    return readTheme();
+}
+
+export function syncShellTheme() {
+    injectNavbarThemeToggle();
+    return applyUiTheme(readTheme());
+}

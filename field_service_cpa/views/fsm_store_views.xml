@@ -149,7 +149,7 @@
         <field name="name">stock.move.tree.fsm.store.material.issued</field>
         <field name="model">stock.move</field>
         <field name="arch" type="xml">
-            <list string="Material Issued" create="0" delete="0" decoration-muted="scrapped == True or state == 'cancel'">
+            <list string="Material Issued" create="0" delete="0" decoration-muted="state == 'cancel'">
                 <field name="company_id" invisible="1"/>
                 <field name="state" invisible="1"/>
                 <field name="picking_code" invisible="1"/>
@@ -165,8 +165,6 @@
                 <field name="product_uom_qty" string="Demand"/>
                 <field name="quantity" string="Done"/>
                 <field name="product_uom" string="Unit of Measure" groups="uom.group_uom" options="{'no_open': True, 'no_create': True}"/>
-                <field name="rate" optional="hide"/>
-                <field name="amount" optional="hide"/>
                 <!-- Tree RelaxNG allows no width/options on buttons (unlike embedded picking trees). -->
                 <button name="action_show_details" type="object" icon="fa-list" invisible="not show_details_visible"/>
             </list>

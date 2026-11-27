@@ -3,7 +3,7 @@ import re
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.osv import expression
+from odoo.fields import Domain
 from odoo.tools.sql import column_exists, create_column
 
 from .audited_financials_presets import _account_match_code
@@ -43,6 +43,30 @@ CTF_CATEGORY_SELECTION = [
     ("other_equity", "Other equity"),
 ]
 
+# Odoo 19 account types (selection) mirrored as records so AFG can still
+# store a CT Filing / AFG group on a type. Community has no account.account.type.
+AFG_ACCOUNT_TYPES = (
+    # code, name, internal_group, legacy type, include_initial_balance
+    ("asset_receivable", "Receivable", "asset", "receivable", True),
+    ("asset_cash", "Bank and Cash", "asset", "liquidity", True),
+    ("asset_current", "Current Assets", "asset", "other", True),
+    ("asset_non_current", "Non-current Assets", "asset", "other", True),
+    ("asset_prepayments", "Prepayments", "asset", "other", True),
+    ("asset_fixed", "Fixed Assets", "asset", "other", True),
+    ("liability_payable", "Payable", "liability", "payable", True),
+    ("liability_credit_card", "Credit Card", "liability", "other", True),
+    ("liability_current", "Current Liabilities", "liability", "other", True),
+    ("liability_non_current", "Non-current Liabilities", "liability", "other", True),
+    ("equity", "Equity", "equity", "other", True),
+    ("equity_unaffected", "Current Year Earnings", "equity", "other", True),
+    ("income", "Income", "income", "other", False),
+    ("income_other", "Other Income", "income", "other", False),
+    ("expense", "Expenses", "expense", "other", False),
+    ("expense_depreciation", "Depreciation", "expense", "other", False),
+    ("expense_direct_cost", "Cost of Revenue", "expense", "other", False),
+    ("off_balance", "Off-Balance Sheet", "off", "other", False),
+)
+
 
 class AccountAccount(models.Model):
     _inherit = "account.account"
@@ -64,6 +88,33 @@ class AccountAccount(models.Model):
         help="Corporate Tax Filing (FTA) category for this ledger. "
              "Used on Audited Financials → CORPORATE TAX FILING- FTA.",
     )
+    afg_sync_same_name = fields.Boolean(
+        string="All companies",
+        default=True,
+        help="Ticked: saving this ledger also updates the same ledger in every "
+             "other company (name, account group, AFG, CTFG, account type). "
+             "Unticked: this company only.",
+    )
+    # company_id / user_type_id / deprecated come from cpabooks_account_compat.
+
+    # group_id is stored (cpabooks_account_compat), so it is searched in SQL.
+
+    def _search_afg_group_id(self, operator, value):
+        if operator not in ("=", "!=", "in", "not in"):
+            raise UserError("Unsupported operator %s on account group." % operator)
+        if hasattr(value, "ids"):
+            values = list(value.ids) or [False]
+        elif value is None or isinstance(value, (bool, int, str)):
+            values = [value]
+        else:
+            values = list(value)
+        group_ids = {int(v) for v in values if v}
+        want_empty = any(not v for v in values)
+        accounts = self.with_context(active_test=False, afg_unique_ledgers=False).search([])
+        matched = accounts.filtered(
+            lambda a: (a.group_id.id in group_ids) if a.group_id else want_empty
+        )
+        return [("id", "in" if operator in ("=", "in") else "not in", matched.ids)]
 
     def _auto_init(self):
         cr = self.env.cr
@@ -71,6 +122,11 @@ class AccountAccount(models.Model):
             create_column(cr, "account_account", "ctf_category", "varchar")
         if not column_exists(cr, "account_account", "afg_group_id"):
             create_column(cr, "account_account", "afg_group_id", "int4")
+        if not column_exists(cr, "account_account", "afg_sync_same_name"):
+            create_column(cr, "account_account", "afg_sync_same_name", "boolean")
+            cr.execute(
+                "UPDATE account_account SET afg_sync_same_name = TRUE WHERE afg_sync_same_name IS NULL"
+            )
         return super()._auto_init()
 
     def _afg_mapping_lines(self):
@@ -89,11 +145,18 @@ class AccountAccount(models.Model):
         grp = Group.search([("code", "=", code), ("company_id", "=", False)], limit=1)
         return grp or Group.search([("code", "=", code)], limit=1)
 
-    def _compute_afg_group_id(self):
+    def _afg_real_group_lines(self, accounts):
         Line = self.env["audited.financial.group.line"].with_context(afg_skip_collapse=True)
+        if not accounts:
+            return Line.browse()
+        lines = Line.search([("account_id", "in", accounts.ids)])
+        return lines.filtered(lambda l: (l.group_id.code or "") not in _AFG_UNGRP_CODES)
+
+    def _compute_afg_group_id(self):
         for acc in self:
-            lines = Line.search([("account_id", "=", acc.id)])
-            real = lines.filtered(lambda l: (l.group_id.code or "") not in _AFG_UNGRP_CODES)
+            real = acc._afg_real_group_lines(acc)
+            if not real and acc.afg_sync_same_name:
+                real = acc._afg_real_group_lines(acc._afg_same_name_peers())
             if real:
                 acc.afg_group_id = real[0].group_id
             else:
@@ -104,23 +167,197 @@ class AccountAccount(models.Model):
         Version = self.env["audited.financial.version"]
         Account = self.env["account.account"]
         for acc in self:
-            key = Version._afg_pl_unique_ledger_key(acc)
             peers = acc
-            if key:
-                cids = list(self.env.context.get("allowed_company_ids") or [])
-                if not cids:
-                    cids = list(self.env.companies.ids or [])
-                if acc.company_id:
-                    cids = list(set(cids) | {acc.company_id.id})
-                domain = [("company_id", "in", cids)] if cids else []
-                for other in Account.search(domain):
-                    if Version._afg_pl_unique_ledger_key(other) == key:
-                        peers |= other
+            if acc.afg_sync_same_name and not self.env.context.get("afg_skip_same_name_sync"):
+                peers |= acc._afg_same_name_peers()
             Line.search([("account_id", "in", peers.ids)]).unlink()
             grp = acc.afg_group_id
             if grp:
-                grp._afg_add_unique_accounts(peers)
+                for peer in peers:
+                    Line.create({"group_id": grp.id, "account_id": peer.id})
         Version._afg_rebuild_after_coa_map(self)
+
+
+    def _afg_same_name_peers(self):
+        """Other companies' ledgers with this same unique ledger name."""
+        self.ensure_one()
+        Version = self.env["audited.financial.version"]
+        key = Version._afg_pl_unique_ledger_key(self)
+        if not key:
+            return self.browse()
+        Account = self.env["account.account"].sudo()
+        peers = Account.browse()
+        for other in Account.search([("id", "!=", self.id), ("name", "ilike", key)]):
+            if Version._afg_pl_unique_ledger_key(other) == key:
+                peers |= other
+        return peers
+
+    def _afg_group_for_company(self, group, company):
+        if not group:
+            return False
+        if not company or not group.company_id or group.company_id.id == company.id:
+            return group.id
+        Group = self.env["account.group"].sudo()
+        found = Group.search([
+            ("company_id", "=", company.id),
+            ("name", "=", group.name),
+        ], limit=1)
+        if not found and group.code_prefix_start:
+            found = Group.search([
+                ("company_id", "=", company.id),
+                ("code_prefix_start", "=", group.code_prefix_start),
+            ], limit=1)
+        return found.id or False
+
+    def _cpa_type_ctf_category(self, user_type):
+        """CT Filing category stored on the account type. Empty when the type has no CTF."""
+        group = user_type.ctf_group_id if user_type else False
+        if not group:
+            return False
+        return group.ctf_category or False
+
+    def _cpa_group_ctf_category(self, account_group):
+        group = account_group.ctf_group_id if account_group else False
+        if not group:
+            return False
+        return group.ctf_category or False
+
+    def _cpa_forced_ctf_category(self, user_type, account_group):
+        """Type CTF wins. Account group CTF applies when the type has none."""
+        return self._cpa_type_ctf_category(user_type) or self._cpa_group_ctf_category(account_group)
+
+    @api.model
+    def _cpa_apply_saved_ctf(self):
+        """Copy CTF already saved on types and account groups onto their ledgers.
+
+        Account group first, then type, so a type allocation replaces the group.
+        """
+        # group_id is computed from the code prefix in Odoo 19 (not a column).
+        Account = self.sudo().with_context(active_test=False, afg_skip_same_name_sync=True, cpa_skip_type_ctf=True)
+        for acc in Account.search([]):
+            cat = acc._cpa_group_ctf_category(acc.group_id)
+            if cat and acc.ctf_category != cat:
+                acc.write({"ctf_category": cat})
+        cr = self.env.cr
+        cr.execute(
+            """
+            UPDATE account_group ag
+               SET ctf_category = cg.ctf_category
+              FROM audited_financial_ctf_group cg
+             WHERE cg.id = ag.ctf_group_id
+               AND cg.ctf_category IS NOT NULL
+               AND ag.ctf_category IS DISTINCT FROM cg.ctf_category
+            """
+        )
+        cr.execute(
+            """
+            UPDATE account_account aa
+               SET ctf_category = cg.ctf_category
+              FROM account_account_type t
+              JOIN audited_financial_ctf_group cg ON cg.id = t.ctf_group_id
+             WHERE aa.user_type_id = t.id
+               AND cg.ctf_category IS NOT NULL
+               AND aa.ctf_category IS DISTINCT FROM cg.ctf_category
+            """
+        )
+        cr.execute(
+            """
+            UPDATE account_account_type t
+               SET ctf_category = cg.ctf_category
+              FROM audited_financial_ctf_group cg
+             WHERE cg.id = t.ctf_group_id
+               AND cg.ctf_category IS NOT NULL
+               AND t.ctf_category IS DISTINCT FROM cg.ctf_category
+            """
+        )
+        self.invalidate_recordset(fnames=["ctf_category"])
+        return True
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        Type = self.env["account.account.type"]
+        Type._afg_ensure_standard_types()
+        prepared = []
+        for vals in vals_list:
+            vals = dict(vals)
+            # Odoo 19 derives account.group from the code prefix.
+            vals.pop("group_id", None)
+            type_id = vals.get("user_type_id")
+            if type_id:
+                user_type = Type.browse(type_id)
+                if user_type.code and not vals.get("account_type"):
+                    vals["account_type"] = user_type.code
+                if user_type.afg_group_id and not vals.get("afg_group_id"):
+                    vals["afg_group_id"] = user_type.afg_group_id.id
+            prepared.append(vals)
+        return super().create(prepared)
+
+    def write(self, vals):
+        vals = dict(vals)
+        vals.pop("group_id", None)
+        # A type that already has an AFG covers every ledger moved onto that type.
+        if vals.get("user_type_id") and "afg_group_id" not in vals:
+            user_type = self.env["account.account.type"].browse(vals["user_type_id"])
+            if user_type.afg_group_id:
+                vals = dict(vals, afg_group_id=user_type.afg_group_id.id)
+        # Type CTF wins. If the type has none, the account group CTF wins.
+        # Only when type or group changed. Every other save was rewriting CTF
+        # and copying it to the same ledger in every company.
+        if (
+            not self.env.context.get("cpa_skip_type_ctf")
+            and self
+            and {"user_type_id", "group_id"} & set(vals)
+        ):
+            Type = self.env["account.account.type"]
+            Group = self.env["account.group"]
+            buckets = {}
+            free = self.browse()
+            for acc in self:
+                if "user_type_id" in vals:
+                    ut = Type.browse(vals["user_type_id"]) if vals.get("user_type_id") else Type
+                else:
+                    ut = acc.user_type_id
+                if "group_id" in vals:
+                    ag = Group.browse(vals["group_id"]) if vals.get("group_id") else Group
+                else:
+                    ag = acc.group_id
+                cat = acc._cpa_forced_ctf_category(ut, ag)
+                if cat:
+                    buckets.setdefault(cat, self.browse())
+                    buckets[cat] |= acc
+                else:
+                    free |= acc
+            if buckets:
+                res = True
+                if free:
+                    res = free.with_context(cpa_skip_type_ctf=True).write(vals) and res
+                for cat, accs in buckets.items():
+                    payload = dict(vals)
+                    payload["ctf_category"] = cat
+                    res = accs.with_context(cpa_skip_type_ctf=True).write(payload) and res
+                return res
+        sync_keys = {"ctf_category", "group_id", "user_type_id"} & set(vals)
+        res = super(AccountAccount, self).write(vals)
+        if not sync_keys or self.env.context.get("afg_skip_same_name_sync"):
+            return res
+        for acc in self:
+            if not acc.afg_sync_same_name:
+                continue
+            peers = acc._afg_same_name_peers()
+            if not peers:
+                continue
+            for peer in peers:
+                payload = {}
+                if "ctf_category" in vals:
+                    payload["ctf_category"] = vals["ctf_category"]
+                if "user_type_id" in vals:
+                    payload["user_type_id"] = vals["user_type_id"]
+                if "group_id" in vals:
+                    grp = self.env["account.group"].browse(vals["group_id"]) if vals["group_id"] else False
+                    payload["group_id"] = acc._afg_group_for_company(grp, peer.company_id)
+                if payload:
+                    peer.sudo().with_context(afg_skip_same_name_sync=True).write(payload)
+        return res
 
     def _afg_dedupe_unique_ledgers(self):
         """One CoA row per unique ledger name; prefer the current company."""
@@ -137,17 +374,20 @@ class AccountAccount(models.Model):
                 by_key[key] = acc
         return self.browse([a.id for a in by_key.values()])
 
-    def name_get(self):
-        if self.env.context.get("afg_unique_ledgers"):
-            Version = self.env["audited.financial.version"]
-            res = []
-            for a in self:
-                label = (a.name or "").strip()
-                label = re.sub(r"^\s*[\d][\w./-]*\s*\|\s*", "", label)
-                label = label or Version._afg_pl_unique_ledger_key(a) or a.code or str(a.id)
-                res.append((a.id, label))
-            return res
-        return [(rec.id, rec.display_name) for rec in super()]
+    def _afg_unique_ledger_label(self):
+        self.ensure_one()
+        Version = self.env["audited.financial.version"]
+        label = (self.name or "").strip()
+        label = re.sub(r"^\s*[\d][\w./-]*\s*\|\s*", "", label)
+        return label or Version._afg_pl_unique_ledger_key(self) or self.code or str(self.id)
+
+    @api.depends("name", "code")
+    @api.depends_context("afg_unique_ledgers")
+    def _compute_display_name(self):
+        if not self.env.context.get("afg_unique_ledgers"):
+            return super()._compute_display_name()
+        for acc in self:
+            acc.display_name = acc._afg_unique_ledger_label()
 
     def _afg_map_company_domain(self):
         # Switcher cids only. Never fall back to user.company_ids (all companies).
@@ -160,35 +400,24 @@ class AccountAccount(models.Model):
         return []
 
     @api.model
-    def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
-        args = list(args or [])
-        if self.env.context.get("afg_map_list"):
-            extra = self._afg_map_company_domain()
-            if extra:
-                args = expression.AND([args, extra])
-        return super(AccountAccount, self)._search(
-            args, offset=offset, limit=limit, order=order, count=count,
-            access_rights_uid=access_rights_uid,
-        )
-
-    @api.model
-    def read_group(self, domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True):
+    def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
         domain = list(domain or [])
         if self.env.context.get("afg_map_list"):
             extra = self._afg_map_company_domain()
             if extra:
-                domain = expression.AND([domain, extra])
-        return super(AccountAccount, self).read_group(
-            domain, fields, groupby, offset=offset, limit=limit, orderby=orderby, lazy=lazy
+                domain = Domain.AND([domain, extra])
+        return super()._search(
+            domain, offset=offset, limit=limit, order=order,
+            active_test=active_test, bypass_access=bypass_access,
         )
 
     @api.model
-    def search(self, args, offset=0, limit=None, order=None, count=False):
-        args = list(args or [])
-        if not self.env.context.get("afg_unique_ledgers") or count:
-            return super().search(args, offset=offset, limit=limit, order=order, count=count)
+    def search(self, domain, offset=0, limit=None, order=None):
+        domain = list(domain or [])
+        if not self.env.context.get("afg_unique_ledgers"):
+            return super().search(domain, offset=offset, limit=limit, order=order)
         recs = super(AccountAccount, self.with_context(afg_unique_ledgers=False)).search(
-            args, offset=0, limit=None, order=order, count=False
+            domain, offset=0, limit=None, order=order
         )
         recs = recs._afg_dedupe_unique_ledgers()
         if offset:
@@ -199,10 +428,9 @@ class AccountAccount(models.Model):
 
     @api.model
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        args = domain
         if not self.env.context.get("afg_unique_ledgers"):
-            return super().name_search(name=name, domain=args, operator=operator, limit=limit)
-        args = list(args or [])
+            return super().name_search(name=name, domain=domain, operator=operator, limit=limit)
+        args = list(domain or [])
         if name:
             args = ["|", ("name", operator, name), ("code", operator, name)] + args
         recs = super(AccountAccount, self.with_context(afg_unique_ledgers=False)).search(
@@ -211,7 +439,7 @@ class AccountAccount(models.Model):
         recs = recs._afg_dedupe_unique_ledgers()
         if limit:
             recs = recs[: int(limit)]
-        return [(rec.id, rec.display_name) for rec in recs]
+        return [(a.id, a._afg_unique_ledger_label()) for a in recs]
 
     def action_remove_from_ctf(self):
         self.write({"ctf_category": False})
@@ -320,9 +548,279 @@ class AccountAccount(models.Model):
             "target": "new",
         }
 
+    def _cpa_reset_ledger_buckets(self):
+        """All ledgers grouped by the same unique ledger name."""
+        Version = self.env["audited.financial.version"]
+        buckets = {}
+        for acc in self.sudo().search([]):
+            key = Version._afg_pl_unique_ledger_key(acc) or ("id:%s" % acc.id)
+            buckets.setdefault(key, []).append(acc)
+        return buckets
+
+    def _cpa_reset_majority(self, values):
+        counts = {}
+        for value in values:
+            counts[value] = counts.get(value, 0) + 1
+        return max(counts, key=lambda value: (counts[value], -int(value) if str(value).isdigit() else 0))
+
+    def action_cpa_reset_afg(self):
+        """Copy an existing AFG group onto every company with the same ledger name."""
+        ungrouped = {"AFG_UNGRP_PL", "AFG_UNGRP_BS"}
+        Line = self.env["audited.financial.group.line"].sudo().with_context(
+            afg_skip_collapse=True
+        )
+        updated = 0
+        for recs in self._cpa_reset_ledger_buckets().values():
+            donors = [
+                acc for acc in recs
+                if acc.afg_group_id and (acc.afg_group_id.code or "") not in ungrouped
+            ]
+            if not donors:
+                continue
+            group_id = self._cpa_reset_majority([acc.afg_group_id.id for acc in donors])
+            missing_line = not Line.search_count([
+                ("account_id", "in", [acc.id for acc in recs]),
+                ("group_id", "=", group_id),
+            ])
+            if missing_line:
+                Line.create({
+                    "group_id": group_id,
+                    "account_id": donors[0].id,
+                })
+            for acc in recs:
+                if acc.afg_group_id.id == group_id:
+                    continue
+                self.env.cr.execute(
+                    "UPDATE account_account SET afg_group_id = %s WHERE id = %s",
+                    (group_id, acc.id),
+                )
+                updated += 1
+        if updated:
+            self.invalidate_recordset(fnames=["afg_group_id"])
+        return True
+
+    def action_cpa_reset_ctf(self):
+        """Copy an existing CT Filing category onto every company with the same ledger name."""
+        updated = 0
+        for recs in self._cpa_reset_ledger_buckets().values():
+            categories = [acc.ctf_category for acc in recs if acc.ctf_category]
+            if not categories:
+                continue
+            category = self._cpa_reset_majority(categories)
+            ids = [acc.id for acc in recs if acc.ctf_category != category]
+            if not ids:
+                continue
+            self.browse(ids).with_context(afg_skip_same_name_sync=True).write({
+                "ctf_category": category,
+            })
+            updated += len(ids)
+        return True
+
 
 class AccountGroup(models.Model):
     _inherit = "account.group"
+
+    afg_group_id = fields.Many2one(
+        "audited.financial.group",
+        string="AFG",
+        domain="[('code', 'not in', ['AFG_UNGRP_PL', 'AFG_UNGRP_BS']),"
+               " '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        help="Sets this Audited Financial group on every ledger in this account group.",
+    )
+    ctf_group_id = fields.Many2one(
+        "audited.financial.ctf.group",
+        string="CTF",
+        domain="[('allocate', '=', True)]",
+        help="Sets this CT Filing group on every ledger in this account group.",
+    )
+    ctf_category = fields.Selection(
+        CTF_CATEGORY_SELECTION,
+        string="CTF category",
+    )
+    cpabooks_all_companies = fields.Boolean(
+        string="All companies",
+        default=True,
+        help="Ticked: saving this account group also updates the same group "
+             "in every other company (name, AFG, CTFG). Unticked: this company only.",
+    )
+
+    def _auto_init(self):
+        cr = self.env.cr
+        if not column_exists(cr, "account_group", "afg_group_id"):
+            create_column(cr, "account_group", "afg_group_id", "int4")
+        if not column_exists(cr, "account_group", "ctf_group_id"):
+            create_column(cr, "account_group", "ctf_group_id", "int4")
+        if not column_exists(cr, "account_group", "ctf_category"):
+            create_column(cr, "account_group", "ctf_category", "varchar")
+        if not column_exists(cr, "account_group", "cpabooks_all_companies"):
+            create_column(cr, "account_group", "cpabooks_all_companies", "bool")
+            cr.execute(
+                """
+                UPDATE account_group
+                   SET cpabooks_all_companies = TRUE
+                 WHERE cpabooks_all_companies IS NULL
+                """
+            )
+        return super()._auto_init()
+
+    def write(self, vals):
+        old_keys = {
+            group.id: (group.name, group.code_prefix_start, group.company_id.id)
+            for group in self
+        }
+        res = super().write(vals)
+        if self.env.context.get("cpa_skip_group_push"):
+            if not self.env.context.get("cpa_skip_group_cross_company"):
+                self._cpa_share_group_to_other_companies(vals, old_keys)
+            return res
+        if "afg_group_id" in vals or "ctf_category" in vals or "ctf_group_id" in vals:
+            self._cpa_push_afg_ctf_to_ledgers(vals)
+        if not self.env.context.get("cpa_skip_group_cross_company"):
+            self._cpa_share_group_to_other_companies(vals, old_keys)
+        return res
+
+    def _cpa_group_applies_to_all_companies(self, vals):
+        self.ensure_one()
+        if "cpabooks_all_companies" in vals:
+            return bool(vals.get("cpabooks_all_companies"))
+        if "cpabooks_all_companies" in self._fields:
+            return bool(self.cpabooks_all_companies)
+        return True
+
+    def _cpa_afg_id_for_company(self, afg, company):
+        if not afg:
+            return False
+        if not afg.company_id or not company or afg.company_id.id == company.id:
+            return afg.id
+        Group = afg.sudo()
+        shared = Group.search([
+            ("code", "=", afg.code),
+            ("company_id", "=", False),
+        ], limit=1)
+        if shared:
+            return shared.id
+        own = Group.search([
+            ("code", "=", afg.code),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        return own.id or False
+
+    def _cpa_share_group_to_other_companies(self, vals, old_keys):
+        """All companies ticked: same account group name gets this AFG, CTFG, and name."""
+        share_keys = (
+            "name", "code_prefix_start", "code_prefix_end",
+            "afg_group_id", "ctf_group_id", "ctf_category",
+        )
+        if not any(key in vals for key in share_keys):
+            return
+        Group = self.with_context(cpabooks_group_all_companies=True).sudo()
+        for group in self:
+            if not group._cpa_group_applies_to_all_companies(vals):
+                continue
+            old_name, old_prefix, company_id = old_keys.get(
+                group.id, (group.name, group.code_prefix_start, group.company_id.id),
+            )
+            if not old_prefix or not old_name:
+                continue
+            siblings = Group.search([
+                ("id", "!=", group.id),
+                ("company_id", "!=", company_id),
+                ("code_prefix_start", "=", old_prefix),
+                ("name", "=", old_name),
+            ])
+            for sibling in siblings:
+                if (
+                    "cpabooks_all_companies" in sibling._fields
+                    and not sibling.cpabooks_all_companies
+                ):
+                    continue
+                payload = {}
+                for key in share_keys:
+                    if key not in vals or key not in sibling._fields:
+                        continue
+                    if key == "afg_group_id":
+                        afg = group.afg_group_id
+                        payload[key] = group._cpa_afg_id_for_company(afg, sibling.company_id)
+                    else:
+                        payload[key] = vals.get(key)
+                if payload:
+                    sibling.with_context(cpa_skip_group_cross_company=True).write(payload)
+
+    @api.model
+    def _cpa_fill_blank_shared_afg(self):
+        """Copy AFG and CTFG onto the same account group where another company already has them."""
+        Group = self.with_context(cpabooks_group_all_companies=True).sudo()
+        blanks = Group.search([
+            ("afg_group_id", "=", False),
+            ("code_prefix_start", "!=", False),
+            ("name", "!=", False),
+        ])
+        for blank in blanks:
+            if (
+                "cpabooks_all_companies" in blank._fields
+                and blank.cpabooks_all_companies is False
+            ):
+                continue
+            src = Group.search([
+                ("id", "!=", blank.id),
+                ("company_id", "!=", blank.company_id.id),
+                ("code_prefix_start", "=", blank.code_prefix_start),
+                ("name", "=", blank.name),
+                ("afg_group_id", "!=", False),
+            ], limit=1)
+            if not src:
+                continue
+            afg_id = blank._cpa_afg_id_for_company(src.afg_group_id, blank.company_id)
+            if not afg_id:
+                continue
+            payload = {"afg_group_id": afg_id}
+            if not blank.ctf_group_id and src.ctf_group_id:
+                payload["ctf_group_id"] = src.ctf_group_id.id
+            if not blank.ctf_category and src.ctf_category:
+                payload["ctf_category"] = src.ctf_category
+            blank.with_context(cpa_skip_group_cross_company=True).write(payload)
+        return True
+
+    def _cpa_push_afg_ctf_to_ledgers(self, vals):
+        Account = self.env["account.account"].sudo()
+        Line = self.env["audited.financial.group.line"].sudo().with_context(
+            afg_skip_collapse=True
+        )
+        for group in self:
+            accounts = Account.search([("group_id", "=", group.id)])
+            if not accounts:
+                continue
+            if "ctf_group_id" in vals:
+                category = group.ctf_group_id.ctf_category or False
+                if group.ctf_category != category:
+                    group.with_context(cpa_skip_group_push=True).write({
+                        "ctf_category": category,
+                    })
+                accounts.with_context(afg_skip_same_name_sync=True).write({
+                    "ctf_category": category,
+                })
+            elif "ctf_category" in vals:
+                accounts.with_context(afg_skip_same_name_sync=True).write({
+                    "ctf_category": vals.get("ctf_category") or False,
+                })
+            if "afg_group_id" not in vals:
+                continue
+            gid = vals.get("afg_group_id") or False
+            # Group AFG replaces whatever was reset onto the ledger before.
+            Line.search([("account_id", "in", accounts.ids)]).unlink()
+            if gid:
+                for acc in accounts:
+                    Line.create({"group_id": gid, "account_id": acc.id})
+                self.env.cr.execute(
+                    "UPDATE account_account SET afg_group_id = %s WHERE id IN %s",
+                    (gid, tuple(accounts.ids)),
+                )
+            else:
+                self.env.cr.execute(
+                    "UPDATE account_account SET afg_group_id = NULL WHERE id IN %s",
+                    (tuple(accounts.ids),),
+                )
+            accounts.invalidate_recordset(fnames=["afg_group_id"])
 
     def _afg_code_prefix(self):
         self.ensure_one()
@@ -424,3 +922,102 @@ class AuditedFinancialCoaGroupLedgers(models.TransientModel):
             "views": [(view.id, "form")],
             "target": "new",
         }
+
+
+class AccountAccountType(models.Model):
+    """CT Filing / AFG groups on the shared Odoo 14 account types (cpabooks_account_compat)."""
+
+    _inherit = "account.account.type"
+
+    ctf_group_id = fields.Many2one(
+        "audited.financial.ctf.group",
+        string="CTF",
+        domain="[('allocate', '=', True)]",
+        help="Sets this CT Filing group on every ledger of this type.",
+    )
+    ctf_category = fields.Selection(CTF_CATEGORY_SELECTION, string="CTF category")
+    afg_group_id = fields.Many2one(
+        "audited.financial.group",
+        string="AFG",
+        domain="[('code', 'not in', ['AFG_UNGRP_PL', 'AFG_UNGRP_BS'])]",
+        help="Sets this Audited Financial group on every ledger of this type.",
+    )
+
+    @api.model
+    def _afg_ensure_standard_types(self):
+        return self._cpa_ensure_standard_types()
+
+    def write(self, vals):
+        before = {
+            rec.id: (
+                rec.ctf_group_id.id,
+                rec.ctf_category,
+                rec.afg_group_id.id,
+            )
+            for rec in self
+        }
+        res = super().write(vals)
+        if self.env.context.get("cpa_skip_type_push"):
+            return res
+        if not any(key in vals for key in ("ctf_group_id", "ctf_category", "afg_group_id")):
+            return res
+        Account = self.env["account.account"].sudo()
+        for rec in self:
+            prev = before.get(rec.id)
+            if prev and (
+                rec.ctf_group_id.id,
+                rec.ctf_category,
+                rec.afg_group_id.id,
+            ) == prev:
+                continue
+            payload = {}
+            if "ctf_group_id" in vals or "ctf_category" in vals:
+                if "ctf_group_id" in vals:
+                    category = rec.ctf_group_id.ctf_category or False
+                    if rec.ctf_category != category:
+                        rec.with_context(cpa_skip_type_push=True).write({"ctf_category": category})
+                else:
+                    category = vals.get("ctf_category") or False
+                payload["ctf_category"] = category
+            if "afg_group_id" in vals:
+                payload["afg_group_id"] = rec.afg_group_id.id or False
+            accounts = Account.search([("user_type_id", "=", rec.id)])
+            if accounts and payload:
+                accounts.with_context(
+                    afg_skip_same_name_sync=True,
+                    cpa_skip_type_ctf=True,
+                ).write(payload)
+        return res
+
+
+class AccountAccountTypePopup(models.Model):
+    _inherit = "account.account"
+
+    cpa_type_ctf_group_id = fields.Many2one(
+        related="user_type_id.ctf_group_id",
+        string="Set CTF",
+        readonly=False,
+        help="Saved on this account type. Every ledger of the type gets this CT Filing group.",
+    )
+    cpa_type_afg_group_id = fields.Many2one(
+        related="user_type_id.afg_group_id",
+        string="Set AFG",
+        readonly=False,
+        help="Saved on this account type. Every ledger of the type gets this AFG group.",
+    )
+
+    def action_cpa_open_account_type(self):
+        self.ensure_one()
+        if not self.user_type_id:
+            raise UserError("Set a type on this ledger first.")
+        view = self.env.ref("audited_financial_cpa.view_account_type_ctf_popup")
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Type",
+            "res_model": "account.account.type",
+            "res_id": self.user_type_id.id,
+            "view_mode": "form",
+            "views": [(view.id, "form")],
+            "target": "new",
+        }
+

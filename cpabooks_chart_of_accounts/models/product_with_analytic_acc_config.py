@@ -61,22 +61,21 @@ class ProductWithAnalyticAcc(models.Model):
                         #         'type':'many2one',
                         #     })
                         create_product1.with_company(self.env.company.id).write({'property_account_expense_id':get_expense_id.id})
-                        serch_analytic_group_exists_or_not = self.env['account.analytic.group'].sudo().search(
-                            [('name', '=', line.expense_ledger_id.name), ('company_id', '=', self.env.company.id)], limit=1)
+                        serch_analytic_group_exists_or_not = self.env['account.analytic.plan'].sudo().search(
+                            [('name', '=', line.expense_ledger_id.name)], limit=1)
                         if not serch_analytic_group_exists_or_not:
-                            create_anlytic_group = self.env['account.analytic.group'].sudo().create({
-                                'name': line.expense_ledger_id.name,
-                                'company_id': self.env.company.id
+                            create_anlytic_group = self.env['account.analytic.plan'].sudo().create({
+                                'name': line.expense_ledger_id.name
                             })
                             analytic_acc_val = {
                                 'name': create_product1.name,
-                                'group_id': create_anlytic_group.id,
+                                'plan_id': create_anlytic_group.id,
                                 'company_id': self.env.company.id
                             }
                         else:
                             analytic_acc_val = {
                                 'name': create_product1.name,
-                                'group_id': serch_analytic_group_exists_or_not.id,
+                                'plan_id': serch_analytic_group_exists_or_not.id,
                                 'company_id': self.env.company.id
                             }
 
@@ -91,7 +90,7 @@ class ProductWithAnalyticAcc(models.Model):
                             'vehicle_no': line.vehicle_no,
                             'item_id': create_product1.id,
                             'analytic_acc_id':create_analytic_acc.id,
-                            'analytic_group_id':create_analytic_acc.group_id.id,
+                            'analytic_group_id':create_analytic_acc.plan_id.id,
                             'company_id':self.env.company.id,
                             'expense_ledger_id':line.expense_ledger_id.id
                         })
@@ -126,23 +125,22 @@ class ProductWithAnalyticAcc(models.Model):
                             })
                         create_product2.with_company(self.env.company.id).write(
                             {'property_account_expense_id': get_expense_id.id})
-                        serch_analytic_group_exists_or_not = self.env['account.analytic.group'].sudo().search(
-                            [('name', '=', line.expense_ledger_id.name), ('company_id', '=', self.env.company.id)],
+                        serch_analytic_group_exists_or_not = self.env['account.analytic.plan'].sudo().search(
+                            [('name', '=', line.expense_ledger_id.name)],
                             limit=1)
                         if not serch_analytic_group_exists_or_not:
-                            create_anlytic_group = self.env['account.analytic.group'].sudo().create({
-                                'name': line.expense_ledger_id.name,
-                                'company_id': self.env.company.id
+                            create_anlytic_group = self.env['account.analytic.plan'].sudo().create({
+                                'name': line.expense_ledger_id.name
                             })
                             analytic_acc_val = {
                                 'name': create_product2.name,
-                                'group_id': create_anlytic_group.id,
+                                'plan_id': create_anlytic_group.id,
                                 'company_id': self.env.company.id
                             }
                         else:
                             analytic_acc_val = {
                                 'name': create_product2.name,
-                                'group_id': serch_analytic_group_exists_or_not.id,
+                                'plan_id': serch_analytic_group_exists_or_not.id,
                                 'company_id': self.env.company.id
                             }
 
@@ -157,27 +155,27 @@ class ProductWithAnalyticAcc(models.Model):
                             'vehicle_no': line.vehicle_no,
                             'item_id': create_product2.id,
                             'analytic_acc_id': create_analytic_acc.id,
-                            'analytic_group_id': create_analytic_acc.group_id.id,
+                            'analytic_group_id': create_analytic_acc.plan_id.id,
                             'company_id': self.env.company.id,
                             'expense_ledger_id':line.expense_ledger_id.id
                         })
 
 
-                        # serch_analytic_group_exists_or_not = self.env['account.analytic.group'].sudo().search(
+                        # serch_analytic_group_exists_or_not = self.env['account.analytic.plan'].sudo().search(
                         #     [('name', '=', line.expense_ledger_id.name)], limit=1)
                         # if not serch_analytic_group_exists_or_not:
-                        #     create_anlytic_group = self.env['account.analytic.group'].sudo().create({
+                        #     create_anlytic_group = self.env['account.analytic.plan'].sudo().create({
                         #         'name': line.expense_ledger_id.name
                         #     })
                         #     analytic_acc_val = {
                         #         'name': create_product2.name,
-                        #         'group_id': create_anlytic_group.id,
+                        #         'plan_id': create_anlytic_group.id,
                         #     }
                         #     # extra_line.analytic_group_id = create_anlytic_group.id
                         # else:
                         #     analytic_acc_val = {
                         #         'name': create_product2.name,
-                        #         'group_id': serch_analytic_group_exists_or_not.id,
+                        #         'plan_id': serch_analytic_group_exists_or_not.id,
                         #     }
                         #     # extra_line.analytic_group_id = serch_analytic_group_exists_or_not.id
                         # create_analytic_acc = self.env['account.analytic.account'].sudo().create(analytic_acc_val)
@@ -189,7 +187,7 @@ class ProductWithAnalyticAcc(models.Model):
                         # val_list.append({
                         #     'vehicle_no': line.vehicle_no,
                         #     'analytic_acc_id': create_analytic_acc.id,
-                        #     'analytic_group_id': create_analytic_acc.group_id.id,
+                        #     'analytic_group_id': create_analytic_acc.plan_id.id,
                         #     'item_id': create_product2.id
                         # })
 
@@ -241,23 +239,22 @@ class ProductWithAnalyticAcc(models.Model):
                         #     })
                         create_product1.with_company(self.env.company.id).write(
                             {'property_account_expense_id': get_expense_id.id})
-                        serch_analytic_group_exists_or_not = self.env['account.analytic.group'].sudo().search(
-                            [('name', '=', line.expense_ledger_id.name), ('company_id', '=', self.env.company.id)],
+                        serch_analytic_group_exists_or_not = self.env['account.analytic.plan'].sudo().search(
+                            [('name', '=', line.expense_ledger_id.name)],
                             limit=1)
                         if not serch_analytic_group_exists_or_not:
-                            create_anlytic_group = self.env['account.analytic.group'].sudo().create({
-                                'name': line.expense_ledger_id.name,
-                                'company_id': self.env.company.id
+                            create_anlytic_group = self.env['account.analytic.plan'].sudo().create({
+                                'name': line.expense_ledger_id.name
                             })
                             analytic_acc_val = {
                                 'name': create_product1.name,
-                                'group_id': create_anlytic_group.id,
+                                'plan_id': create_anlytic_group.id,
                                 'company_id': self.env.company.id
                             }
                         else:
                             analytic_acc_val = {
                                 'name': create_product1.name,
-                                'group_id': serch_analytic_group_exists_or_not.id,
+                                'plan_id': serch_analytic_group_exists_or_not.id,
                                 'company_id': self.env.company.id
                             }
 
@@ -291,30 +288,29 @@ class ProductWithAnalyticAcc(models.Model):
             chk_emp_has_visa_ana_acc = self.env['account.analytic.account'].sudo().search(
                 [('name', '=ilike', 'Visa - ' + emp.name + "%"), ('company_id', '=', self.env.company.id)], limit=1)
             if not chk_emp_has_visa_ana_acc:
-                serch_analytic_group_exists_or_not = self.env['account.analytic.group'].sudo().search(
+                serch_analytic_group_exists_or_not = self.env['account.analytic.plan'].sudo().search(
                     [('name', '=ilike', "prepaid visa expenses%"), ('company_id', '=', self.env.company.id)],
                     limit=1)
                 if not serch_analytic_group_exists_or_not:
-                    create_anlytic_group = self.env['account.analytic.group'].sudo().create({
-                        'name': "Prepaid Visa Expenses",
-                        'company_id': self.env.company.id
+                    create_anlytic_group = self.env['account.analytic.plan'].sudo().create({
+                        'name': "Prepaid Visa Expenses"
                     })
                     analytic_acc_val = {
                         'name': 'Visa - '+emp.name,
-                        'group_id': create_anlytic_group.id,
+                        'plan_id': create_anlytic_group.id,
                         'company_id': self.env.company.id
                     }
                 else:
                     analytic_acc_val = {
                         'name': 'Visa - '+emp.name,
-                        'group_id': serch_analytic_group_exists_or_not.id,
+                        'plan_id': serch_analytic_group_exists_or_not.id,
                         'company_id': self.env.company.id
                     }
 
                 create_analytic_acc = self.env['account.analytic.account'].sudo().create(analytic_acc_val)
                 val_list.append({
                     'analytic_acc_id': create_analytic_acc.id,
-                    'analytic_group_id': create_analytic_acc.group_id.id,
+                    'analytic_group_id': create_analytic_acc.plan_id.id,
                     'company_id': self.env.company.id
                 })
         if val_list:
@@ -332,7 +328,7 @@ class ProductWithAnalyticAccLine(models.Model):
     vehicle_no=fields.Char(string="Vehicle No.")
     expense_ledger_id=fields.Many2one('account.account',string="Expense Ledger")
     analytic_acc_id=fields.Many2one('account.analytic.account',string="Analytical Account")
-    analytic_group_id=fields.Many2one('account.analytic.group',string="Analytical Group")
+    analytic_group_id=fields.Many2one('account.analytic.plan',string="Analytical Group")
     item_id=fields.Many2one('product.product',string="Item Name")
     company_id=fields.Many2one('res.company')
 
@@ -352,7 +348,7 @@ class ProductWithAnalyticAccShowLine(models.TransientModel):
     vehicle_no=fields.Char(string="Vehicle No.")
     expense_ledger_id=fields.Many2one('account.account',string="Expense Ledger", default=lambda self:self.env['account.account'].sudo().search([('name','=ilike','vehicle expenses%'),('company_id','=',self.env.company.id)],limit=1),required=True)
     analytic_acc_id=fields.Many2one('account.analytic.account',string="Analytical Account")
-    analytic_group_id=fields.Many2one('account.analytic.group',string="Analytical Group")
+    analytic_group_id=fields.Many2one('account.analytic.plan',string="Analytical Group")
     item_id=fields.Many2one('product.product',string="Item Name")
     company_id=fields.Many2one('res.company')
 

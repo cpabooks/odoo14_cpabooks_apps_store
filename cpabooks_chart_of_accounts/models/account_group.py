@@ -71,21 +71,20 @@ CPA_GROUP_SECTION = {
 class AccountGroup(models.Model):
     _inherit = 'account.group'
 
-    def name_get(self):
+    @api.depends('name', 'code_prefix_start')
+    def _compute_display_name(self):
         """Clubbed chart rows show the group name only. The code stays in Group Code."""
-        result = []
         for group in self:
             name = (group.name or '').strip()
             prefix = (group.code_prefix_start or '').strip()
             if prefix and name.startswith(prefix):
                 name = name[len(prefix):].lstrip(' -')
-            result.append((group.id, name or group.name or ''))
-        return result
+            group.display_name = name or group.name or ''
 
     @api.model
-    def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
+    def _search(self, domain, offset=0, limit=None, order=None, **kwargs):
         """Switcher companies only. Super-admin skips ir.rules, so the same group name showed once per company."""
-        args = list(args or [])
+        args = list(domain or [])
         if not self.env.su and not self.env.context.get('cpabooks_group_all_companies'):
             company_ids = []
             for cid in (self.env.context.get('allowed_company_ids') or self.env.companies.ids):
@@ -96,8 +95,7 @@ class AccountGroup(models.Model):
             if company_ids:
                 args = expression.AND([args, [('company_id', 'in', company_ids)]])
         return super(AccountGroup, self)._search(
-            args, offset=offset, limit=limit, order=order, count=count,
-            access_rights_uid=access_rights_uid,
+            args, offset=offset, limit=limit, order=order, **kwargs,
         )
 
     def _cpabooks_should_skip_prefix_overlap(self):

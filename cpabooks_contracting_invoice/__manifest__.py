@@ -8,7 +8,7 @@
     "website": "https://www.cpabooks.co",
     "support": "info@cpabooks.org",
     "license": "LGPL-3",
-    "price": 120.00,
+    "price": 30.00,
     "currency": "USD",
     "images": ["static/description/banner.png"],
     "live_test_url": "https://cpabooks.org/contactus?debug=1",

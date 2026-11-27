@@ -18,7 +18,7 @@
             <field name="model">account.move</field>
             <field name="priority">16</field>
             <field name="arch" type="xml">
-                <list string="Invoice" sample="1">
+                <list string="Invoice" sample="1" js_class="cafm_amc_invoice_list">
                     <field name="cafm_invoice_sr" readonly="1"/>
                     <field name="name" decoration-bf="1" readonly="1"/>
                     <field name="project_title" string="Property Name" readonly="1"/>

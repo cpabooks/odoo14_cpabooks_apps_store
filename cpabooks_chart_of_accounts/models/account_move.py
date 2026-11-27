@@ -24,8 +24,8 @@ class AccountMove(models.Model):
     def _cpabooks_get_retained_earnings_account(self, company):
         company = company or self.env.company
         Account = self.env['account.account']
-        equity_type = self.env.ref('account.data_account_type_equity', raise_if_not_found=False)
-        domain = [('company_id', '=', company.id), ('deprecated', '=', False)]
+        equity_type = self.env.ref('cpabooks_account_compat.data_account_type_equity', raise_if_not_found=False)
+        domain = [('company_id', '=', company.id)]
         if equity_type:
             domain.append(('user_type_id', '=', equity_type.id))
         for label in ('retained earning', 'retained earnings', 'current year earning', 'undistributed'):

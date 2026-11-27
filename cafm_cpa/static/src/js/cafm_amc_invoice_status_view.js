@@ -1,10 +1,11 @@
-odoo.define("cafm_cpa.amc_invoice_status_view", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction, legacyRpc as rpc, loadChartJs, chartV2ToV4, currentAppXmlid, onShellUpdate, openMenuByXmlid } from "@cafm_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import * as cafm_cpa_shell from "@cafm_cpa/js/cafm_shell_sidebar";
+import * as cafm_cpa_amc_invoice_toolbar from "@cafm_cpa/js/cafm_amc_invoice_toolbar";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-    var _t = core._t;
-
+const $ = window.jQuery;
+const _t = core._t;
     function formatAmount(value) {
         var n = parseFloat(value);
         if (isNaN(n)) {
@@ -28,7 +29,7 @@ odoo.define("cafm_cpa.amc_invoice_status_view", function (require) {
         return base + (extra ? " " + extra : "");
     }
 
-    var AmcInvoiceStatusView = AbstractAction.extend({
+    var AmcInvoiceStatusView = legacyAction({
         contentTemplate: "CpabooksCafmAmcInvoiceStatusView",
         xmlDependencies: ["/cafm_cpa/static/src/xml/cafm_amc_invoice_status_view.xml"],
 
@@ -44,7 +45,7 @@ odoo.define("cafm_cpa.amc_invoice_status_view", function (require) {
 
         start: function () {
             var self = this;
-            var toolbar = require("cafm_cpa.amc_invoice_toolbar");
+const toolbar = cafm_cpa_amc_invoice_toolbar;
             this.set("title", _t("AMC Invoice Status"));
             return this._super.apply(this, arguments).then(function () {
                 self.$el.addClass("o_cafm_invoice_status_action");
@@ -56,7 +57,7 @@ odoo.define("cafm_cpa.amc_invoice_status_view", function (require) {
                 self._render();
                 toolbar.scheduleEnhanceInvoiceToolbar(self, { mode: "status" });
                 try {
-                    require("cafm_cpa.shell").requestSyncSidebar(true);
+                    cafm_cpa_shell.requestSyncSidebar(true);
                 } catch (e) { /* ignore */ }
             });
         },
@@ -220,6 +221,5 @@ odoo.define("cafm_cpa.amc_invoice_status_view", function (require) {
         },
     });
 
-    core.action_registry.add("cafm_cpa_amc_invoice_status", AmcInvoiceStatusView);
-    return AmcInvoiceStatusView;
-});
+    registerLegacyAction("cafm_cpa_amc_invoice_status", AmcInvoiceStatusView);
+    export default AmcInvoiceStatusView;

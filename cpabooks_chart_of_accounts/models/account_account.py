@@ -241,18 +241,14 @@ class AccountAccount(models.Model):
             account.cpabooks_l1_type_label = engine.l1_type_label(account)
             account.cpabooks_bs_pl = engine.ledger_bs_pl(account)
 
-    def name_get(self):
+    @api.depends('code', 'name')
+    @api.depends_context('company')
+    def _compute_display_name(self):
         engine = self.env['coa.ifrs.coding']
-        result = []
         for account in self:
             code = engine.effective_ledger_code(account) or (account.code or '').strip()
             name = account.name or ''
-            if code:
-                display = '%s | %s' % (code, name)
-            else:
-                display = name
-            result.append((account.id, display))
-        return result
+            account.display_name = '%s | %s' % (code, name) if code else name
 
     @api.depends('company_id')
     def _compute_cpabooks_company_display(self):
@@ -705,16 +701,18 @@ class AccountAccount(models.Model):
 
     @api.model
     def _cpa_get_duplicate_code_records(self):
-        self.env.cr.execute("""
-            SELECT array_agg(id ORDER BY company_id, code, id)
-              FROM account_account
-             WHERE code IS NOT NULL AND code != '' AND company_id IS NOT NULL
-             GROUP BY company_id, code
-            HAVING count(*) > 1
-        """)
+        # Odoo 18+: code is company dependent (code_store jsonb), group in Python
+        seen = {}
+        accounts = self.sudo().with_context(active_test=False).search([])
+        for company in accounts.mapped('company_ids'):
+            for account in accounts.filtered(lambda a: company in a.company_ids).with_company(company):
+                code = (account.code or '').strip()
+                if code:
+                    seen.setdefault((company.id, code), []).append(account.id)
         duplicate_ids = []
-        for row in self.env.cr.fetchall():
-            duplicate_ids.extend(row[0] or [])
+        for ids in seen.values():
+            if len(ids) > 1:
+                duplicate_ids.extend(sorted(ids))
         return self.sudo().browse(duplicate_ids)
 
     @api.model

@@ -6,7 +6,7 @@
     'description': """
 All in One Cancel
 =================
-One module to undo posted documents in Odoo 14 Community and Enterprise:
+One module to undo posted documents in Odoo 19 Community and Enterprise:
 
 * Invoices, bills, credit notes and journal entries: cancel, reset to draft or delete.
 * Payments: cancel, reset to draft or delete (linked payments are handled too).
@@ -25,7 +25,7 @@ Only users in the group "Cancel Posted Documents" can use these actions.
     'category': 'Accounting/Accounting',
     'version': '19.0.2.0.0',
     'license': 'LGPL-3',
-    'price': 25.00,
+    'price': 15.00,
     'currency': 'USD',
     'images': ['static/description/banner.jpg'],
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',

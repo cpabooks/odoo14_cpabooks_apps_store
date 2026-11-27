@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="cafm_cpa.TallyListButtons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <xpath expr="." position="inside">
+            <button t-if="model.root.isGrouped" type="button" class="btn btn-secondary o_tally_toggle_expand_btn"
+                    t-on-click="onCafmToggleExpand" t-esc="cafmHasFolded ? 'Expand' : 'Collapse'"/>
+            <button type="button" class="btn btn-primary o_tally_print_report_btn" t-on-click="onCafmPrintReport">Print Report</button>
+            <button t-if="cafmFormatWizard" type="button" class="btn btn-secondary o_cpabooks_amc_invoice_format_btn"
+                    t-on-click="onCafmFormat">Format</button>
+        </xpath>
+    </t>
+
+    <t t-name="cafm_cpa.AmcRegisterListButtons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <xpath expr="." position="inside">
+            <button type="button" class="btn btn-primary o_cpabooks_amc_create_btn" t-on-click="onCafmCreateContract">Create AMC Contract</button>
+            <button type="button" class="btn btn-secondary o_cpabooks_amc_register_format_btn" t-on-click="onCafmFormat">Format</button>
+            <button type="button" class="btn btn-secondary o_cpabooks_amc_register_print_btn" title="Print AMC Contracts To be Invoiced" t-on-click="onCafmPrint">Print</button>
+            <button type="button" class="btn btn-secondary o_cpabooks_amc_register_xview_btn" title="Revenue schedule grid (Jan–Dec)" t-on-click="onCafmXView">X View</button>
+            <button type="button" class="btn o_cpabooks_amc_next_invoice_toggle"
+                    t-att-class="cafm.nextInvoice ? 'btn-success' : 'btn-secondary'"
+                    t-att-aria-pressed="cafm.nextInvoice ? 'true' : 'false'"
+                    title="Toggle monthly Next Invoice view" t-on-click="onCafmToggleNextInvoice">Next Invoice</button>
+            <select t-if="cafm.nextInvoice" class="form-select form-select-sm w-auto d-inline-block o_cpabooks_amc_next_invoice_filter"
+                    aria-label="Next Invoice month" t-on-change="onCafmMonthChange">
+                <option value="all" t-att-selected="cafm.monthKey === 'all'">All</option>
+                <t t-foreach="cafm.monthOptions" t-as="opt" t-key="opt.key">
+                    <option t-att-value="opt.key" t-att-selected="cafm.monthKey === opt.key" t-esc="opt.label"/>
+                </t>
+            </select>
+            <span t-if="cafm.totals" class="ms-2 o_cpabooks_amc_grand_total_row">
+                <strong>Total</strong>
+                Monthly: <strong t-esc="formatAmount(cafm.totals.monthly_revenue)"/>
+                · Invoicing: <strong t-esc="formatAmount(cafm.totals.invoicing_value)"/>
+            </span>
+        </xpath>
+    </t>
+
+    <t t-name="cafm_cpa.AmcInvoiceListButtons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <xpath expr="." position="inside">
+            <button type="button" class="btn o_cpabooks_amc_invoice_status_view_btn"
+                    t-att-class="cafmStatusOn ? 'btn-success' : 'btn-secondary'"
+                    title="Toggle AMC Invoice Status grid" t-on-click="onCafmStatusView">Status View</button>
+            <button type="button" class="btn o_cpabooks_amc_invoice_yearly_btn"
+                    t-att-class="cafmInvoice.yearly ? 'btn-success' : 'btn-secondary'"
+                    title="Toggle invoice list grouped by year" t-on-click="onCafmYearlyView">Yearly View</button>
+        </xpath>
+    </t>
+
+    <t t-name="cafm_cpa.CafmReadonlyHtml">
+        <div class="o_field_cafm_readonly_html o_readonly">
+            <div t-if="html" class="cafm_readonly_html" t-out="html"/>
+        </div>
+    </t>
+
+</templates>

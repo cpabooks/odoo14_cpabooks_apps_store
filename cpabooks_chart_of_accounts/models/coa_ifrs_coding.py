@@ -26,6 +26,7 @@ PROPOSED_GROUP_BY_INTERNAL = {
     'income': 'Income',
     'expense': 'Expenses',
     'off_balance': 'Off-Balance Sheet',
+    'off': 'Off-Balance Sheet',
 }
 
 PROPOSED_GROUP_BY_TYPE = {
@@ -118,7 +119,7 @@ class CoaIfrsCoding(models.AbstractModel):
         it = account.internal_type
         utype_name = (account.user_type_id.name or '').lower() if account.user_type_id else ''
 
-        if ig == 'off_balance' or re.search(r'suspense|clearing', name):
+        if ig in ('off', 'off_balance') or re.search(r'suspense|clearing', name):
             return (900, 999, 'special', 900)
         if re.search(r'\btax\b|\bvat\b|withholding', name):
             return (900, 999, 'tax', 901)
@@ -207,9 +208,9 @@ class CoaIfrsCoding(models.AbstractModel):
             return seed_name
         proposed_group = self.proposed_group_name(account)
         company = account.company_id.display_name if account.company_id else ''
-        if account.internal_type == 'liquidity':
+        if account.account_type in ('asset_cash', 'liability_credit_card'):
             return _('%(group)s - %(company)s') % {'group': proposed_group, 'company': company}
-        if account.internal_type in ('receivable', 'payable'):
+        if account.account_type in ('asset_receivable', 'liability_payable'):
             if company and company.lower() not in current.lower():
                 return _('%(base)s - %(company)s') % {'base': proposed_group, 'company': company}
             return proposed_group

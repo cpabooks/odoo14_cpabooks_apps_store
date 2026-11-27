@@ -112,7 +112,7 @@
                 <xpath expr="//field[@name='date_start'][not(ancestor::field)]" position="attributes" optional="True">
                     <attribute name="invisible">is_fsm</attribute>
                 </xpath>
-                <xpath expr="//field[@name='date_end'][not(ancestor::field)]" position="attributes" optional="True">
+                <xpath expr="//field[@name='fsm_date_end'][not(ancestor::field)]" position="attributes" optional="True">
                     <attribute name="invisible">is_fsm</attribute>
                 </xpath>
                 <xpath expr="//field[@name='aging_days'][not(ancestor::field)]" position="attributes" optional="True">

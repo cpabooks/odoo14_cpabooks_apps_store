@@ -10,12 +10,15 @@ from . import audited_financial_l1_print_wizard
 from . import audited_financial_print_setup_wizard
 from . import audited_financial_ct_master
 from . import account_move_line
+from . import ir_actions_report_afg
+from . import audited_financial_iso_coa_wizard
+from . import res_company
 
 try:
     from . import audited_financial_report
 except Exception:  # pragma: no cover - keep core AFG loadable if report extras fail
     import logging
     logging.getLogger(__name__).exception(
-        "audited_financial_cpa: could not load audited_financial_report extension"
+        "audited_financials: could not load audited_financial_report extension"
     )
 

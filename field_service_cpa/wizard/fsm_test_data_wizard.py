@@ -30,16 +30,16 @@ class FsmTestDataWizard(models.TransientModel):
         scenarios = [
             ('Downtown Tower lobby AC no cooling', 'amc', 'registered', 0, 2.0, 0),
             ('Marina Heights pump room pressure drop', 'amc', 'site_visited', 1, 3.5, 1),
-            ('Jumeirah villa water heater leak', 'warranty_service', 'in_progress', 1, 5.0, 2),
+            ('Jumeirah villa water heater leak', 'warranty', 'in_progress', 1, 5.0, 2),
             ('Business Bay office CCTV outage', 'new_installation', 'qty_issued', 2, 4.0, 1),
-            ('Al Quoz warehouse roller shutter fault', 'warranty_service', 'qty_approved', 2, 6.5, 2),
+            ('Al Quoz warehouse roller shutter fault', 'warranty', 'qty_approved', 2, 6.5, 2),
             ('Dubai Silicon Oasis server room AC alarm', 'amc', 'waiting_for_invoice', 3, 7.0, 3),
             ('Mirdif apartment electrical tripping', 'site_visit', 'job_completed', 3, 2.5, 1),
             ('Deira retail shop signage power issue', 'new_inquiry', 'approved', 4, 4.5, 2),
             ('Sharjah office pantry drain blockage', 'amc', 'in_progress', 4, 3.0, 1),
             ('Ajman warehouse emergency lighting test', 'site_visit', 'site_visited', 5, 2.0, 0),
             ('DIP factory compressor service request', 'new_inquiry', 'waiting_for_invoice', 5, 8.0, 3),
-            ('Dubai Mall kiosk network rack overheating', 'warranty_service', 'approved', 6, 5.5, 2),
+            ('Dubai Mall kiosk network rack overheating', 'warranty', 'approved', 6, 5.5, 2),
             ('Palm Jumeirah villa irrigation controller fault', 'amc', 'job_completed', 6, 3.5, 1),
             ('Ras Al Khaimah staff camp booster pump vibration', 'site_visit', 'in_progress', 7, 6.0, 2),
             ('Abu Dhabi branch access control reader failure', 'new_installation', 'qty_approved', 7, 7.5, 3),
@@ -283,7 +283,7 @@ class FsmTestDataWizard(models.TransientModel):
             'user_id': self.env.user.id if stage_target in ('in_progress', 'waiting_for_invoice') else False,
             'assign_date': start_date if stage_target in ('in_progress', 'waiting_for_invoice') else False,
             'next_action': self._next_action_for_stage(stage_target),
-            'date_end': start_date + timedelta(days=2) if stage_target in (
+            'fsm_date_end': start_date + timedelta(days=2) if stage_target in (
                 'waiting_for_invoice', 'job_completed', 'approved') else False,
             'approved_by': self.env.user.id if stage_target == 'approved' else False,
         }))

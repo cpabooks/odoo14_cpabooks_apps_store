@@ -126,18 +126,18 @@ class ProjectTaskFsmQuotationDisplay(models.Model):
         stage_key = (
             self._get_fsm_stage_value()
             if hasattr(self, '_get_fsm_stage_value')
-            else (self.stage or self.state or 'registered')
+            else (self.stage or self.fsm_state or 'registered')
         )
         if stage_key in _FSM_INVOICE_STAGE_KEYS:
             return True
         if self._get_fsm_related_orders_active():
-            return bool(self.date_end)
+            return bool(self.fsm_date_end)
         return False
 
     @api.depends(
         'stage',
-        'state',
-        'date_end',
+        'fsm_state',
+        'fsm_date_end',
         'next_action',
         'fsm_all_invoice_count',
         'qt_no',
@@ -225,15 +225,15 @@ class ProjectTaskFsmQuotationDisplay(models.Model):
 
     @api.depends(
         'stage',
-        'state',
-        'date_end',
+        'fsm_state',
+        'fsm_date_end',
         'select_invoice',
         'approved_by',
     )
     def _compute_fsm_stage7_approval_display(self):
         for task in self:
             stage_key = task._get_fsm_stage_value() if hasattr(task, '_get_fsm_stage_value') else (
-                task.stage or task.state or 'registered'
+                task.stage or task.fsm_state or 'registered'
             )
             job_complete = stage_key in _FSM_STAGE7_JOB_DONE_KEYS
             task.fsm_stage7_job_complete = job_complete

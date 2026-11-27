@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-from odoo import _, models
+from odoo import _, api, models
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
+    @api.readonly
     def get_formview_action(self, access_uid=None):
         """AFG journal-items drill: open the parent voucher / journal entry."""
         if self.env.context.get("afg_drill_open_move"):

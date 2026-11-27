@@ -279,8 +279,8 @@ class ProjectTaskDashboard(models.Model):
             closed_domain = [
                 ('is_fsm', '=', True),
                 ('company_id', 'in', company_ids),
-                ('date_end', '>=', month_start),
-                ('date_end', '<', month_end),
+                ('fsm_date_end', '>=', month_start),
+                ('fsm_date_end', '<', month_end),
             ]
             created.append(self.search_count(created_domain))
             closed.append(self.search_count(closed_domain))

@@ -5,7 +5,7 @@
     'description': """
 CPA Books Chart of Accounts
 ===========================
-IFRS-structured chart of accounts for Odoo 14 Accounting:
+IFRS-structured chart of accounts for Odoo 19 Accounting:
 type / group / ledger coding, automatic ledger codes, COA reset and
 regenerate wizards, merge and delete of unused ledgers, opening balance
 entry, correspondent Dr/Cr ledgers and product COA codes.
@@ -16,7 +16,7 @@ entry, correspondent Dr/Cr ledgers and product COA codes.
     'category': 'Accounting/Accounting',
     'version': '19.0.1.0.1',
     'license': 'LGPL-3',
-    'price': 39.00,
+    'price': 20.00,
     'currency': 'USD',
     'live_test_url': 'https://cpabooks.org/contactus?debug=1',
     'images': [
@@ -29,6 +29,8 @@ entry, correspondent Dr/Cr ledgers and product COA codes.
         'product',
         'account',
         'purchase',
+        # Odoo 14 account type / company / group fields on Odoo 19
+        'cpabooks_account_compat',
     ],
     'data': [
         'security/account_group_security.xml',

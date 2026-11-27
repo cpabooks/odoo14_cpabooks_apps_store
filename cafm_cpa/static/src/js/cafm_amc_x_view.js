@@ -1,10 +1,10 @@
-odoo.define("cafm_cpa.amc_x_view", function (require) {
-    "use strict";
+/** @odoo-module **/
+import { _, core, legacyAction, LegacyDialog, registerLegacyAction, legacyRpc as rpc, loadChartJs, chartV2ToV4, currentAppXmlid, onShellUpdate, openMenuByXmlid } from "@cafm_cpa/js/legacy_compat";
+import { user } from "@web/core/user";
+import * as cafm_cpa_shell from "@cafm_cpa/js/cafm_shell_sidebar";
 
-    var AbstractAction = require("web.AbstractAction");
-    var core = require("web.core");
-    var _t = core._t;
-
+const $ = window.jQuery;
+const _t = core._t;
     function formatAmount(value) {
         var n = parseFloat(value);
         if (isNaN(n)) {
@@ -56,7 +56,7 @@ odoo.define("cafm_cpa.amc_x_view", function (require) {
         return fallback;
     }
 
-    var AmcRegisterXView = AbstractAction.extend({
+    var AmcRegisterXView = legacyAction({
         contentTemplate: "CpabooksCafmAmcXView",
         xmlDependencies: ["/cafm_cpa/static/src/xml/cafm_amc_x_view.xml"],
 
@@ -90,7 +90,7 @@ odoo.define("cafm_cpa.amc_x_view", function (require) {
             }).then(function () {
                 self._render();
                 try {
-                    require("cafm_cpa.shell").requestSyncSidebar(true);
+                    cafm_cpa_shell.requestSyncSidebar(true);
                 } catch (e) { /* ignore */ }
             });
         },
@@ -219,5 +219,5 @@ odoo.define("cafm_cpa.amc_x_view", function (require) {
         },
     });
 
-    core.action_registry.add("cafm_cpa_amc_x_view", AmcRegisterXView);
-});
+    registerLegacyAction("cafm_cpa_amc_x_view", AmcRegisterXView);
+

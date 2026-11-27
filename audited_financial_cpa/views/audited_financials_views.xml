@@ -56,8 +56,8 @@
                                              string="Target / correct group"
                                              options="{'no_create': True, 'no_create_edit': True}"
                                              domain="[('id', '!=', parent.id), ('code', 'not in', ['AFG_UNGRP_PL', 'AFG_UNGRP_BS']), '|', ('company_id', '=', False), ('company_id', 'in', allowed_company_ids)]"
-                                            
-                                             context="{'default_report_section': parent.report_section}" column_invisible="parent.code not in ('AFG_UNGRP_PL', 'AFG_UNGRP_BS')"/>
+                                             column_invisible="parent.code not in ('AFG_UNGRP_PL', 'AFG_UNGRP_BS')"
+                                             context="{'default_report_section': parent.report_section}"/>
                                     <field name="company_id" invisible="1"/>
                                 </list>
                             </field>
@@ -204,10 +204,8 @@
             <search string="Ledgers">
                 <field name="name" string="Ledger"/>
                 <field name="user_type_id" string="Type"/>
-                <field name="group_id" string="Group"/>
                 <group>
                     <filter name="groupby_type" string="Type" context="{'group_by': 'user_type_id'}"/>
-                    <filter name="groupby_group" string="Group" context="{'group_by': 'group_id'}"/>
                 </group>
             </search>
         </field>
@@ -386,7 +384,7 @@
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_account_tree_l4_coa_map"/>
         <field name="search_view_id" ref="account.view_account_search"/>
-        <field name="context">{'search_default_groupby_group': 1, 'group_by': ['group_id'], 'afg_map_list': 1, 'afg_map_mode': 'coa_group'}</field>
+        <field name="context">{'afg_map_list': 1, 'afg_map_mode': 'coa_group'}</field>
     </record>
 
     <record id="view_audited_financial_version_form" model="ir.ui.view">
@@ -418,7 +416,8 @@
                             <field name="company_ids" widget="many2many_tags" options="{'no_create': True}"/>
                             <field name="report_column_company_ids" widget="many2many_tags"
                                    domain="[('id', 'in', company_ids)]"
-                                   options="{'no_create': True}" invisible="not company_ids"/>
+                                   options="{'no_create': True}"
+                                   invisible="not company_ids"/>
                             <field name="currency_id"/>
                         </group>
                         <group>
@@ -542,9 +541,9 @@
         <field name="context" eval="{'afg_section': 'review'}"/>
     </record>
 
-    <!-- Multico PL/BS client actions owned by project_dashboard_odoo (no duplicate eval refs). -->
+    <!-- Multico PL/BS client actions owned by audited_financials (no duplicate eval refs). -->
     <menuitem id="menu_audited_financials_root"
-              name="Audited Financial"
+              name="Audited Financials"
               action="action_audited_financials_dashboard_client"
               sequence="40"/>
     <menuitem id="menu_audited_financials_home"
@@ -556,9 +555,6 @@
               name="Configuration"
               parent="menu_audited_financials_root"
               sequence="5"/>
-    <delete model="ir.ui.menu" id="menu_audited_financials_setup"/>
-    <delete model="ir.ui.menu" id="menu_audited_financials_l3_coa_groups"/>
-    <delete model="ir.ui.menu" id="menu_audited_financials_l4_coa_ledgers"/>
     <menuitem id="menu_audited_financials_mapping"
               name="Chart of Accounts"
               parent="menu_audited_financials_configuration"
@@ -572,10 +568,22 @@
               name="Financial Reports"
               parent="menu_audited_financials_root"
               sequence="25"/>
-    <!-- Multico PL/BS menus wired in post_init_hook (project_dashboard_odoo may be stale on install). -->
+    <!-- Multico PL/BS menus wired in post_init_hook (audited_financials may be stale on install). -->
     <menuitem id="menu_audited_financials_versions"
               name="Saved versions"
               parent="menu_audited_financials_root"
               action="action_audited_financial_version"
               sequence="90"/>
+    <menuitem id="menu_afg_l1_ctf_ledgers_group"
+              name="L1_CTF Ledgers Group"
+              parent="account.menu_finance_configuration"
+              action="action_afg_l1_ctf_ledgers_group"
+              sequence="45"
+              groups="account.group_account_manager"/>
+    <menuitem id="menu_afg_l2_afg_ledgers_group"
+              name="L2_AFG Ledgers Group"
+              parent="account.menu_finance_configuration"
+              action="action_audited_financial_group"
+              sequence="46"
+              groups="account.group_account_manager"/>
 </odoo>
